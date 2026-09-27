@@ -9,6 +9,8 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': 'http://localhost:3000',
+      // The browser IDE (HTTP and WebSockets) goes through the API, which checks the session.
+      '/ide': { target: 'http://localhost:3000', ws: true },
     },
   },
   test: {

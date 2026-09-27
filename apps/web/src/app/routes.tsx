@@ -8,6 +8,7 @@ import { NotFoundPage } from '../pages/NotFoundPage';
 import { SignUpPage } from '../pages/SignUpPage';
 import { TeamPage } from '../pages/TeamPage';
 import { ActivityPage } from '../pages/project/ActivityPage';
+import { IdePage } from '../pages/project/IdePage';
 import { MembersPage } from '../pages/project/MembersPage';
 import { OverviewPage } from '../pages/project/OverviewPage';
 import { ProjectLayout } from '../pages/project/ProjectLayout';
@@ -16,6 +17,11 @@ import { BlobPage } from '../pages/project/repository/BlobPage';
 import { FilesPage } from '../pages/project/repository/FilesPage';
 
 export const routes: RouteObject[] = [
+  // The IDE fills the whole window, so it sits outside the normal page layout.
+  {
+    element: <RequireAuth />,
+    children: [{ path: 'projects/:projectId/ide', element: <IdePage /> }],
+  },
   {
     element: <Layout />,
     children: [

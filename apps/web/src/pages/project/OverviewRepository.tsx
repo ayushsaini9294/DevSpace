@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
-import { LoadError, Loading, cardStyle, linkStyle } from '../../components/ui';
+import { LoadError, Loading, buttonStyles, cardStyle, linkStyle } from '../../components/ui';
+import { canOpenIde, idePageUrl } from '../../lib/copies';
 import { filesUrl, useRepository } from '../../lib/repository';
 import { useProjectContext } from './ProjectLayout';
 import { NOT_SET_UP_MESSAGE } from './repository/RepositoryGate';
@@ -29,9 +30,16 @@ export function OverviewRepository() {
       body = (
         <>
           <LastCommit commit={repository.data.lastCommit} />
-          <Link to={files} className={linkStyle}>
-            Browse files
-          </Link>
+          <div className="flex flex-wrap items-center gap-4">
+            {canOpenIde(project, repository.data) && (
+              <Link to={idePageUrl(project.id)} className={buttonStyles.primary}>
+                Open IDE
+              </Link>
+            )}
+            <Link to={files} className={linkStyle}>
+              Browse files
+            </Link>
+          </div>
         </>
       );
     } else if (status === 'importing') {

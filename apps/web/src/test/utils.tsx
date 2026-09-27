@@ -12,6 +12,8 @@ import type {
   AcceptInvitationResponseSchema,
   ActivityListResponseSchema,
   AuthResponse,
+  CopyResponse,
+  CopyView,
   CreateInvitationResponseSchema,
   ErrorResponse,
   FileResponse,
@@ -62,7 +64,8 @@ export type StubBody =
   | z.infer<typeof ActivityListResponseSchema>
   | z.infer<typeof RepositoryResponseSchema>
   | TreeResponse
-  | FileResponse;
+  | FileResponse
+  | CopyResponse;
 
 export type StubReply =
   | { status: 200 | 201 | 202; body: StubBody }
@@ -188,6 +191,21 @@ export function testRepository(overrides: Partial<RepositoryStatus> = {}): Repos
     importUrl: null,
     error: null,
     lastCommit: null,
+    ...overrides,
+  };
+}
+
+// ---------- Copies and IDE (Phase 5) ----------
+
+/** My copy as GET/POST …/copy would describe it. */
+export function testCopy(overrides: Partial<CopyView> = {}): CopyView {
+  return {
+    id: '8f14e45f-ceea-467a-9575-000000000001',
+    branchName: `copy/${testUser.id}`,
+    containerStatus: 'none',
+    createdAt: '2026-09-27T10:00:00.000Z',
+    lastActiveAt: null,
+    ideUrl: null,
     ...overrides,
   };
 }
