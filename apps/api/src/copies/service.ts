@@ -45,7 +45,7 @@ export const copySelect = {
   lastActiveAt: true,
 } as const;
 
-/** The browser's view of a copy row: no paths, no container id, no token. */
+/** The browser's view of a copy row: no paths, no container id, no token, no IDE link. */
 export function toView(row: {
   id: string;
   branchName: string;
@@ -59,8 +59,6 @@ export function toView(row: {
     containerStatus: row.containerStatus,
     createdAt: row.createdAt.toISOString(),
     lastActiveAt: row.lastActiveAt?.toISOString() ?? null,
-    // Through the API's /ide proxy, and only while the IDE is answering.
-    ideUrl: row.containerStatus === 'running' ? `/ide/${row.id}/` : null,
   });
 }
 

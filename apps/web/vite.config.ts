@@ -8,9 +8,8 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
+      // No /ide here: the IDE runs on its own site (IDE_ORIGIN), never on the app's origin.
       '/api': 'http://localhost:3000',
-      // The browser IDE (HTTP and WebSockets) goes through the API, which checks the session.
-      '/ide': { target: 'http://localhost:3000', ws: true },
     },
   },
   test: {

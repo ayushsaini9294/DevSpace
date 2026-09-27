@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CopyResponseSchema,
   CopyViewSchema,
+  IdeLaunchResponseSchema,
   type CopyView,
   type ProjectDetail,
   type RepositoryStatus,
@@ -35,12 +36,19 @@ export function canOpenIde(project: ProjectDetail, repository: RepositoryStatus)
 }
 
 /**
- * The address to load in the IDE frame, or null if the API sent something other than its own
- * `/ide/…` path (the frame never loads another site).
+ * POST …/copy/ide/launch: a one-time launch URL for my running IDE, on the IDE's own site.
+ * The shared schema accepts only an absolute http(s) URL, so anything else (a relative path,
+ * `javascript:`) fails here and is never framed. Tickets are single-use and short-lived, so
+ * this is a mutation, never cached: every open, retry or reload asks again.
  */
-export function ideFrameSrc(copy: CopyView): string | null {
-  const url = copy.ideUrl;
-  return url !== null && url.startsWith('/ide/') ? url : null;
+export function useLaunchIde(projectId: string) {
+  return useMutation({
+    mutationFn: async (): Promise<string> =>
+      IdeLaunchResponseSchema.parse(
+        await apiPost(`/api/projects/${enc(projectId)}/copy/ide/launch`),
+      ).url,
+    gcTime: 0,
+  });
 }
 
 /** POST …/copy/ide: make my copy if needed and start (or reuse) its IDE container. */

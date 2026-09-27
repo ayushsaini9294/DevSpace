@@ -81,7 +81,6 @@ describe('working copies', () => {
     expect(copy.branchName).toBe(`copy/${leader.id}`);
     expect(copy.containerStatus).toBe('none');
     expect(copy.lastActiveAt).toBeNull();
-    expect(copy.ideUrl).toBeNull();
 
     const dir = copyDir(project.id, copy.id);
     expect(readFileSync(join(dir, 'README.md'), 'utf8')).toBe('# Moon Base\n');

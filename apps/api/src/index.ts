@@ -2,7 +2,7 @@ import { env } from './config/env.ts';
 import { prisma } from './lib/prisma.ts';
 import { createApp } from './app.ts';
 import { recoverInterruptedImports } from './repository/import.ts';
-import { attachIdeUpgrades } from './ide/proxy.ts';
+import { createIdeServer } from './ide/proxy.ts';
 import { recoverIdeContainers } from './ide/service.ts';
 
 // Imports that were running when the API last stopped can't resume: mark them failed.
@@ -27,10 +27,20 @@ try {
 
 const app = createApp();
 
+// The IDE site first, so it is up by the time /api/health answers.
+const ideServer = createIdeServer();
+await new Promise<void>((resolve, reject) => {
+  ideServer.once('error', reject);
+  ideServer.listen(env.IDE_PORT, env.IDE_HOST, () => {
+    ideServer.off('error', reject);
+    resolve();
+  });
+});
+console.log(`IDE site listening on ${env.IDE_HOST}:${env.IDE_PORT} (public: ${env.IDE_ORIGIN})`);
+
 const server = app.listen(env.PORT, () => {
   console.log(`API listening on http://localhost:${env.PORT} (${env.NODE_ENV})`);
 });
-attachIdeUpgrades(server);
 
 let shuttingDown = false;
 
@@ -43,6 +53,8 @@ async function shutdown(signal: string): Promise<void> {
     process.exit(1);
   }, 10_000);
   forceExit.unref();
+  ideServer.close();
+  ideServer.closeAllConnections();
   server.close(async (err) => {
     await prisma.$disconnect().catch(() => undefined);
     process.exit(err ? 1 : 0);

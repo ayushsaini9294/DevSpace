@@ -9,13 +9,13 @@ import { requireJson } from './lib/require-json.ts';
 import { teamsRouter } from './teams/routes.ts';
 import { projectsRouter } from './projects/routes.ts';
 import { invitationsRouter } from './invitations/routes.ts';
-import { ideProxy } from './ide/proxy.ts';
+import { requireAppOrigin } from './lib/require-origin.ts';
 
 export function createApp(): Express {
   const app = express();
   app.disable('x-powered-by');
-  // The browser IDE: streamed as-is to the owner's container (before any body parsing).
-  app.use('/ide', cookieParser(), loadSession, ideProxy);
+  // The IDE is served by its own listener on its own site (ide/proxy.ts), never from here.
+  app.use('/api', requireAppOrigin);
   app.use('/api', requireJson);
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());

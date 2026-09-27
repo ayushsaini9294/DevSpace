@@ -15,7 +15,7 @@ import {
   ideBasePath,
   ideContainerSpec,
   ideNetworkIp,
-  IDE_PORT,
+  CONTAINER_PORT,
   inspectIdeContainer,
   isConflict,
   isNotFound,
@@ -129,7 +129,7 @@ function probe(target: IdeTarget, copyId: string): Promise<number | null> {
     const req = http.get(
       {
         host: target.ip,
-        port: IDE_PORT,
+        port: CONTAINER_PORT,
         path: `${ideBasePath(copyId)}/`,
         headers: { cookie: `vscode-tkn=${target.token}` },
         timeout: PROBE_TIMEOUT_MS,
@@ -176,7 +176,7 @@ async function waitUntilReady(copyId: string): Promise<IdeTarget> {
     }
     if (Date.now() >= deadline) {
       throw new StartFailure(
-        `The IDE didn't answer on port ${IDE_PORT} within ${READY_TIMEOUT_MS / 1000} s (${last})`,
+        `The IDE didn't answer on port ${CONTAINER_PORT} within ${READY_TIMEOUT_MS / 1000} s (${last})`,
       );
     }
     await sleep(READY_POLL_MS);

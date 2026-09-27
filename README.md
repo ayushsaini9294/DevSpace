@@ -50,21 +50,41 @@ You need Linux (on Windows, WSL 2 Ubuntu), Node.js 24 and Docker Engine. From Ph
    npm run db:migrate
    ```
 
-5. Start the web app and the API:
+5. Build the IDE image (OpenVSCode Server with Node.js 24) and create its network. At WSL boot, `/etc/wsl.conf` runs `scripts/ide-boot.sh`, which creates the network and applies the IDE firewall as root. Run it once by hand as root after setting it up. From Windows: `wsl -d Ubuntu -u root bash /home/ayush/devspace/scripts/ide-boot.sh`.
+
+   ```sh
+   npm run ide:build
+   npm run ide:network
+   ```
+
+6. Start the web app and the API:
 
    ```sh
    npm run dev
    ```
 
-   Open http://localhost:5173. The API runs on http://localhost:3000.
+   Open http://localhost:5173.
+
+### Ports
+
+| Address                 | What                                                                             |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| `http://localhost:5173` | The web app (`APP_ORIGIN`); Vite forwards `/api` to the API                      |
+| `http://localhost:3000` | The API (`PORT`)                                                                 |
+| `http://127.0.0.1:3100` | The IDE listener (`IDE_PORT`, `IDE_HOST`, `IDE_ORIGIN`), bound to 127.0.0.1 only |
+
+The IDE is served from `127.0.0.1` on purpose. The browser treats it as a different site from `localhost`, so code running in a member's IDE can never act as the app. Open the app at `localhost` and never at `127.0.0.1`. The IDE listener binds IPv4 `127.0.0.1` because WSL forwards Windows' `127.0.0.1` only to IPv4 listeners. Run `npm run ports:check` to see whether something else already holds 3000, 3100 or 5173.
 
 ## Commands
 
-| Command             | What it does                                              |
-| ------------------- | --------------------------------------------------------- |
-| `npm run dev`       | Starts the web app and the API                            |
-| `npm run lint`      | Runs ESLint                                               |
-| `npm run typecheck` | Type-checks every workspace                               |
-| `npm test`          | Runs unit and API tests (the API tests need the database) |
-| `npm run test:e2e`  | Runs the Playwright browser tests                         |
-| `npm run format`    | Formats the code with Prettier                            |
+| Command               | What it does                                              |
+| --------------------- | --------------------------------------------------------- |
+| `npm run dev`         | Starts the web app and the API                            |
+| `npm run lint`        | Runs ESLint                                               |
+| `npm run typecheck`   | Type-checks every workspace                               |
+| `npm test`            | Runs unit and API tests (the API tests need the database) |
+| `npm run test:e2e`    | Runs the Playwright browser tests                         |
+| `npm run format`      | Formats the code with Prettier                            |
+| `npm run ide:build`   | Builds the IDE image `devspace-ide:1`                     |
+| `npm run ide:network` | Creates the Docker network IDE containers join            |
+| `npm run ports:check` | Checks that ports 3000, 3100 and 5173 are free            |

@@ -32,6 +32,13 @@ jobs:
     env:
       CI: true
       DATABASE_URL: postgresql://devspace:devspace@localhost:5432/devspace
+      # The API's two listeners (Phase 5, IDE on its own site). These equal the API's defaults and
+      # are set here so CI states them: the app on localhost, the IDE on 127.0.0.1 (another site).
+      PORT: 3000
+      APP_ORIGIN: http://localhost:5173
+      IDE_PORT: 3100
+      IDE_HOST: 127.0.0.1
+      IDE_ORIGIN: http://127.0.0.1:3100
 
     steps:
       - uses: actions/checkout@v5
@@ -75,6 +82,9 @@ jobs:
 
       - name: Check IDE container and isolation
         run: bash scripts/ide-check.sh
+
+      - name: Check the app's ports are free
+        run: bash scripts/check-ports.sh
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium

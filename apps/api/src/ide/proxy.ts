@@ -4,22 +4,32 @@ import http, {
   type IncomingMessage,
   type OutgoingHttpHeaders,
   type Server,
+  type ServerResponse,
 } from 'node:http';
 import net from 'node:net';
 import type { Duplex } from 'node:stream';
-import type { RequestHandler } from 'express';
-import { findSessionUser, readSessionToken } from '../auth/session.ts';
-import { HttpError } from '../lib/http-error.ts';
-import { prisma } from '../lib/prisma.ts';
-import { IDE_PORT } from './docker.ts';
+import { env } from '../config/env.ts';
+import {
+  IDE_COOKIE_NAME,
+  ideCookieHeader,
+  ideSessionCopy,
+  redeemTicket,
+  vscodeTokenCookieHeader,
+} from './access.ts';
+import { CONTAINER_PORT } from './docker.ts';
 import { forgetIdeTarget, getIdeTarget, recordIdeActivity, type IdeTarget } from './service.ts';
 
 /**
- * /ide/<copyId>/… (HTTP and WebSockets) → that copy's IDE container. Only the copy's owner,
- * while still a member of its project, gets through; everyone else (and anyone not logged in)
- * gets the same 404 as an unknown copy. The target is always the container we started for that
- * copy (never anything taken from the request), the connection token is added here, and the
- * browser's own cookies and credentials are never forwarded.
+ * The IDE site: a separate listener (IDE_PORT, public address IDE_ORIGIN, a different site from
+ * the app) so code running in a member's container never runs on the app's origin. It serves
+ * only:
+ * - GET /ide-launch?ticket=… — uses up a one-time ticket, sets the `devspace_ide` cookie for
+ *   that copy, and redirects to /ide/<copyId>/;
+ * - /ide/<copyId>/… (HTTP and WebSockets) — proxied to that copy's container while the cookie's
+ *   user still owns the copy and is a member of its project.
+ * Everything else, and every refusal, is the same plain 404. The app's session cookie is never
+ * read here. The target is always the container we started for the copy, the connection token
+ * is added here, and the browser's own cookies and credentials are never forwarded.
  */
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -44,7 +54,10 @@ const DROPPED_REQUEST_HEADERS = new Set([
   'x-real-ip',
 ]);
 
-/** Response headers never passed back: hop-by-hop ones, and cookies (the IDE may not set any). */
+/**
+ * Response headers never passed back: hop-by-hop ones, cookies (only we set cookies on this
+ * site), and X-Frame-Options (framing is decided by our frame-ancestors).
+ */
 const DROPPED_RESPONSE_HEADERS = new Set([
   'connection',
   'keep-alive',
@@ -55,11 +68,13 @@ const DROPPED_RESPONSE_HEADERS = new Set([
   'transfer-encoding',
   'upgrade',
   'set-cookie',
+  'x-frame-options',
 ]);
 
-const ideNotFound = () => new HttpError(404, 'not_found', 'Not found');
-const ideNotRunning = () =>
-  new HttpError(503, 'ide_not_running', "The IDE isn't running; open it again from the project");
+/** Only the app may frame the IDE. */
+function frameAncestors(): string {
+  return `frame-ancestors ${env.APP_ORIGIN}`;
+}
 
 /** `/ide/<copyId>` or `/ide/<copyId>/…` → the copy id and whether the slash is missing. */
 export function parseIdePath(url: string): { copyId: string; bare: boolean } | null {
@@ -67,14 +82,6 @@ export function parseIdePath(url: string): { copyId: string; bare: boolean } | n
   const match = /^\/ide\/([^/]+)(\/.*)?$/.exec(path);
   if (!match || !UUID.test(match[1]!)) return null;
   return { copyId: match[1]!, bare: match[2] === undefined };
-}
-
-/** The copy if `userId` owns it and is still a member of its project; else null. */
-async function ownedCopy(copyId: string, userId: string) {
-  return prisma.copy.findFirst({
-    where: { id: copyId, userId, project: { members: { some: { userId } } } },
-    select: { id: true, containerStatus: true },
-  });
 }
 
 function connectionListed(headers: IncomingHttpHeaders): Set<string> {
@@ -105,31 +112,103 @@ function responseHeaders(headers: IncomingHttpHeaders): OutgoingHttpHeaders {
     if (value === undefined || DROPPED_RESPONSE_HEADERS.has(name) || listed.has(name)) continue;
     out[name] = value;
   }
+  // Ours is added next to any policy VS Code sends; browsers enforce both.
+  const own = out['content-security-policy'];
+  const policies = own === undefined ? [] : Array.isArray(own) ? own : [String(own)];
+  (out as Record<string, string[]>)['content-security-policy'] = [...policies, frameAncestors()];
   return out;
 }
 
-/** Mounted at /ide after cookie parsing and `loadSession`. */
-export const ideProxy: RequestHandler = async (req, res) => {
-  const parsed = parseIdePath(req.originalUrl);
-  if (!parsed || !req.user) throw ideNotFound();
-  const copy = await ownedCopy(parsed.copyId, req.user.id);
-  if (!copy) throw ideNotFound();
+/** Every value of cookie `name` in a Cookie header (a browser may send several paths' values). */
+export function cookieValues(header: string | undefined, name: string): string[] {
+  const values: string[] = [];
+  for (const part of (header ?? '').split(';')) {
+    const eq = part.indexOf('=');
+    if (eq < 0 || part.slice(0, eq).trim() !== name) continue;
+    const value = part.slice(eq + 1).trim();
+    if (value) values.push(value);
+  }
+  return values;
+}
+
+/** The copy the request's IDE cookie opens, or null. */
+async function cookieCopy(req: IncomingMessage, copyId: string) {
+  for (const value of cookieValues(req.headers.cookie, IDE_COOKIE_NAME)) {
+    const copy = await ideSessionCopy(value, copyId);
+    if (copy) return copy;
+  }
+  return null;
+}
+
+const PLAIN_MESSAGES: Record<number, string> = {
+  404: 'Not found',
+  502: "The IDE isn't answering. Open it again from the project.",
+  503: "The IDE isn't running. Open it again from the project.",
+};
+
+function plain(res: ServerResponse, status: number): void {
+  const body = `${PLAIN_MESSAGES[status] ?? STATUS_CODES[status] ?? ''}\n`;
+  res.writeHead(status, {
+    'content-type': 'text/plain; charset=utf-8',
+    'content-length': Buffer.byteLength(body),
+    'cache-control': 'no-store',
+    'x-content-type-options': 'nosniff',
+    'content-security-policy': `default-src 'none'; ${frameAncestors()}`,
+  });
+  res.end(body);
+}
+
+async function launch(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
+  if (req.method !== 'GET') return plain(res, 404);
+  const ticket = url.searchParams.get('ticket');
+  const session = ticket ? await redeemTicket(ticket) : null;
+  if (!session) return plain(res, 404);
+  const cookies = [ideCookieHeader(session.cookieValue, session.copyId)];
+  const target = await getIdeTarget(session.copyId);
+  if (target) cookies.push(vscodeTokenCookieHeader(target.token, session.copyId));
+  res.writeHead(303, {
+    location: `/ide/${session.copyId}/`,
+    'set-cookie': cookies,
+    'cache-control': 'no-store',
+    // The ticket is in this URL: never pass it on.
+    'referrer-policy': 'no-referrer',
+    'content-security-policy': `default-src 'none'; ${frameAncestors()}`,
+    'content-length': 0,
+  });
+  res.end();
+}
+
+async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const raw = req.url ?? '/';
+  // Only origin-form request targets ("/path?query"); nothing absolute, nothing else.
+  if (!raw.startsWith('/')) return plain(res, 404);
+  const url = new URL(raw, env.IDE_ORIGIN);
+  if (url.pathname === '/ide-launch') return launch(req, res, url);
+
+  const parsed = parseIdePath(raw);
+  if (!parsed) return plain(res, 404);
   if (parsed.bare) {
-    const query = req.originalUrl.indexOf('?');
-    const search = query >= 0 ? req.originalUrl.slice(query) : '';
-    res.redirect(308, `/ide/${copy.id}/${search}`);
+    // Same answer for every well-formed id, so it reveals nothing.
+    res.writeHead(308, {
+      location: `/ide/${parsed.copyId}/${url.search}`,
+      'content-length': 0,
+      'content-security-policy': frameAncestors(),
+    });
+    res.end();
     return;
   }
-  if (copy.containerStatus !== 'running') throw ideNotRunning();
+  const copy = await cookieCopy(req, parsed.copyId);
+  if (!copy) return plain(res, 404);
+  if (copy.containerStatus !== 'running') return plain(res, 503);
   const target = await getIdeTarget(copy.id);
-  if (!target) throw ideNotRunning();
+  if (!target) return plain(res, 503);
   recordIdeActivity(copy.id);
 
   const upstream = http.request({
     host: target.ip,
-    port: IDE_PORT,
+    port: CONTAINER_PORT,
     method: req.method,
-    path: req.originalUrl,
+    path: raw,
     headers: forwardHeaders(req.headers, target.token),
   });
   upstream.on('response', (answer) => {
@@ -138,54 +217,16 @@ export const ideProxy: RequestHandler = async (req, res) => {
   });
   upstream.on('error', () => {
     forgetIdeTarget(copy.id);
-    if (!res.headersSent) {
-      res
-        .status(502)
-        .json({ error: 'ide_unreachable', message: "The IDE isn't answering; open it again" });
-    } else {
-      res.destroy();
-    }
+    if (!res.headersSent) plain(res, 502);
+    else res.destroy();
   });
   res.on('close', () => {
     if (!res.writableFinished) upstream.destroy();
   });
   req.pipe(upstream);
-};
+}
 
 // ---------- WebSockets ----------
-
-/** Cookie header → name/value pairs (first value wins, like cookie-parser). */
-function parseCookies(header: string | undefined): Record<string, string> {
-  const out: Record<string, string> = Object.create(null) as Record<string, string>;
-  for (const part of (header ?? '').split(';')) {
-    const eq = part.indexOf('=');
-    if (eq < 0) continue;
-    const name = part.slice(0, eq).trim();
-    if (!name || name in out) continue;
-    let value = part.slice(eq + 1).trim();
-    if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
-      value = value.slice(1, -1);
-    }
-    try {
-      value = decodeURIComponent(value);
-    } catch {
-      // Keep the raw value, as cookie-parser does.
-    }
-    out[name] = value;
-  }
-  return out;
-}
-
-/** A browser's WebSocket must come from the page's own origin (no cross-site hijacking). */
-function sameOrigin(req: IncomingMessage): boolean {
-  const origin = req.headers.origin;
-  if (origin === undefined) return true; // not a browser; the session cookie is still required
-  try {
-    return new URL(origin).host === req.headers.host;
-  } catch {
-    return false;
-  }
-}
 
 function refuse(socket: Duplex, status: number): void {
   if (!socket.writable) {
@@ -213,10 +254,9 @@ function upgradeRequest(req: IncomingMessage, target: IdeTarget): string {
 async function handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): Promise<void> {
   const parsed = parseIdePath(req.url ?? '');
   if (!parsed || parsed.bare) return refuse(socket, 404);
-  if (!sameOrigin(req)) return refuse(socket, 403);
-  const token = readSessionToken(parseCookies(req.headers.cookie));
-  const user = token ? await findSessionUser(token) : null;
-  const copy = user ? await ownedCopy(parsed.copyId, user.id) : null;
+  // Only VS Code's own page on the IDE site may open its WebSockets.
+  if (req.headers.origin !== env.IDE_ORIGIN) return refuse(socket, 403);
+  const copy = await cookieCopy(req, parsed.copyId);
   if (!copy) return refuse(socket, 404);
   if (copy.containerStatus !== 'running') return refuse(socket, 503);
   const target = await getIdeTarget(copy.id);
@@ -224,7 +264,7 @@ async function handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer)
   if (socket.destroyed) return;
   recordIdeActivity(copy.id);
 
-  const upstream = net.connect(IDE_PORT, target.ip);
+  const upstream = net.connect(CONTAINER_PORT, target.ip);
   upstream.once('connect', () => {
     upstream.write(upgradeRequest(req, target));
     if (head.length > 0) upstream.write(head);
@@ -240,20 +280,21 @@ async function handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer)
   socket.on('close', () => upstream.destroy());
 }
 
-/**
- * Handles WebSocket upgrades under /ide/ on `server`. Other upgrade paths are left to other
- * listeners (e.g. Socket.io later), or closed if there are none.
- */
-export function attachIdeUpgrades(server: Server): void {
+/** The IDE site's HTTP server (not listening yet). */
+export function createIdeServer(): Server {
+  const server = http.createServer((req, res) => {
+    handleRequest(req, res).catch((err: unknown) => {
+      console.error('IDE request failed:', err instanceof Error ? err.message : err);
+      if (!res.headersSent) plain(res, 502);
+      else res.destroy();
+    });
+  });
   server.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
     socket.on('error', () => socket.destroy());
-    if (!(req.url ?? '').startsWith('/ide/')) {
-      if (server.listenerCount('upgrade') === 1) socket.destroy();
-      return;
-    }
     handleUpgrade(req, socket, head).catch((err: unknown) => {
       console.error('IDE WebSocket failed:', err instanceof Error ? err.message : err);
       refuse(socket, 502);
     });
   });
+  return server;
 }

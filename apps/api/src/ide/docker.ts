@@ -9,7 +9,7 @@ import { env } from '../config/env.ts';
 export const docker = new Docker({ socketPath: env.DOCKER_SOCKET });
 
 /** The port OpenVSCode Server listens on inside the image. */
-export const IDE_PORT = 3000;
+export const CONTAINER_PORT = 3000;
 /** Where the copy is mounted and the folder the IDE opens. */
 export const WORKSPACE_PATH = '/home/workspace';
 

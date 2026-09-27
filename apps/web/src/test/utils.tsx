@@ -13,6 +13,7 @@ import type {
   ActivityListResponseSchema,
   AuthResponse,
   CopyResponse,
+  IdeLaunchResponse,
   CopyView,
   CreateInvitationResponseSchema,
   ErrorResponse,
@@ -65,7 +66,8 @@ export type StubBody =
   | z.infer<typeof RepositoryResponseSchema>
   | TreeResponse
   | FileResponse
-  | CopyResponse;
+  | CopyResponse
+  | IdeLaunchResponse;
 
 export type StubReply =
   | { status: 200 | 201 | 202; body: StubBody }
@@ -205,7 +207,6 @@ export function testCopy(overrides: Partial<CopyView> = {}): CopyView {
     containerStatus: 'none',
     createdAt: '2026-09-27T10:00:00.000Z',
     lastActiveAt: null,
-    ideUrl: null,
     ...overrides,
   };
 }

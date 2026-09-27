@@ -20,7 +20,8 @@
     "test:e2e": "playwright test",
     "db:generate": "npm run db:generate -w @devspace/api",
     "ide:build": "docker build -t devspace-ide:1 docker/ide",
-    "ide:network": "bash scripts/ide-network.sh"
+    "ide:network": "bash scripts/ide-network.sh",
+    "ports:check": "bash scripts/check-ports.sh"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

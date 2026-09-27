@@ -19,7 +19,9 @@ export default defineConfig({
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: [
     {
-      // Starts both the API (:3000) and the web app (:5173).
+      // Starts the API (:3000, plus its IDE listener on 127.0.0.1:3100) and the web app (:5173).
+      // The API binds the IDE listener before the main one, so once /api/health answers, the IDE
+      // listener is up too (it has no health path of its own: it serves only the IDE).
       command: 'npm run dev',
       url: 'http://localhost:3000/api/health',
       reuseExistingServer: !isCI,

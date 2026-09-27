@@ -30,6 +30,8 @@ model User {
   invitationsAccepted Invitation[]    @relation("AcceptedBy")
   activity            ActivityLog[]
   copies              Copy[]
+  ideTickets          IdeTicket[]
+  ideSessions         IdeSession[]
 
   @@map("users")
 }
@@ -205,6 +207,8 @@ model Copy {
   /// When the IDE last started or carried traffic (updated at most every 30 s).
   lastActiveAt    DateTime?           @map("last_active_at")
   createdAt       DateTime            @default(now()) @map("created_at")
+  ideTickets      IdeTicket[]
+  ideSessions     IdeSession[]
 
   @@unique([projectId, userId])
   @@index([userId])
@@ -219,4 +223,40 @@ enum CopyContainerStatus {
   failed
 
   @@map("copy_container_status")
+}
+
+// ---------- Phase 5.3b: the IDE on its own site ----------
+
+/// A one-time IDE launch ticket (60 s). Stored only as the SHA-256 hex hash of the ticket that
+/// travels in the launch URL; deleted when used.
+model IdeTicket {
+  id        String   @id
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  copyId    String   @map("copy_id")
+  copy      Copy     @relation(fields: [copyId], references: [id], onDelete: Cascade)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([expiresAt])
+  @@index([userId])
+  @@index([copyId])
+  @@map("ide_tickets")
+}
+
+/// What the IDE site's `devspace_ide` cookie stands for (12 h): one user in one copy. Stored
+/// only as the SHA-256 hex hash of the cookie's value.
+model IdeSession {
+  id        String   @id
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  copyId    String   @map("copy_id")
+  copy      Copy     @relation(fields: [copyId], references: [id], onDelete: Cascade)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([expiresAt])
+  @@index([userId])
+  @@index([copyId])
+  @@map("ide_sessions")
 }
