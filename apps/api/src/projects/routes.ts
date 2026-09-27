@@ -20,6 +20,8 @@ import { prisma } from '../lib/prisma.ts';
 import { HttpError } from '../lib/http-error.ts';
 import { parseBody } from '../lib/validate.ts';
 import { listActivity, recordActivity } from '../activity/log.ts';
+import { copyRouter } from '../copies/routes.ts';
+import { removeProjectCopies } from '../copies/service.ts';
 import { projectInvitationsRouter } from '../invitations/routes.ts';
 import { repositoryRouter } from '../repository/routes.ts';
 import { removeProjectRepository } from '../repository/service.ts';
@@ -34,6 +36,7 @@ const memberNotFound = () =>
 
 projectsRouter.use('/:projectId/invitations', projectInvitationsRouter);
 projectsRouter.use('/:projectId', repositoryRouter);
+projectsRouter.use('/:projectId', copyRouter);
 
 projectsRouter.get('/', async (req, res) => {
   const user = req.user as AuthUser;
@@ -113,9 +116,10 @@ projectsRouter.delete('/:projectId', async (req, res) => {
   }
   // Members, invitations and activity go with it (ON DELETE CASCADE).
   await prisma.project.delete({ where: { id: access.project.id } });
-  // Then its repository on disk (after the DB delete, so a failure here can't leave a project
-  // without its files; failures are logged, not returned).
+  // Then its repository and copies on disk (after the DB delete, so a failure here can't leave
+  // a project without its files; failures are logged, not returned).
   await removeProjectRepository(access.project.id, access.project.repoPath);
+  await removeProjectCopies(access.project.id);
   res.status(204).end();
 });
 

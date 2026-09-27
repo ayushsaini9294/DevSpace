@@ -29,6 +29,7 @@ model User {
   invitationsSent     Invitation[]    @relation("InvitedBy")
   invitationsAccepted Invitation[]    @relation("AcceptedBy")
   activity            ActivityLog[]
+  copies              Copy[]
 
   @@map("users")
 }
@@ -92,6 +93,7 @@ model Project {
   members     ProjectMember[]
   invitations Invitation[]
   activity    ActivityLog[]
+  copies      Copy[]
 
   @@index([teamId])
   @@map("projects")
@@ -179,4 +181,37 @@ model ActivityLog {
 
   @@index([projectId, createdAt])
   @@map("activity_log")
+}
+
+// ---------- Phase 5: copies ----------
+
+/// A member's own working copy of a project: a git clone of the bare repo on its own branch,
+/// stored at <COPIES_DIR>/<projectId>/<id> (computed, never stored or sent to clients).
+model Copy {
+  id              String              @id @default(uuid())
+  projectId       String              @map("project_id")
+  project         Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId          String              @map("user_id")
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// `copy/<userId>`, branched from main when the copy was made.
+  branchName      String              @map("branch_name")
+  /// The IDE container's id (Phase 5.2); null when there is none.
+  containerId     String?             @map("container_id")
+  containerStatus CopyContainerStatus @default(none) @map("container_status")
+  lastActiveAt    DateTime?           @map("last_active_at")
+  createdAt       DateTime            @default(now()) @map("created_at")
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@map("copies")
+}
+
+enum CopyContainerStatus {
+  none
+  starting
+  running
+  stopped
+  failed
+
+  @@map("copy_container_status")
 }

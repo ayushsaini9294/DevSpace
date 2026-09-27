@@ -21,9 +21,15 @@ function cleanIdentityPart(value: string): string {
   return value.replace(/[<>\0\r\n]/g, '').trim();
 }
 
-function identityEnv(identity: Identity, date?: Date): Record<string, string> {
+/** The identity as git will accept it (never an empty name). */
+export function cleanIdentity(identity: Identity): Identity {
   const email = cleanIdentityPart(identity.email);
   const name = cleanIdentityPart(identity.name) || email.split('@')[0] || 'DevSpace user';
+  return { name, email };
+}
+
+function identityEnv(identity: Identity, date?: Date): Record<string, string> {
+  const { name, email } = cleanIdentity(identity);
   const env: Record<string, string> = {
     GIT_AUTHOR_NAME: name,
     GIT_AUTHOR_EMAIL: email,

@@ -88,6 +88,11 @@ export interface RunGitOptions {
   env?: Record<string, string>;
   /** Aborting kills git and rejects with `aborted`. */
   signal?: AbortSignal;
+  /**
+   * Also allows the local `file` transport, for cloning one of our own bare repositories by a
+   * path we built. Never set this for a command that touches a user-supplied URL.
+   */
+  allowLocalRepo?: boolean;
 }
 
 export interface GitResult {
@@ -124,6 +129,7 @@ export function runGit(args: readonly string[], options: RunGitOptions = {}): Pr
   const maxBuffer = options.maxBuffer ?? DEFAULT_MAX_BUFFER;
   const fullArgs = [
     ...HARDENING,
+    ...(options.allowLocalRepo ? ['-c', 'protocol.file.allow=always'] : []),
     ...(options.gitDir !== undefined ? [`--git-dir=${options.gitDir}`] : []),
     ...args,
   ];

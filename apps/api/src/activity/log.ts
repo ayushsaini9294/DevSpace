@@ -18,7 +18,8 @@ export type ActivityAction =
   | 'ownership.transferred'
   | 'repository.created'
   | 'repository.imported'
-  | 'repository.import_failed';
+  | 'repository.import_failed'
+  | 'copy.created';
 
 export interface ActivityInput {
   projectId: string;
