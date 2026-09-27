@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": ["node"]
+  },
+  // The API module that declares `req.user` (imported code uses it), like the API's own build.
+  "include": ["src", "test", "vitest.config.ts", "../api/src/auth/middleware.ts"]
+}

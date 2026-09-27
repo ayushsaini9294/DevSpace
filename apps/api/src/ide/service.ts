@@ -6,7 +6,7 @@ import { env } from '../config/env.ts';
 import { copyDir, copySelect, ensureCopy, toView } from '../copies/service.ts';
 import type { Identity } from '../git/repo.ts';
 import { prisma } from '../lib/prisma.ts';
-import { projectNotFound } from '../projects/access.ts';
+import { projectNotFound, type Db } from '../projects/access.ts';
 import {
   containerLogTail,
   containerName,
@@ -22,6 +22,7 @@ import {
   matchesSpec,
   removeContainersByLabel,
 } from './docker.ts';
+import { withCopyDbLock } from './lock.ts';
 
 /**
  * The IDE container of each copy: started on request, `starting` until OpenVSCode Server
@@ -220,16 +221,19 @@ async function runStart(copyId: string, projectId: string): Promise<void> {
 }
 
 /** Marks the copy `starting` and starts it in the background. Call inside the copy's lock. */
-async function beginStart(copyId: string, projectId: string) {
+async function beginStart(copyId: string, projectId: string, db: Db = prisma) {
   targets.delete(copyId);
-  const row = await prisma.copy.update({
+  return db.copy.update({
     where: { id: copyId },
     data: { containerStatus: 'starting', containerError: null, lastActiveAt: new Date() },
     select: copySelect,
   });
+}
+
+/** Runs the start in the background (after the row says `starting`). */
+function launchStart(copyId: string, projectId: string): void {
   const done = runStart(copyId, projectId).finally(() => starts.delete(copyId));
   starts.set(copyId, { projectId, done });
-  return row;
 }
 
 /**
@@ -242,18 +246,33 @@ export async function openIde(
 ): Promise<CopyView> {
   const { copy } = await ensureCopy(projectId, user);
   return withCopyLock(copy.id, async () => {
-    const row = await prisma.copy.findUnique({ where: { id: copy.id }, select: copySelect });
-    if (!row) throw projectNotFound(); // the project was deleted meanwhile
-    if (starts.has(copy.id)) return toView(row);
-    if (row.containerStatus === 'running') {
-      const target = targetOf(await inspectIdeContainer(copy.id));
-      if (target) {
-        targets.set(copy.id, target);
-        recordIdeActivity(copy.id);
-        return toView(row);
-      }
+    if (starts.has(copy.id)) {
+      const row = await prisma.copy.findUnique({ where: { id: copy.id }, select: copySelect });
+      if (!row) throw projectNotFound(); // the project was deleted meanwhile
+      return toView(row);
     }
-    return toView(await beginStart(copy.id, projectId));
+    // Under the copy's database lock, so the worker can't stop the container in between.
+    const { row, start } = await withCopyDbLock(copy.id, async (tx) => {
+      const current = await tx.copy.findUnique({ where: { id: copy.id }, select: copySelect });
+      if (!current) throw projectNotFound();
+      if (current.containerStatus === 'running') {
+        const target = targetOf(await inspectIdeContainer(copy.id));
+        if (target) {
+          targets.set(copy.id, target);
+          // Opening counts as activity, written now so an idle check can't stop it next.
+          const fresh = await tx.copy.update({
+            where: { id: copy.id },
+            data: { lastActiveAt: new Date() },
+            select: copySelect,
+          });
+          return { row: fresh, start: false };
+        }
+      }
+      return { row: await beginStart(copy.id, projectId, tx), start: true };
+    });
+    // Only after the transaction committed `starting`.
+    if (start) launchStart(copy.id, projectId);
+    return toView(row);
   });
 }
 
@@ -272,6 +291,11 @@ export async function getIdeTarget(copyId: string): Promise<IdeTarget | null> {
 /** Forget a cached address (e.g. the container stopped answering). */
 export function forgetIdeTarget(copyId: string): void {
   targets.delete(copyId);
+}
+
+/** Tests only: forget when activity was last written, so the next use writes again. */
+export function forgetIdeActivityWrite(copyId: string): void {
+  lastActivityWrite.delete(copyId);
 }
 
 /** Records IDE use: `lastActiveAt` = now, written at most every 30 s per copy. */
@@ -303,8 +327,23 @@ export async function recoverIdeContainers(): Promise<number> {
     const info = await inspectIdeContainer(row.id);
     await withCopyLock(row.id, async () => {
       if (starts.has(row.id)) return;
-      if (info?.State.Running) await beginStart(row.id, row.projectId);
-      else {
+      if (info?.State.Running) {
+        // Only adopt a container made with this API's settings. Another API process sharing
+        // the database (e.g. with a different COPIES_DIR) must not recreate someone's IDE.
+        const input = {
+          copyId: row.id,
+          projectId: row.projectId,
+          hostDir: copyDir(row.projectId, row.id),
+        };
+        if (!matchesSpec(info, input)) {
+          console.warn(
+            `Leaving the IDE container of copy ${row.id} alone: it was made with other settings`,
+          );
+          return;
+        }
+        await beginStart(row.id, row.projectId);
+        launchStart(row.id, row.projectId);
+      } else {
         await prisma.copy.updateMany({
           where: { id: row.id, containerStatus: { in: ['starting', 'running'] } },
           data: { containerStatus: 'stopped' },

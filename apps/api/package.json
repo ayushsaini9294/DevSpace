@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    "./housekeeping": "./src/housekeeping/index.ts",
+    "./prisma": "./src/lib/prisma.ts"
+  },
   "scripts": {
     "predev": "npm run db:generate",
     "dev": "tsx watch --env-file-if-exists=.env src/index.ts",

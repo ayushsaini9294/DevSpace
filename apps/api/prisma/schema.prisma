@@ -206,6 +206,11 @@ model Copy {
   containerError  String?             @map("container_error")
   /// When the IDE last started or carried traffic (updated at most every 30 s).
   lastActiveAt    DateTime?           @map("last_active_at")
+  /// The copy folder's size on disk in bytes at the last check by the worker (null: never checked).
+  diskBytes       BigInt?             @map("disk_bytes")
+  diskCheckedAt   DateTime?           @map("disk_checked_at")
+  /// True while the folder is over the 5 GB limit (set by the worker; not shown in the app yet).
+  overDiskLimit   Boolean             @default(false) @map("over_disk_limit")
   createdAt       DateTime            @default(now()) @map("created_at")
   ideTickets      IdeTicket[]
   ideSessions     IdeSession[]
