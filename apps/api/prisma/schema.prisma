@@ -1,0 +1,13 @@
+// Prisma schema for the DevSpace API. Models arrive in Phase 2.
+// Connection URL lives in prisma.config.ts; the runtime client uses the pg driver adapter.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}

@@ -1,0 +1,10 @@
+node_modules
+dist
+coverage
+playwright-report
+test-results
+blob-report
+package-lock.json
+**/src/generated
+docs/*.pdf
+docs/build-plan.html
