@@ -55,16 +55,23 @@ function calls(fetchMock: ReturnType<typeof stubApi>, key: string): number {
   ).length;
 }
 
+/**
+ * Wait for the Open IDE link with a cheap text query, then check its role once. A polling
+ * findByRole re-runs the costly accessibility checks on every DOM change, which on the file's
+ * first (cold) render slows the page it waits for past the 1 s limit.
+ */
+async function findOpenIdeLink() {
+  await screen.findByText('Open IDE');
+  return screen.getByRole('link', { name: 'Open IDE' });
+}
+
 describe('Open IDE button', () => {
   it.each(['leader', 'co_leader', 'member'] as const)(
     'is shown to a %s once the repository is ready',
     async (role) => {
       stubApi(overviewRoutes(testProject(role), readyRepository));
       renderApp('/projects/project-1');
-      expect(await screen.findByRole('link', { name: 'Open IDE' })).toHaveAttribute(
-        'href',
-        '/projects/project-1/ide',
-      );
+      expect(await findOpenIdeLink()).toHaveAttribute('href', '/projects/project-1/ide');
     },
   );
 
@@ -99,7 +106,7 @@ describe('Open IDE button', () => {
       [LAUNCH]: freshTickets(),
     });
     const { router } = renderApp('/projects/project-1');
-    await user.click(await screen.findByRole('link', { name: 'Open IDE' }));
+    await user.click(await findOpenIdeLink());
     expect(router.state.location.pathname).toBe('/projects/project-1/ide');
     expect(await screen.findByTitle('VS Code for Website')).toBeInTheDocument();
   });
@@ -163,7 +170,7 @@ describe('IDE page', () => {
 
     // Leave and come back, in the same app and cache: the used ticket is never reused.
     await act(() => first.router.navigate('/projects/project-1'));
-    expect(await screen.findByRole('link', { name: 'Open IDE' })).toBeInTheDocument();
+    expect(await findOpenIdeLink()).toBeInTheDocument();
     await act(() => first.router.navigate('/projects/project-1/ide'));
     expect(await screen.findByTitle('VS Code for Website')).toHaveAttribute('src', launchUrl('t2'));
   });
