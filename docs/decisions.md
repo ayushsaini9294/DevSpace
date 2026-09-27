@@ -42,3 +42,9 @@ The local PostgreSQL already has a `devspace` role and database from the old pro
 - Imports run in the background inside the API process, with a status the page polls (none, importing, ready, failed). They move to the BullMQ worker once Redis is available (Docker, Phase 5). An import interrupted by a restart is marked failed on startup, so it can be retried.
 - Git runs as real `git` with fixed arguments and no shell, a timeout, prompts and hooks off, and only the https protocol allowed.
 - The file browser reads `main` only. Files over 1 MB or binary files are listed but not shown. Files are shown in a read-only Monaco editor, the same editor the review page uses in Phase 6.
+
+## 2026-09-27: Copies and IDE containers (Phase 5)
+
+- Default limits per copy's IDE container: 1 CPU, 2 GB memory, 5 GB disk. About five IDEs fit at once on the 16 GB development PC.
+- IDE containers can reach the internet (so `npm install` works) but not the host machine, the local network, or other containers.
+- Development moves into WSL 2 Ubuntu (the safest option): the repo, Node, the API and the web dev server run there, and PostgreSQL and Redis run from Docker Compose. The API talks to Docker through its local socket, so Docker is never reachable over the network. The browser on Windows still opens the app at `localhost`.
