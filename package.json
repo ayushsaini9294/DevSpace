@@ -18,7 +18,9 @@
     "db:down": "docker compose down",
     "db:migrate": "npm run db:migrate -w @devspace/api",
     "test:e2e": "playwright test",
-    "db:generate": "npm run db:generate -w @devspace/api"
+    "db:generate": "npm run db:generate -w @devspace/api",
+    "ide:build": "docker build -t devspace-ide:1 docker/ide",
+    "ide:network": "bash scripts/ide-network.sh"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

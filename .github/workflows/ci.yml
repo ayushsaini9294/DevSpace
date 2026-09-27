@@ -62,6 +62,20 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      # IDE containers (Phase 5): the image, its network and firewall, then a check on a real
+      # container that the image works when locked down and that the network is isolated.
+      - name: Build IDE image
+        run: npm run ide:build
+
+      - name: Create IDE network
+        run: bash scripts/ide-network.sh
+
+      - name: Apply IDE firewall
+        run: sudo bash scripts/ide-firewall.sh
+
+      - name: Check IDE container and isolation
+        run: bash scripts/ide-check.sh
+
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
