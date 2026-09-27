@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
-/** The state of a copy's IDE container (containers arrive in Phase 5.2; until then `none`). */
+/**
+ * The state of a copy's IDE container: `none` (never started), `starting` (poll GET /copy about
+ * once a second), `running` (`ideUrl` is set), `stopped` (idle, or the API restarted without it;
+ * files are kept), `failed` (the start failed; POST /copy/ide again to retry).
+ */
 export const CopyContainerStatusSchema = z.enum([
   'none',
   'starting',
@@ -21,7 +25,7 @@ export const CopyViewSchema = z.object({
   lastActiveAt: z.iso.datetime().nullable(),
   /**
    * Where the browser opens the IDE (`/ide/<copyId>/`, through the API), set only while
-   * `containerStatus` is `running`; null otherwise (always null until Phase 5.2).
+   * `containerStatus` is `running`; null otherwise. Always a relative path.
    */
   ideUrl: z.string().nullable(),
 });
@@ -33,6 +37,11 @@ export const CopyViewSchema = z.object({
  * POST /api/projects/:projectId/copy (no body) — any member; makes the caller's copy on the
  * first call (201) and returns the same copy on every later call (200).
  * 409 `repository_not_ready` unless the project's repository is ready.
+ *
+ * POST /api/projects/:projectId/copy/ide (no body) — any member; makes the caller's copy if
+ * needed, then starts its IDE container (or reuses the running one) and answers right away
+ * with `starting` or `running` (200, `copy` never null). Calling again while `starting` returns
+ * the same start; after `failed` or `stopped` it starts again. Same 404 and 409 as above.
  */
 export const CopyResponseSchema = z.object({ copy: CopyViewSchema.nullable() });
 

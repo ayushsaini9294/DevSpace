@@ -195,9 +195,14 @@ model Copy {
   user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// `copy/<userId>`, branched from main when the copy was made.
   branchName      String              @map("branch_name")
-  /// The IDE container's id (Phase 5.2); null when there is none.
+  /// The IDE container's Docker id (named devspace-ide-<id>); null before the first start.
+  /// Its connection token is never stored here: it lives only in the container's settings
+  /// (root-only on the Docker host) and in the API's memory.
   containerId     String?             @map("container_id")
   containerStatus CopyContainerStatus @default(none) @map("container_status")
+  /// Why the last IDE start failed (for logs and support; never sent to the browser).
+  containerError  String?             @map("container_error")
+  /// When the IDE last started or carried traffic (updated at most every 30 s).
   lastActiveAt    DateTime?           @map("last_active_at")
   createdAt       DateTime            @default(now()) @map("created_at")
 

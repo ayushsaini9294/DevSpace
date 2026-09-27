@@ -2,6 +2,8 @@ import { env } from './config/env.ts';
 import { prisma } from './lib/prisma.ts';
 import { createApp } from './app.ts';
 import { recoverInterruptedImports } from './repository/import.ts';
+import { attachIdeUpgrades } from './ide/proxy.ts';
+import { recoverIdeContainers } from './ide/service.ts';
 
 // Imports that were running when the API last stopped can't resume: mark them failed.
 try {
@@ -14,11 +16,21 @@ try {
   );
 }
 
+// IDE containers the previous process left starting or running: watch them again or mark them
+// stopped (never fatal: Docker may be down, and everything else still works).
+try {
+  const count = await recoverIdeContainers();
+  if (count > 0) console.log(`Checked ${count} IDE container(s) left from the last run`);
+} catch (err) {
+  console.error('Could not check IDE containers:', err instanceof Error ? err.message : err);
+}
+
 const app = createApp();
 
 const server = app.listen(env.PORT, () => {
   console.log(`API listening on http://localhost:${env.PORT} (${env.NODE_ENV})`);
 });
+attachIdeUpgrades(server);
 
 let shuttingDown = false;
 

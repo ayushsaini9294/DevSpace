@@ -37,7 +37,7 @@ const CLONE_TIMEOUT_MS = 5 * 60_000;
 const notReady = () =>
   new HttpError(409, 'repository_not_ready', "The project's repository isn't ready yet");
 
-const copySelect = {
+export const copySelect = {
   id: true,
   branchName: true,
   containerStatus: true,
@@ -45,7 +45,8 @@ const copySelect = {
   lastActiveAt: true,
 } as const;
 
-function toView(row: {
+/** The browser's view of a copy row: no paths, no container id, no token. */
+export function toView(row: {
   id: string;
   branchName: string;
   containerStatus: string;
@@ -58,8 +59,8 @@ function toView(row: {
     containerStatus: row.containerStatus,
     createdAt: row.createdAt.toISOString(),
     lastActiveAt: row.lastActiveAt?.toISOString() ?? null,
-    // Containers and the /ide proxy arrive in Phase 5.2–5.3.
-    ideUrl: null,
+    // Through the API's /ide proxy, and only while the IDE is answering.
+    ideUrl: row.containerStatus === 'running' ? `/ide/${row.id}/` : null,
   });
 }
 

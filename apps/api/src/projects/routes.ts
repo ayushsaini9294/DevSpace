@@ -22,6 +22,7 @@ import { parseBody } from '../lib/validate.ts';
 import { listActivity, recordActivity } from '../activity/log.ts';
 import { copyRouter } from '../copies/routes.ts';
 import { removeProjectCopies } from '../copies/service.ts';
+import { removeProjectContainers, stopMemberIde } from '../ide/service.ts';
 import { projectInvitationsRouter } from '../invitations/routes.ts';
 import { repositoryRouter } from '../repository/routes.ts';
 import { removeProjectRepository } from '../repository/service.ts';
@@ -119,6 +120,8 @@ projectsRouter.delete('/:projectId', async (req, res) => {
   // Then its repository and copies on disk (after the DB delete, so a failure here can't leave
   // a project without its files; failures are logged, not returned).
   await removeProjectRepository(access.project.id, access.project.repoPath);
+  // Containers before folders: a running IDE must not keep writing into a deleted copy.
+  await removeProjectContainers(access.project.id);
   await removeProjectCopies(access.project.id);
   res.status(204).end();
 });
@@ -240,6 +243,9 @@ projectsRouter.delete('/:projectId/members/:userId', async (req, res) => {
       data: { name: target.user.name, email: target.user.email, role: target.role },
     });
   });
+  // Their IDE stops (in the background; the copy's files are kept). The /ide proxy already
+  // refuses them, since it checks membership on every request.
+  void stopMemberIde(projectId, targetId);
   res.status(204).end();
 });
 

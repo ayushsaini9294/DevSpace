@@ -24,6 +24,16 @@ const EnvSchema = z.object({
   REPOS_DIR: folder(DEFAULT_REPOS_DIR),
   /** Where the members' working copies live: `<COPIES_DIR>/<projectId>/<copyId>`. */
   COPIES_DIR: folder(DEFAULT_COPIES_DIR),
+  /** Docker's local socket. Docker is never reached over TCP. */
+  DOCKER_SOCKET: z
+    .string()
+    .trim()
+    .default('/var/run/docker.sock')
+    .refine((value) => isAbsolute(value), 'DOCKER_SOCKET must be an absolute socket path'),
+  /** The IDE image (built by `npm run ide:build`). */
+  IDE_IMAGE: z.string().trim().min(1).default('devspace-ide:1'),
+  /** The Docker network IDE containers join (made by `npm run ide:network`). */
+  IDE_NETWORK: z.string().trim().min(1).default('devspace-ide'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
