@@ -18,6 +18,7 @@ import {
   stubApi,
   testMember,
   testProject,
+  testRepository,
   testUser,
   type StubRoutes,
 } from '../../test/utils';
@@ -37,6 +38,7 @@ function projectRoutes(project: ProjectDetail, extra: StubRoutes = {}): StubRout
   return {
     'GET /api/auth/me': loggedIn,
     [`GET ${P}`]: { status: 200, body: { project } },
+    [`GET ${P}/repository`]: { status: 200, body: { repository: testRepository() } },
     ...extra,
   };
 }
@@ -55,12 +57,15 @@ describe('project layout and overview', () => {
       'href',
       '/teams/team-1',
     );
-    for (const name of ['Overview', 'Members', 'Activity', 'Settings']) {
+    for (const name of ['Overview', 'Files', 'Members', 'Activity', 'Settings']) {
       expect(within(nav()).getByRole('link', { name })).toBeInTheDocument();
     }
     expect(screen.getByText('Your role: Leader')).toBeInTheDocument();
     expect(screen.getByText('3 members')).toBeInTheDocument();
-    expect(screen.getByText(/Project repository phase/)).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Set up the repository' })).toHaveAttribute(
+      'href',
+      '/projects/project-1/files',
+    );
   });
 
   it('hides Settings from members and lists their switched-on permissions', async () => {

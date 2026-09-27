@@ -27,6 +27,7 @@ const LEADS_ONLY: ProjectAction[] = [
   'project.updateSettings',
   'members.invite',
   'members.manage',
+  'repository.setup',
   'submission.merge',
   'submission.reject',
   'submission.revert',

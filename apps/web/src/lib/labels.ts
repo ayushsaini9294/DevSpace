@@ -71,6 +71,20 @@ export function describeActivity(entry: ActivityEntry): string {
       return `${actor} changed ${who}’s permissions`;
     case 'ownership.transferred':
       return `${actor} made ${who} the leader`;
+    case 'repository.created':
+      return `${actor} started the repository empty`;
+    case 'repository.imported': {
+      const url = dataString(data, 'url', 'importUrl') ?? entry.target;
+      return url
+        ? `${actor} imported the repository from ${url}`
+        : `${actor} imported the repository`;
+    }
+    case 'repository.import_failed': {
+      const url = dataString(data, 'url', 'importUrl') ?? entry.target;
+      return url
+        ? `${actor} tried to import from ${url}, but it failed`
+        : `${actor} tried to import the repository, but it failed`;
+    }
     default:
       return `${actor}: ${entry.action}`;
   }

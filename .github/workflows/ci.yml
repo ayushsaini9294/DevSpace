@@ -67,6 +67,10 @@ jobs:
 
       - name: End-to-end tests
         run: npm run test:e2e
+        env:
+          # Projects' bare Git repositories (Phase 4), kept out of the checkout; the API creates
+          # the folder. Set per step because `runner` isn't available in job-level env.
+          REPOS_DIR: ${{ runner.temp }}/devspace-repos
 
       - name: Upload Playwright report
         if: failure()

@@ -15,7 +15,10 @@ export type ActivityAction =
   | 'member.left'
   | 'member.role_changed'
   | 'member.permissions_changed'
-  | 'ownership.transferred';
+  | 'ownership.transferred'
+  | 'repository.created'
+  | 'repository.imported'
+  | 'repository.import_failed';
 
 export interface ActivityInput {
   projectId: string;

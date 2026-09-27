@@ -1,5 +1,6 @@
 import { FocusHeading, cardStyle } from '../../components/ui';
 import { PERMISSION_KEYS, PERMISSION_LABELS, ROLE_LABELS } from '../../lib/labels';
+import { OverviewRepository } from './OverviewRepository';
 import { useProjectContext } from './ProjectLayout';
 
 export function OverviewPage() {
@@ -38,10 +39,7 @@ export function OverviewPage() {
           </p>
         )}
       </div>
-      <p className="text-sm text-gray-600">
-        The project’s files arrive with the Project repository phase. Until then, this area shows
-        the project’s members and activity.
-      </p>
+      <OverviewRepository />
     </section>
   );
 }

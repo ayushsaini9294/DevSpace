@@ -1,6 +1,18 @@
 import { env } from './config/env.ts';
 import { prisma } from './lib/prisma.ts';
 import { createApp } from './app.ts';
+import { recoverInterruptedImports } from './repository/import.ts';
+
+// Imports that were running when the API last stopped can't resume: mark them failed.
+try {
+  const count = await recoverInterruptedImports();
+  if (count > 0) console.log(`Marked ${count} interrupted repository import(s) as failed`);
+} catch (err) {
+  console.error(
+    'Could not check for interrupted imports:',
+    err instanceof Error ? err.message : err,
+  );
+}
 
 const app = createApp();
 

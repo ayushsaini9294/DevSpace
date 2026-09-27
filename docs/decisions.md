@@ -33,3 +33,12 @@ The local PostgreSQL already has a `devspace` role and database from the old pro
 - Default project settings: approval required on, browsing others' copies off, copies update automatically, GitHub mode "publish once".
 - Permission rules live in one pure function in `packages/shared` (`can`, plus member-management checks), used by the API to enforce and by the web app to show or hide actions.
 - Login rate limiting moves to Phase 12, where the blueprint puts rate limits.
+
+## 2026-09-27: Project repository (Phase 4)
+
+- Each project gets one bare Git repository on the server at `<REPOS_DIR>/<projectId>.git` (default `.data/repos` in the repo root, gitignored). Its `main` branch is the project's main. Deleting a project deletes its repository.
+- A leader or co-leader sets up the repository once (new action `repository.setup`): start empty (a first commit with a README, credited to them) or import from a Git link.
+- Imports: https links from github.com, gitlab.com and bitbucket.org only, no credentials in the link, redirects not followed; at most 200 MB and 5 minutes; the source's default branch becomes `main`, with full history. Private repos wait for the GitHub App in Phase 11.
+- Imports run in the background inside the API process, with a status the page polls (none, importing, ready, failed). They move to the BullMQ worker once Redis is available (Docker, Phase 5). An import interrupted by a restart is marked failed on startup, so it can be retried.
+- Git runs as real `git` with fixed arguments and no shell, a timeout, prompts and hooks off, and only the https protocol allowed.
+- The file browser reads `main` only. Files over 1 MB or binary files are listed but not shown. Files are shown in a read-only Monaco editor, the same editor the review page uses in Phase 6.

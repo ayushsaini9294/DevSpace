@@ -21,6 +21,8 @@ import { HttpError } from '../lib/http-error.ts';
 import { parseBody } from '../lib/validate.ts';
 import { listActivity, recordActivity } from '../activity/log.ts';
 import { projectInvitationsRouter } from '../invitations/routes.ts';
+import { repositoryRouter } from '../repository/routes.ts';
+import { removeProjectRepository } from '../repository/service.ts';
 import { forbidden, readPermissions, requireProjectAction } from './access.ts';
 import { memberSelect, projectResponse, toMember, toProjectSummary } from './views.ts';
 
@@ -31,6 +33,7 @@ const memberNotFound = () =>
   new HttpError(404, 'not_found', 'That person is not a member of this project');
 
 projectsRouter.use('/:projectId/invitations', projectInvitationsRouter);
+projectsRouter.use('/:projectId', repositoryRouter);
 
 projectsRouter.get('/', async (req, res) => {
   const user = req.user as AuthUser;
@@ -110,6 +113,9 @@ projectsRouter.delete('/:projectId', async (req, res) => {
   }
   // Members, invitations and activity go with it (ON DELETE CASCADE).
   await prisma.project.delete({ where: { id: access.project.id } });
+  // Then its repository on disk (after the DB delete, so a failure here can't leave a project
+  // without its files; failures are logged, not returned).
+  await removeProjectRepository(access.project.id, access.project.repoPath);
   res.status(204).end();
 });
 

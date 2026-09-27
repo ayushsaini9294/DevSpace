@@ -7,6 +7,8 @@ type TextFieldProps = {
   error?: string | undefined;
   /** Announce the error immediately (used for errors that arrive from the server). */
   errorIsAlert?: boolean;
+  /** Extra guidance shown under the label. */
+  hint?: string;
 } & Pick<
   InputHTMLAttributes<HTMLInputElement>,
   'type' | 'autoComplete' | 'required' | 'defaultValue' | 'value' | 'onChange' | 'readOnly'
@@ -17,22 +19,30 @@ export function TextField({
   name,
   error,
   errorIsAlert = false,
+  hint,
   type = 'text',
   ...inputProps
 }: TextFieldProps) {
   const inputId = useId();
   const errorId = `${inputId}-error`;
+  const hintId = `${inputId}-hint`;
+  const describedBy = [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ');
   return (
     <div className="space-y-1">
       <label htmlFor={inputId} className="block text-sm font-medium text-gray-800">
         {label}
       </label>
+      {hint && (
+        <p id={hintId} className="text-sm text-gray-600">
+          {hint}
+        </p>
+      )}
       <input
         id={inputId}
         name={name}
         type={type}
         aria-invalid={error ? true : undefined}
-        aria-describedby={error ? errorId : undefined}
+        aria-describedby={describedBy || undefined}
         className={`block w-full rounded-md border bg-white px-3 py-2 text-base shadow-sm focus:ring-2 focus:outline-none ${
           error
             ? 'border-red-600 focus:border-red-600 focus:ring-red-200'

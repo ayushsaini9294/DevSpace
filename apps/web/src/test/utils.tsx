@@ -14,6 +14,7 @@ import type {
   AuthResponse,
   CreateInvitationResponseSchema,
   ErrorResponse,
+  FileResponse,
   HealthResponse,
   InvitationListResponseSchema,
   InvitationPreviewResponse,
@@ -26,9 +27,12 @@ import type {
   Team,
   ProjectListResponseSchema,
   ProjectResponseSchema,
+  RepositoryResponseSchema,
+  RepositoryStatus,
   TeamDetailResponseSchema,
   TeamListResponseSchema,
   TeamResponseSchema,
+  TreeResponse,
   User,
 } from '@devspace/shared';
 import { routes as appRoutes } from '../app/routes';
@@ -55,10 +59,13 @@ export type StubBody =
   | z.infer<typeof CreateInvitationResponseSchema>
   | InvitationPreviewResponse
   | z.infer<typeof AcceptInvitationResponseSchema>
-  | z.infer<typeof ActivityListResponseSchema>;
+  | z.infer<typeof ActivityListResponseSchema>
+  | z.infer<typeof RepositoryResponseSchema>
+  | TreeResponse
+  | FileResponse;
 
 export type StubReply =
-  | { status: 200 | 201; body: StubBody }
+  | { status: 200 | 201 | 202; body: StubBody }
   | { status: 204 }
   | {
       status: 400 | 401 | 403 | 404 | 409 | 410 | 415 | 500 | 503;
@@ -169,4 +176,18 @@ export function requestBody(fetchMock: ReturnType<typeof stubApi>, key: string):
   );
   if (!call) throw new Error(`no request ${key}`);
   return JSON.parse(String(call[1]?.body));
+}
+
+// ---------- Repository (Phase 4) ----------
+
+/** A repository status as GET /repository would describe it. */
+export function testRepository(overrides: Partial<RepositoryStatus> = {}): RepositoryStatus {
+  return {
+    status: 'none',
+    source: null,
+    importUrl: null,
+    error: null,
+    lastCommit: null,
+    ...overrides,
+  };
 }

@@ -77,8 +77,14 @@ model Project {
   teamId      String          @map("team_id")
   team        Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
   name        String
-  /// Path of the project's bare git repo on disk; filled in Phase 4.
+  /// Absolute path of the project's bare git repo on disk (set when the repository is set up).
   repoPath    String?         @map("repo_path")
+  repoStatus  RepoStatus      @default(none) @map("repo_status")
+  repoSource  RepoSource?     @map("repo_source")
+  /// Normalized https link the repository was imported from (ImportUrlSchema).
+  importUrl   String?         @map("import_url")
+  /// Why the last import failed, in plain words.
+  repoError   String?         @map("repo_error")
   /// ProjectSettings from packages/shared; validated with ProjectSettingsSchema when read.
   settings    Json
   createdAt   DateTime        @default(now()) @map("created_at")
@@ -89,6 +95,22 @@ model Project {
 
   @@index([teamId])
   @@map("projects")
+}
+
+enum RepoStatus {
+  none
+  importing
+  ready
+  failed
+
+  @@map("repo_status")
+}
+
+enum RepoSource {
+  empty
+  import
+
+  @@map("repo_source")
 }
 
 enum ProjectRole {

@@ -12,6 +12,8 @@ import { MembersPage } from '../pages/project/MembersPage';
 import { OverviewPage } from '../pages/project/OverviewPage';
 import { ProjectLayout } from '../pages/project/ProjectLayout';
 import { SettingsPage } from '../pages/project/SettingsPage';
+import { BlobPage } from '../pages/project/repository/BlobPage';
+import { FilesPage } from '../pages/project/repository/FilesPage';
 
 export const routes: RouteObject[] = [
   {
@@ -29,6 +31,8 @@ export const routes: RouteObject[] = [
             element: <ProjectLayout />,
             children: [
               { index: true, element: <OverviewPage /> },
+              { path: 'files/*', element: <FilesPage /> },
+              { path: 'blob/*', element: <BlobPage /> },
               { path: 'members', element: <MembersPage /> },
               { path: 'activity', element: <ActivityPage /> },
               { path: 'settings', element: <SettingsPage /> },

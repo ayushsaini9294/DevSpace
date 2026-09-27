@@ -1,9 +1,22 @@
+import { isAbsolute, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+
+/** `<repo root>/.data/repos`, found from this file's location (src/config or dist/config), not the cwd. */
+const DEFAULT_REPOS_DIR = fileURLToPath(new URL('../../../../.data/repos', import.meta.url));
 
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+  /** Where the projects' bare Git repositories live. Relative paths resolve against the cwd. */
+  REPOS_DIR: z
+    .string()
+    .trim()
+    .optional()
+    .transform((value) =>
+      value ? (isAbsolute(value) ? value : resolve(value)) : DEFAULT_REPOS_DIR,
+    ),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

@@ -1,122 +1,23 @@
-import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
-import { fillSignUpForm, signUp, uniqueId, uniqueUser, type User } from './helpers';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import {
+  acceptDialogs,
+  createInviteLink,
+  createLeaderWithProject,
+  joinAsNewUser,
+  newUserPage,
+  projectNav,
+  setUpLeaderAndMember,
+  signUpAndExpectHome,
+  uniqueUser,
+  type User,
+} from './helpers';
 
 // Several users sign up and click through the app in each test, so allow more than the default.
 test.describe.configure({ timeout: 90_000 });
 
-/** Accept every window.confirm on this page (remove, leave, role changes, cancel invite). */
-function acceptDialogs(page: Page) {
-  page.on('dialog', (dialog) => void dialog.accept());
-}
-
-/** A fresh browser context (its own cookies) for a second or third user. */
-async function newUserPage(browser: Browser) {
-  const context = await browser.newContext();
-  const page = await context.newPage();
-  acceptDialogs(page);
-  return page;
-}
-
-async function signUpAndExpectHome(page: Page, user: User) {
-  await signUp(page, user);
-  await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByTestId('current-user')).toHaveText(user.name);
-}
-
-type LeaderProject = {
-  leader: User;
-  teamName: string;
-  projectName: string;
-  /** Path of the project, e.g. /projects/abc. */
-  projectPath: string;
-};
-
-/** Signs the leader up and creates a team and a project, ending on the project page. */
-async function createLeaderWithProject(page: Page): Promise<LeaderProject> {
-  const leader = uniqueUser();
-  const id = uniqueId();
-  const teamName = `Team ${id}`;
-  const projectName = `Project ${id}`;
-
-  await signUpAndExpectHome(page, leader);
-  await expect(page.getByRole('heading', { level: 2, name: 'Your teams' })).toBeVisible();
-
-  await page.getByLabel('Team name', { exact: true }).fill(teamName);
-  await page.getByRole('button', { name: 'Create team' }).click();
-  await expect(page).toHaveURL(/\/teams\/[^/]+$/);
-  await expect(page.getByRole('heading', { level: 1, name: teamName })).toBeVisible();
-
-  await page.getByLabel('Project name', { exact: true }).fill(projectName);
-  await page.getByRole('button', { name: 'Create project' }).click();
-  await expect(page).toHaveURL(/\/projects\/[^/]+$/);
-  await expect(page.getByRole('heading', { level: 1, name: projectName })).toBeVisible();
-  await expect(page.getByText('Your role: Leader', { exact: true })).toBeVisible();
-
-  const projectPath = new URL(page.url()).pathname;
-  return { leader, teamName, projectName, projectPath };
-}
-
-function projectNav(page: Page, name: 'Overview' | 'Members' | 'Activity' | 'Settings') {
-  return page.getByRole('link', { name, exact: true });
-}
-
-/** On the project page: opens Members, invites the email and returns the full invite link. */
-async function createInviteLink(page: Page, email: string) {
-  await projectNav(page, 'Members').click();
-  await expect(page).toHaveURL(/\/members$/);
-  await page.getByLabel('Email', { exact: true }).fill(email);
-  await page.getByRole('button', { name: 'Create invite link' }).click();
-
-  const linkInput = page.getByLabel('Invite link', { exact: true });
-  await expect(linkInput).toHaveValue(/^https?:\/\/[^/]+\/invite\/[^/?#]+$/);
-  return linkInput.inputValue();
-}
-
 /** The member's entry in the Members list. */
 function memberRow(page: Page, user: User): Locator {
   return page.getByRole('listitem').filter({ hasText: user.email });
-}
-
-/**
- * The invited user opens the link while logged out, signs up via the login page's
- * "Sign up" link (which keeps ?next=), comes back to the invite and joins.
- */
-async function joinAsNewUser(page: Page, inviteLink: string, member: User, lp: LeaderProject) {
-  const invitePath = new URL(inviteLink).pathname;
-
-  await page.goto(inviteLink);
-  await expect(page).toHaveURL(
-    (url) => url.pathname === '/login' && url.searchParams.get('next') === invitePath,
-  );
-
-  await page.getByRole('main').getByRole('link', { name: 'Sign up' }).click();
-  await expect(page).toHaveURL(
-    (url) => url.pathname === '/signup' && url.searchParams.get('next') === invitePath,
-  );
-  await fillSignUpForm(page, member);
-
-  await expect(page).toHaveURL((url) => url.pathname === invitePath);
-  await expect(page.getByTestId('current-user')).toHaveText(member.name);
-  await expect(
-    page.getByText(`${lp.leader.name} invited you to join ${lp.projectName} in ${lp.teamName}`),
-  ).toBeVisible();
-
-  await page.getByRole('button', { name: 'Join project' }).click();
-  await expect(page).toHaveURL((url) => url.pathname === lp.projectPath);
-  await expect(page.getByRole('heading', { level: 1, name: lp.projectName })).toBeVisible();
-  await expect(page.getByText('Your role: Member', { exact: true })).toBeVisible();
-}
-
-/** Leader + joined member, each in their own browser context. */
-async function setUpLeaderAndMember(page: Page, browser: Browser) {
-  acceptDialogs(page);
-  const lp = await createLeaderWithProject(page);
-  const member = uniqueUser();
-  const inviteLink = await createInviteLink(page, member.email);
-
-  const memberPage = await newUserPage(browser);
-  await joinAsNewUser(memberPage, inviteLink, member, lp);
-  return { lp, member, memberPage };
 }
 
 test('a leader invites a member, who joins and sees the project', async ({ page, browser }) => {

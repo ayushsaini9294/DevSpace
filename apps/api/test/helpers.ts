@@ -4,6 +4,15 @@ import { expect } from 'vitest';
 import { ErrorResponseSchema, SESSION_COOKIE_NAME } from '@devspace/shared';
 import { createApp } from '../src/app.ts';
 import { prisma } from '../src/lib/prisma.ts';
+import {
+  lastCommit,
+  MAIN_REF,
+  updateRef,
+  writeBlob,
+  writeCommit,
+  writeTree,
+} from '../src/git/repo.ts';
+import { waitForImports } from '../src/repository/import.ts';
 
 export const app = createApp();
 
@@ -84,7 +93,62 @@ export async function addMember(inviter: TestUser, projectId: string, user: Test
 
 /** Deletes everything the test users created (teams first: owner is ON DELETE RESTRICT). */
 export async function cleanUp() {
+  await waitForImports();
   await prisma.team.deleteMany({ where: { ownerId: { in: createdUserIds } } });
   await prisma.user.deleteMany({ where: { id: { in: createdUserIds } } });
   await prisma.$disconnect();
+}
+
+/**
+ * Replaces main's files in a bare repository with `files` (paths → contents) as one new
+ * commit, built with plumbing via the API's own git module. Nested paths become folders.
+ */
+export async function commitFiles(
+  gitDir: string,
+  files: Record<string, string | Buffer>,
+  message = 'Test files\n',
+) {
+  interface Folder {
+    files: Map<string, string | Buffer>;
+    folders: Map<string, Folder>;
+  }
+  const root: Folder = { files: new Map(), folders: new Map() };
+  for (const [path, content] of Object.entries(files)) {
+    const parts = path.split('/');
+    const name = parts.pop()!;
+    let folder = root;
+    for (const part of parts) {
+      let next = folder.folders.get(part);
+      if (!next) folder.folders.set(part, (next = { files: new Map(), folders: new Map() }));
+      folder = next;
+    }
+    folder.files.set(name, content);
+  }
+  const build = async (folder: Folder): Promise<string> => {
+    const entries = [];
+    for (const [name, content] of folder.files) {
+      entries.push({
+        mode: '100644' as const,
+        type: 'blob' as const,
+        sha: await writeBlob(gitDir, content),
+        name,
+      });
+    }
+    for (const [name, child] of folder.folders) {
+      entries.push({
+        mode: '040000' as const,
+        type: 'tree' as const,
+        sha: await build(child),
+        name,
+      });
+    }
+    return writeTree(gitDir, entries);
+  };
+  const parent = await lastCommit(gitDir, MAIN_REF);
+  const commit = await writeCommit(gitDir, await build(root), parent ? [parent.sha] : [], message, {
+    name: 'Test Bot',
+    email: 'bot@example.test',
+  });
+  await updateRef(gitDir, MAIN_REF, commit);
+  return commit;
 }

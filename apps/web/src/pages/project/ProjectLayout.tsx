@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet, useOutletContext, useParams } from 'react-router';
+import { Link, NavLink, Outlet, useLocation, useOutletContext, useParams } from 'react-router';
 import type { ProjectDetail, User } from '@devspace/shared';
 import { FocusHeading, LoadError, Loading, linkStyle } from '../../components/ui';
 import { useCurrentUser } from '../../lib/auth';
@@ -40,6 +40,7 @@ export function ProjectLayout() {
   const projectId = useParams().projectId ?? '';
   const project = useProject(projectId);
   const currentUser = useCurrentUser();
+  const { pathname } = useLocation();
 
   if (project.isPending) return <Loading>Loading project…</Loading>;
   if (project.isError) {
@@ -69,6 +70,15 @@ export function ProjectLayout() {
         <nav aria-label="Project" className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1">
           <NavLink to={base} end className={tabClass}>
             Overview
+          </NavLink>
+          <NavLink
+            to={`${base}/files`}
+            className={({ isActive }) =>
+              // A file's page belongs to Files too.
+              tabClass({ isActive: isActive || pathname.startsWith(`${base}/blob/`) })
+            }
+          >
+            Files
           </NavLink>
           <NavLink to={`${base}/members`} className={tabClass}>
             Members
