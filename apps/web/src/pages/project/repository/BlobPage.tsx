@@ -32,6 +32,10 @@ function FileView({ path }: { path: string }) {
     body = (
       <>
         <p className="text-sm text-gray-600">{formatBytes(size)}</p>
+        <p className="text-sm text-gray-600">
+          This is main, the team's shared version, so it's read-only for everyone. You'll change
+          files in your own copy with Open IDE, then submit them for review.
+        </p>
         {isBinary ? (
           <p className={`${cardStyle} text-gray-700`}>
             This file is binary and can't be shown here.

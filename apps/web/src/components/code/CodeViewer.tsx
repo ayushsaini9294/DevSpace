@@ -10,7 +10,7 @@ export type CodeViewerProps = {
   value: string;
 };
 
-const MIN_HEIGHT = 60;
+const MIN_HEIGHT = 320;
 /** Room left for the header, breadcrumb and file details above the editor. */
 const PAGE_CHROME = 260;
 
@@ -52,7 +52,9 @@ export default function CodeViewer({ path, value }: CodeViewerProps) {
         wordWrap: 'off',
         renderLineHighlight: 'none',
         contextmenu: false,
-        fontSize: 13,
+        fontSize: 15,
+        lineHeight: 24,
+        padding: { top: 12, bottom: 12 },
         scrollbar: { alwaysConsumeMouseWheel: false },
       }}
     />
