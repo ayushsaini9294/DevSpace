@@ -10,8 +10,10 @@ Built in 12 phases. Done so far:
 
 - **Phase 1, Foundation:** monorepo, web and API apps, database, lint, tests, CI
 - **Phase 2, Accounts:** sign up, log in, log out, sessions
+- **Phase 3, Teams and projects:** teams, projects, invitations, roles and permissions
+- **Phase 4, Repository:** each project's Git repository and a file browser for main
 
-Next: Phase 3, Teams and projects.
+Next: Phase 5, Copies and IDE.
 
 ## Tech stack
 
@@ -26,7 +28,7 @@ TypeScript everywhere, in an npm workspaces monorepo.
 
 ## Getting started
 
-You need Node.js 24 and PostgreSQL 17.
+You need Linux (on Windows, WSL 2 Ubuntu), Node.js 24 and Docker Engine. From Phase 5 the API starts IDE containers through Docker's local socket, so run everything on the same Linux machine as Docker.
 
 1. Install dependencies:
 
@@ -34,15 +36,13 @@ You need Node.js 24 and PostgreSQL 17.
    npm install
    ```
 
-2. Create a database user and database for DevSpace (the names are up to you):
+2. Start PostgreSQL and Redis:
 
    ```sh
-   psql -U postgres -h localhost -c "CREATE ROLE devspace LOGIN CREATEDB PASSWORD 'devspace';" -c "CREATE DATABASE devspace OWNER devspace;"
+   npm run db:up
    ```
 
-   With Docker, `npm run db:up` starts PostgreSQL and Redis from `docker-compose.yml` instead.
-
-3. Copy `apps/api/.env.example` to `apps/api/.env` and set `DATABASE_URL` to match your database.
+3. Copy `apps/api/.env.example` to `apps/api/.env`.
 
 4. Create the tables:
 
