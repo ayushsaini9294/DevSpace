@@ -71,6 +71,13 @@ expect "no-new-privileges" 1 "$(docker exec "$IDE" sh -c "awk '/^NoNewPrivs/ {pr
 expect "the copy is mounted at /home/workspace" "hello from the copy" "$(docker exec "$IDE" cat /home/workspace/hello.txt)"
 expect "no sudo in the image" no "$(docker exec "$IDE" sh -c 'command -v sudo >/dev/null && echo yes || echo no')"
 expect "no Docker socket" no "$(docker exec "$IDE" sh -c '[ -e /var/run/docker.sock ] && echo yes || echo no')"
+expect "Node.js 24" v24 "$(docker exec "$IDE" sh -c 'node --version | cut -d. -f1')"
+expect "npm install in the copy (cache in HOME)" installed "$(docker exec "$IDE" sh -c \
+  'cd /home/workspace && npm init -y >/dev/null && npm install --no-audit --no-fund is-number@7.0.0 >/dev/null 2>&1 \
+   && node -e "require(\"is-number\")" && [ -d "$HOME/.npm/_cacache" ] && echo installed || echo failed')"
+expect "npm install -g goes to HOME" installed "$(docker exec "$IDE" sh -c \
+  'npm install -g --no-audit --no-fund is-number@7.0.0 >/dev/null 2>&1 \
+   && [ -d "$HOME/.npm-global/lib/node_modules/is-number" ] && echo installed || echo failed')"
 
 echo "Network isolation (from a second container on $NETWORK)"
 run_restricted "$PROBE" --entrypoint sleep "$IMAGE" 300

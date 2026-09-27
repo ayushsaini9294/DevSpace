@@ -7,6 +7,10 @@
 # - listens on 0.0.0.0:3000 and opens the folder /home/workspace (the copy, mounted by the API).
 # - runs as any uid:gid; HOME is /tmp/devspace-home, created on start, so it is always writable.
 # - works with all capabilities dropped and no-new-privileges.
+# - includes Node.js 24 LTS and npm (cache and global installs under HOME).
+
+# Node.js 24.21.0 LTS with npm 11.19.0, pinned by digest; only its files are copied below.
+FROM node:24.21.0-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS node
 
 # openvscode-server v1.105.1, pinned by digest.
 FROM gitpod/openvscode-server:1.105.1@sha256:5e7b8750749f282940a799ed59ccd02fac698ef6744f9113ac01c0ef8e76485e
@@ -21,11 +25,25 @@ RUN rm -f /etc/sudoers.d/openvscode-server \
     && apt-get install -y --no-install-recommends tini \
     && rm -rf /var/lib/apt/lists/*
 
+# Node.js and npm for the member's terminal (owner's choice: Node 24 LTS).
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/include/node /usr/local/include/node
+COPY --from=node /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
+COPY --from=node /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/corepack
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+    && ln -s ../lib/node_modules/corepack/dist/corepack.js /usr/local/bin/corepack \
+    && node --version && npm --version
+
 COPY --chmod=0755 start.sh /usr/local/bin/devspace-ide-start
 
 # HOME must not be the workspace (VS Code would write its data into the member's copy) and must be
 # writable for whatever uid the API runs us as, so it lives under /tmp and is created on start.
-ENV HOME=/tmp/devspace-home
+# npm keeps its cache in HOME (~/.npm) and installs global packages there too, since /usr/local
+# is root's.
+ENV HOME=/tmp/devspace-home \
+    NPM_CONFIG_PREFIX=/tmp/devspace-home/.npm-global \
+    PATH=/tmp/devspace-home/.npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 WORKDIR /home/workspace
 EXPOSE 3000
