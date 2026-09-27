@@ -22,3 +22,14 @@ Work is split between frontend (apps/web), backend (apps/api, apps/worker, packa
 ## 2026-09-27: Local database name
 
 The local PostgreSQL already has a `devspace` role and database from the old project, which we don't touch. This project uses `devspace_v3` (role, password and database) locally, set in the gitignored `apps/api/.env`. CI and `docker-compose.yml` keep `devspace`, since they start from empty databases.
+
+## 2026-09-27: Teams, projects and invitations (Phase 3)
+
+- A team can hold several projects, each with its own leader (the blueprint's open question: yes).
+- Any team member can create a project in that team and becomes its leader. Anyone logged in can create a team.
+- You see only the projects you are a member of. Accepting a project invitation also adds you to its team.
+- Invitations are for one email address. The leader copies the link and sends it; the link only works when logged in with that email. Links last 7 days; re-inviting the same email replaces the old link. Only a hash of the link token is stored.
+- New members start with every extra permission switched off, as in the blueprint; leaders switch them on per member.
+- Default project settings: approval required on, browsing others' copies off, copies update automatically, GitHub mode "publish once".
+- Permission rules live in one pure function in `packages/shared` (`can`, plus member-management checks), used by the API to enforce and by the web app to show or hide actions.
+- Login rate limiting moves to Phase 12, where the blueprint puts rate limits.

@@ -2,7 +2,15 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LogInRequestSchema, SignUpRequestSchema } from '@devspace/shared';
-import { healthOk, loggedIn, loggedOut, renderApp, stubApi, testUser } from '../test/utils';
+import {
+  emptyDashboard,
+  healthOk,
+  loggedIn,
+  loggedOut,
+  renderApp,
+  stubApi,
+  testUser,
+} from '../test/utils';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -88,6 +96,7 @@ describe('sign-up page', () => {
     let session = loggedOut;
     const fetchMock = stubApi({
       'GET /api/auth/me': () => session,
+      ...emptyDashboard,
       'GET /api/health': healthOk,
       'POST /api/auth/signup': () => {
         session = loggedIn;
@@ -103,7 +112,7 @@ describe('sign-up page', () => {
 
     expect(await screen.findByTestId('current-user')).toHaveTextContent(testUser.name);
     expect(router.state.location.pathname).toBe('/');
-    expect(screen.getByText(`Welcome, ${testUser.name}`)).toBeInTheDocument();
+    expect(await screen.findByText(`Welcome, ${testUser.name}`)).toBeInTheDocument();
     const sent = SignUpRequestSchema.parse(requestBody(fetchMock, 'POST /api/auth/signup'));
     expect(sent).toEqual({
       name: 'Ada Lovelace',
@@ -157,7 +166,7 @@ describe('log-in page', () => {
   });
 
   it('redirects to / when already logged in', async () => {
-    stubApi({ 'GET /api/auth/me': loggedIn, 'GET /api/health': healthOk });
+    stubApi({ 'GET /api/auth/me': loggedIn, 'GET /api/health': healthOk, ...emptyDashboard });
     const { router } = renderApp('/login');
     expect(await screen.findByText(`Welcome, ${testUser.name}`)).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/');
@@ -193,6 +202,7 @@ describe('top bar', () => {
     let session = loggedIn;
     const fetchMock = stubApi({
       'GET /api/auth/me': () => session,
+      ...emptyDashboard,
       'GET /api/health': healthOk,
       'POST /api/auth/logout': () => {
         session = loggedOut;

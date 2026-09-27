@@ -3,9 +3,12 @@ import cookieParser from 'cookie-parser';
 import type { ErrorResponse } from '@devspace/shared';
 import { healthRouter } from './routes/health.ts';
 import { authRouter } from './auth/routes.ts';
-import { loadSession } from './auth/middleware.ts';
+import { loadSession, requireAuth } from './auth/middleware.ts';
 import { HttpError } from './lib/http-error.ts';
 import { requireJson } from './lib/require-json.ts';
+import { teamsRouter } from './teams/routes.ts';
+import { projectsRouter } from './projects/routes.ts';
+import { invitationsRouter } from './invitations/routes.ts';
 
 export function createApp(): Express {
   const app = express();
@@ -17,6 +20,9 @@ export function createApp(): Express {
 
   app.use('/api', healthRouter);
   app.use('/api/auth', authRouter);
+  app.use('/api/teams', requireAuth, teamsRouter);
+  app.use('/api/projects', requireAuth, projectsRouter);
+  app.use('/api/invitations', requireAuth, invitationsRouter);
 
   app.use((_req, res) => {
     const body: ErrorResponse = { error: 'not_found', message: 'Route not found' };

@@ -7,7 +7,10 @@ type TextFieldProps = {
   error?: string | undefined;
   /** Announce the error immediately (used for errors that arrive from the server). */
   errorIsAlert?: boolean;
-} & Pick<InputHTMLAttributes<HTMLInputElement>, 'type' | 'autoComplete' | 'required'>;
+} & Pick<
+  InputHTMLAttributes<HTMLInputElement>,
+  'type' | 'autoComplete' | 'required' | 'defaultValue' | 'value' | 'onChange' | 'readOnly'
+>;
 
 export function TextField({
   label,

@@ -73,3 +73,19 @@ export function describeServerError<F extends string>(
     formError: 'Could not reach the server. Check your connection and try again.',
   };
 }
+
+/** One sentence for any failed request, for a form-level or action alert. */
+export function errorMessage(error: unknown): string {
+  return (
+    describeServerError(error, [] as const).formError ?? 'Something went wrong. Please try again.'
+  );
+}
+
+/** The server's error code (e.g. `invitation_expired`), if the failure was an API error. */
+export function errorCode(error: unknown): string | null {
+  return error instanceof ApiError ? (error.errorResponse?.error ?? null) : null;
+}
+
+export function isNotFound(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404;
+}

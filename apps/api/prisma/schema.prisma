@@ -14,15 +14,21 @@ datasource db {
 }
 
 model User {
-  id           String    @id @default(uuid())
-  name         String
+  id                  String          @id @default(uuid())
+  name                String
   /// Always stored lowercased (the shared Zod schema lowercases it).
-  email        String    @unique
+  email               String          @unique
   /// Self-describing scrypt string: scrypt$N$r$p$<salt b64>$<hash b64>. Never returned by the API.
-  passwordHash String    @map("password_hash")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-  sessions     Session[]
+  passwordHash        String          @map("password_hash")
+  createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @updatedAt @map("updated_at")
+  sessions            Session[]
+  ownedTeams          Team[]
+  teamMemberships     TeamMember[]
+  projectMemberships  ProjectMember[]
+  invitationsSent     Invitation[]    @relation("InvitedBy")
+  invitationsAccepted Invitation[]    @relation("AcceptedBy")
+  activity            ActivityLog[]
 
   @@map("users")
 }
@@ -37,4 +43,118 @@ model Session {
 
   @@index([userId])
   @@map("sessions")
+}
+
+// ---------- Phase 3: teams, projects, invitations, activity ----------
+
+model Team {
+  id        String       @id @default(uuid())
+  name      String
+  ownerId   String       @map("owner_id")
+  owner     User         @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  createdAt DateTime     @default(now()) @map("created_at")
+  members   TeamMember[]
+  projects  Project[]
+
+  @@index([ownerId])
+  @@map("teams")
+}
+
+model TeamMember {
+  teamId   String   @map("team_id")
+  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId   String   @map("user_id")
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  @@id([teamId, userId])
+  @@index([userId])
+  @@map("team_members")
+}
+
+model Project {
+  id          String          @id @default(uuid())
+  teamId      String          @map("team_id")
+  team        Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  name        String
+  /// Path of the project's bare git repo on disk; filled in Phase 4.
+  repoPath    String?         @map("repo_path")
+  /// ProjectSettings from packages/shared; validated with ProjectSettingsSchema when read.
+  settings    Json
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  members     ProjectMember[]
+  invitations Invitation[]
+  activity    ActivityLog[]
+
+  @@index([teamId])
+  @@map("projects")
+}
+
+enum ProjectRole {
+  leader
+  co_leader
+  member
+
+  @@map("project_role")
+}
+
+model ProjectMember {
+  projectId   String      @map("project_id")
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId      String      @map("user_id")
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        ProjectRole
+  /// MemberPermissions from packages/shared; validated with MemberPermissionsSchema when read.
+  permissions Json
+  joinedAt    DateTime    @default(now()) @map("joined_at")
+
+  @@id([projectId, userId])
+  @@index([userId])
+  @@map("project_members")
+}
+
+enum InvitationStatus {
+  pending
+  accepted
+  revoked
+
+  @@map("invitation_status")
+}
+
+model Invitation {
+  id           String           @id @default(uuid())
+  projectId    String           @map("project_id")
+  project      Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  /// Always lowercased.
+  email        String
+  /// SHA-256 hex hash of the link token; the token itself is never stored.
+  tokenHash    String           @unique @map("token_hash")
+  invitedById  String           @map("invited_by_id")
+  invitedBy    User             @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
+  status       InvitationStatus @default(pending)
+  expiresAt    DateTime         @map("expires_at")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  acceptedAt   DateTime?        @map("accepted_at")
+  acceptedById String?          @map("accepted_by_id")
+  acceptedBy   User?            @relation("AcceptedBy", fields: [acceptedById], references: [id], onDelete: SetNull)
+
+  @@index([projectId, email])
+  @@map("invitations")
+}
+
+/// Append-only: rows are only ever inserted by application code.
+model ActivityLog {
+  id        String   @id @default(uuid())
+  projectId String   @map("project_id")
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actorId   String?  @map("actor_id")
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action    String
+  target    String?
+  data      Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([projectId, createdAt])
+  @@map("activity_log")
 }

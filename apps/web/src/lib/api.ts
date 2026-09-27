@@ -53,3 +53,18 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<un
 export function apiPost(path: string, data: unknown = {}): Promise<unknown> {
   return apiFetch(path, { method: 'POST', body: JSON.stringify(data) });
 }
+
+/** PATCH a JSON body. */
+export function apiPatch(path: string, data: unknown): Promise<unknown> {
+  return apiFetch(path, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+/** DELETE, always with a JSON body (`{}` when there is nothing to send) so it passes the JSON-only check. */
+export function apiDelete(path: string, data: unknown = {}): Promise<unknown> {
+  return apiFetch(path, { method: 'DELETE', body: JSON.stringify(data) });
+}
+
+/** Retry only network and server failures, briefly; client errors (4xx) won't fix themselves. */
+export function retryServerErrors(failureCount: number, error: unknown): boolean {
+  return failureCount < 2 && !(error instanceof ApiError && error.status < 500);
+}
