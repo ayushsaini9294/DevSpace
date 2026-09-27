@@ -95,12 +95,27 @@ export interface GitResult {
   stderr: string;
 }
 
-/** Kills git and, on Windows, the helper processes it started (e.g. git-remote-https). */
+const IS_WINDOWS = process.platform === 'win32';
+
+/** After a kill, how long to wait for git's pipes to close before giving up on them. */
+const KILL_GRACE_MS = 2_000;
+
+/**
+ * Kills git and the helper processes it started (e.g. git-remote-https). Those helpers hold
+ * git's stdout/stderr open, so killing git alone leaves the pipes open and 'close' never fires.
+ * Windows: taskkill /T. Elsewhere: git runs in its own process group, which is killed whole.
+ */
 function killTree(pid: number | undefined, kill: () => void): void {
-  if (process.platform === 'win32' && pid !== undefined) {
+  if (pid === undefined) {
+    kill();
+  } else if (IS_WINDOWS) {
     execFile('taskkill', ['/pid', String(pid), '/T', '/F'], { windowsHide: true }, () => kill());
   } else {
-    kill();
+    try {
+      process.kill(-pid, 'SIGKILL');
+    } catch {
+      kill();
+    }
   }
 }
 
@@ -124,6 +139,8 @@ export function runGit(args: readonly string[], options: RunGitOptions = {}): Pr
       env: gitEnv(options.env ?? {}),
       shell: false,
       windowsHide: true,
+      // Own process group, so a timeout can kill git's helpers too (see killTree).
+      detached: !IS_WINDOWS,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
 
@@ -137,6 +154,13 @@ export function runGit(args: readonly string[], options: RunGitOptions = {}): Pr
       if (failure) return;
       failure = error;
       killTree(child.pid, () => child.kill('SIGKILL'));
+      // Safety net: if something still holds the pipes open, stop waiting for them.
+      setTimeout(() => {
+        if (settled) return;
+        child.stdout.destroy();
+        child.stderr.destroy();
+        finish(error);
+      }, KILL_GRACE_MS).unref();
     };
 
     const timer = setTimeout(
