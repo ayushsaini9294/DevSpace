@@ -1,5 +1,6 @@
-// Prisma schema for the DevSpace API. Models arrive in Phase 2.
+// Prisma schema for the DevSpace API.
 // Connection URL lives in prisma.config.ts; the runtime client uses the pg driver adapter.
+// Tables and columns are snake_case in PostgreSQL (via @@map/@map), camelCase in TypeScript.
 
 generator client {
   provider            = "prisma-client"
@@ -10,4 +11,30 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  /// Always stored lowercased (the shared Zod schema lowercases it).
+  email        String    @unique
+  /// Self-describing scrypt string: scrypt$N$r$p$<salt b64>$<hash b64>. Never returned by the API.
+  passwordHash String    @map("password_hash")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  sessions     Session[]
+
+  @@map("users")
+}
+
+model Session {
+  /// SHA-256 hex hash of the session token; the token itself is only in the cookie.
+  id        String   @id
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("sessions")
 }

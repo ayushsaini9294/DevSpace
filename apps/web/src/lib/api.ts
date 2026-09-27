@@ -1,3 +1,5 @@
+import { ErrorResponseSchema, type ErrorResponse } from '@devspace/shared';
+
 /** Error thrown by apiFetch when the server answers with a non-2xx status. */
 export class ApiError extends Error {
   readonly status: number;
@@ -10,9 +12,16 @@ export class ApiError extends Error {
     this.status = status;
     this.body = body;
   }
+
+  /** The body as the shared ErrorResponse shape, or null if it doesn't match. */
+  get errorResponse(): ErrorResponse | null {
+    const parsed = ErrorResponseSchema.safeParse(this.body);
+    return parsed.success ? parsed.data : null;
+  }
 }
 
 async function readJson(res: Response): Promise<unknown> {
+  if (res.status === 204 || res.status === 205) return null;
   const text = await res.text();
   if (!text) return null;
   try {
@@ -24,7 +33,7 @@ async function readJson(res: Response): Promise<unknown> {
 
 /**
  * Fetch a JSON endpoint of the DevSpace API, sending the session cookie.
- * Resolves with the parsed body on 2xx; throws ApiError otherwise.
+ * Resolves with the parsed body on 2xx (null for 204 No Content); throws ApiError otherwise.
  * Callers validate the result with a Zod schema from @devspace/shared.
  */
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<unknown> {
@@ -38,4 +47,9 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<un
   const body = await readJson(res);
   if (!res.ok) throw new ApiError(res.status, body);
   return body;
+}
+
+/** POST a JSON body. The API rejects non-JSON POSTs with 415, so there is always one. */
+export function apiPost(path: string, data: unknown = {}): Promise<unknown> {
+  return apiFetch(path, { method: 'POST', body: JSON.stringify(data) });
 }
