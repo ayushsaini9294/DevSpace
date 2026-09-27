@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -n api,web -c blue,magenta \"npm run dev -w @devspace/api\" \"npm run dev -w @devspace/web\"",
+    "dev": "concurrently -n api,web,worker -c blue,magenta,green \"npm run dev -w @devspace/api\" \"npm run dev -w @devspace/web\" \"npm run dev -w @devspace/worker\"",
     "build": "npm run build --workspaces --if-present",
     "lint": "eslint .",
     "format": "prettier --write .",

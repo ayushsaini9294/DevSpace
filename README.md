@@ -57,7 +57,7 @@ You need Linux (on Windows, WSL 2 Ubuntu), Node.js 24 and Docker Engine. From Ph
    npm run ide:network
    ```
 
-6. Start the web app and the API:
+6. Start the web app, the API and the worker (which stops IDEs idle for 30 minutes and checks copy sizes):
 
    ```sh
    npm run dev
@@ -79,7 +79,7 @@ The IDE is served from `127.0.0.1` on purpose. The browser treats it as a differ
 
 | Command               | What it does                                              |
 | --------------------- | --------------------------------------------------------- |
-| `npm run dev`         | Starts the web app and the API                            |
+| `npm run dev`         | Starts the web app, the API and the worker                |
 | `npm run lint`        | Runs ESLint                                               |
 | `npm run typecheck`   | Type-checks every workspace                               |
 | `npm test`            | Runs unit and API tests (the API tests need the database) |

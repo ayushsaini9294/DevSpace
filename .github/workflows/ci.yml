@@ -12,7 +12,7 @@ jobs:
   check:
     name: Lint, typecheck, test, e2e
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     services:
       postgres:
@@ -25,6 +25,16 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U devspace"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      # BullMQ queue for the worker (Phase 5, idle IDE stop and disk checks).
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
@@ -66,11 +76,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Unit tests
-        run: npm test
-
       # IDE containers (Phase 5): the image, its network and firewall, then a check on a real
-      # container that the image works when locked down and that the network is isolated.
+      # container that the image works when locked down and that the network is isolated. Before
+      # the unit tests, so the API's real-container tests run instead of skipping.
       - name: Build IDE image
         run: npm run ide:build
 
@@ -82,6 +90,11 @@ jobs:
 
       - name: Check IDE container and isolation
         run: bash scripts/ide-check.sh
+
+      - name: Unit tests
+        run: npm test
+        env:
+          COPIES_DIR: ${{ runner.temp }}/devspace-copies-unit
 
       - name: Check the app's ports are free
         run: bash scripts/check-ports.sh
@@ -95,6 +108,8 @@ jobs:
           # Projects' bare Git repositories (Phase 4), kept out of the checkout; the API creates
           # the folder. Set per step because `runner` isn't available in job-level env.
           REPOS_DIR: ${{ runner.temp }}/devspace-repos
+          # Members' copies (Phase 5); e2e/ide.spec.ts reads the same variable to check files on disk.
+          COPIES_DIR: ${{ runner.temp }}/devspace-copies
 
       - name: Upload Playwright report
         if: failure()
