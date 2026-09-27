@@ -9,7 +9,7 @@ Big choices, newest last. The blueprint (`docs/blueprint.pdf`, v3) is the source
 
 ## 2026-09-27: Phase 0 added before Phase 1
 
-Phase 0 sets up the machine and repo: Docker Desktop on WSL 2, GitHub CLI, a private GitHub repo, and this file.
+Phase 0 sets up the machine and repo: Docker Engine inside WSL 2 Ubuntu (Docker Desktop will not install on this Windows build, and upgrading Windows is too risky for existing data), GitHub CLI, a private GitHub repo, and this file.
 
 ## 2026-09-27: Tech stack confirmed as in blueprint v3
 
