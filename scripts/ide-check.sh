@@ -85,8 +85,14 @@ probe() { docker exec "$PROBE" sh -c "$1" 2>/dev/null || true; }
 reach() { # host, port -> open | blocked
   probe "curl -s -m 5 -o /dev/null telnet://$1:$2 </dev/null; rc=\$?; [ \$rc -eq 0 ] || [ \$rc -eq 52 ] && echo open || echo blocked"
 }
-GATEWAY="$(docker network inspect "$NETWORK" -f '{{(index .IPAM.Config 0).Gateway}}')"
+# The bridge's own address, read from the interface: some Docker versions (GitHub's runners)
+# leave IPAM.Config's Gateway empty when it wasn't set explicitly.
+GATEWAY="$(ip -4 -o addr show dev br-dsp-ide | awk '{print $4}' | cut -d/ -f1 | head -n1)"
 HOST_IP="$(ip -4 route get 1.1.1.1 | awk '{for (i = 1; i <= NF; i++) if ($i == "src") print $(i + 1)}')"
+# An empty address would make a "blocked" result meaningless.
+for ip in "$GATEWAY" "$HOST_IP"; do
+  [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "FAIL: could not find the gateway or host address (got '$GATEWAY' / '$HOST_IP')"; exit 1; }
+done
 
 # A listener on the host, on all addresses, standing in for the API: the host can reach it, so a
 # failed connection from the probe is the firewall and not an empty port.

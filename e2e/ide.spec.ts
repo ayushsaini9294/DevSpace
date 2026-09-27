@@ -280,13 +280,13 @@ test('an IDE container is isolated from the host, the API, the databases and oth
   expect(inside).toContain(state.createdFile!);
   expect(inside).not.toContain('DOCKER-SOCKET');
 
-  const gateway = docker(
-    'network',
-    'inspect',
-    'devspace-ide',
-    '-f',
-    '{{(index .IPAM.Config 0).Gateway}}',
-  );
+  // The bridge's own address. Read from the interface, not `docker network inspect`: some Docker
+  // versions (GitHub's runners) leave IPAM.Config's Gateway empty when it wasn't set explicitly.
+  const gateway = execFileSync(
+    'bash',
+    ['-c', "ip -4 -o addr show dev br-dsp-ide | awk '{print $4}' | cut -d/ -f1 | head -n1"],
+    { encoding: 'utf8' },
+  ).trim();
   const hostIp = execFileSync(
     'bash',
     ['-c', 'ip -4 route get 1.1.1.1 | awk \'{for (i=1;i<=NF;i++) if ($i=="src") print $(i+1)}\''],
@@ -298,6 +298,10 @@ test('an IDE container is isolated from the host, the API, the databases and oth
     '{{(index .NetworkSettings.Networks "devspace-ide").IPAddress}}',
     containerName(second.copyId),
   );
+  // An empty address would make every check below meaningless, so stop with a clear reason.
+  for (const [what, ip] of Object.entries({ gateway, hostIp, secondIp })) {
+    expect(ip, `${what} must be an IPv4 address`).toMatch(/^\d+\.\d+\.\d+\.\d+$/);
+  }
 
   // Each target is reachable from the host (so a failure below is the isolation, not an empty
   // port), and unreachable from the IDE container.
