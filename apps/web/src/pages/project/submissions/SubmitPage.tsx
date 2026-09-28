@@ -1,0 +1,345 @@
+import { useId, useState, type FormEvent } from 'react';
+import { Link, useNavigate, useParams } from 'react-router';
+import {
+  CreateSubmissionRequestSchema,
+  type ChangedFile,
+  type SubmissionDetail,
+} from '@devspace/shared';
+import { FormAlert } from '../../../components/AuthPageShell';
+import { TextField } from '../../../components/TextField';
+import {
+  FocusHeading,
+  LoadError,
+  Loading,
+  buttonStyles,
+  cardStyle,
+  linkStyle,
+} from '../../../components/ui';
+import { idePageUrl } from '../../../lib/copies';
+import { errorCode, isNotFound } from '../../../lib/formErrors';
+import {
+  submissionErrorMessage,
+  submissionUrl,
+  submissionsUrl,
+  useCopyChanges,
+  useCreateSubmission,
+  useSubmission,
+  useUpdateSubmission,
+} from '../../../lib/submissions';
+import { useProjectContext } from '../ProjectLayout';
+import { ChangeLabel, TextArea } from './parts';
+
+type Field = 'title' | 'description' | 'paths';
+
+/** The first message for each field from a failed check of the request. */
+function checkRequest(values: { title: string; description: string; paths: string[] }) {
+  const result = CreateSubmissionRequestSchema.safeParse(values);
+  if (result.success) return { ok: true as const, data: result.data };
+  const errors: Partial<Record<Field, string>> = {};
+  for (const issue of result.error.issues) {
+    const field = issue.path[0];
+    if ((field === 'title' || field === 'description' || field === 'paths') && !errors[field]) {
+      errors[field] = issue.message;
+    }
+  }
+  return { ok: false as const, errors };
+}
+
+function FileRow({
+  projectId,
+  file,
+  locked,
+  checked,
+  onToggle,
+}: {
+  projectId: string;
+  file: ChangedFile;
+  locked: boolean;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  const id = useId();
+  const noteId = `${id}-note`;
+  return (
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+      <input
+        id={id}
+        type="checkbox"
+        checked={checked}
+        disabled={locked}
+        onChange={onToggle}
+        aria-describedby={locked ? noteId : undefined}
+        className="h-4 w-4 shrink-0 border-gray-300"
+      />
+      <label
+        htmlFor={id}
+        className={`min-w-0 flex-1 font-mono text-sm break-all ${locked ? 'text-gray-500' : 'text-gray-900'}`}
+      >
+        {file.path}
+      </label>
+      <ChangeLabel change={file.change} />
+      {locked && file.openSubmissionId && (
+        <p id={noteId} className="w-full pl-7 text-sm text-gray-600">
+          Locked: already in{' '}
+          <Link to={submissionUrl(projectId, file.openSubmissionId)} className={linkStyle}>
+            another open submission
+          </Link>
+          .
+        </p>
+      )}
+    </li>
+  );
+}
+
+function PickerForm({
+  projectId,
+  files,
+  existing,
+}: {
+  projectId: string;
+  files: ChangedFile[];
+  /** The submission being updated, or null for a new one. */
+  existing: SubmissionDetail | null;
+}) {
+  const navigate = useNavigate();
+  const create = useCreateSubmission(projectId);
+  const update = useUpdateSubmission(projectId, existing?.id ?? '');
+  const mutation = existing ? update : create;
+
+  // A file is locked when it's in one of my other active submissions.
+  const isLocked = (file: ChangedFile) =>
+    file.openSubmissionId !== null && file.openSubmissionId !== existing?.id;
+  const [picked, setPicked] = useState<Set<string>>(() => {
+    if (existing) {
+      const current = new Set(existing.files.map((f) => f.path));
+      return new Set(files.filter((f) => !isLocked(f) && current.has(f.path)).map((f) => f.path));
+    }
+    return new Set(files.filter((f) => !isLocked(f)).map((f) => f.path));
+  });
+  const [title, setTitle] = useState(existing?.title ?? '');
+  const [description, setDescription] = useState(existing?.description ?? '');
+  const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
+
+  const changedPaths = new Set(files.map((f) => f.path));
+  const noLongerChanged = existing
+    ? existing.files.map((f) => f.path).filter((p) => !changedPaths.has(p))
+    : [];
+  const pickable = files.filter((f) => !isLocked(f));
+
+  function toggle(path: string) {
+    setPicked((current) => {
+      const next = new Set(current);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    // Keep the list's order.
+    const paths = files.map((f) => f.path).filter((p) => picked.has(p));
+    const checked = checkRequest({ title, description, paths });
+    if (!checked.ok) {
+      setErrors(checked.errors);
+      return;
+    }
+    setErrors({});
+    mutation.mutate(checked.data, {
+      onSuccess: (submission) => navigate(submissionUrl(projectId, submission.id)),
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} noValidate className="space-y-4">
+      <fieldset className="space-y-2">
+        <legend className="font-medium text-gray-900">Files to submit</legend>
+        <p className="text-sm text-gray-600">
+          Files in your copy that differ from main. Only the ticked ones are submitted; the rest
+          stay in your copy.
+        </p>
+        {pickable.length > 1 && (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className={`${buttonStyles.secondary} py-1`}
+              onClick={() => setPicked(new Set(pickable.map((f) => f.path)))}
+            >
+              Tick all
+            </button>
+            <button
+              type="button"
+              className={`${buttonStyles.secondary} py-1`}
+              onClick={() => setPicked(new Set())}
+            >
+              Untick all
+            </button>
+          </div>
+        )}
+        <ul className="divide-y divide-gray-200 rounded-md border border-gray-200 bg-white">
+          {files.map((file) => (
+            <FileRow
+              key={file.path}
+              projectId={projectId}
+              file={file}
+              locked={isLocked(file)}
+              checked={picked.has(file.path)}
+              onToggle={() => toggle(file.path)}
+            />
+          ))}
+        </ul>
+        <p role="status" className="text-sm text-gray-700">
+          {picked.size === 1 ? '1 file picked' : `${picked.size} files picked`}
+        </p>
+        {errors.paths && <p className="text-sm text-red-700">{errors.paths}</p>}
+        {noLongerChanged.length > 0 && (
+          <p className="text-sm text-gray-700">
+            No longer changed in your copy, so they will leave this submission:{' '}
+            <span className="font-mono break-all">{noLongerChanged.join(', ')}</span>
+          </p>
+        )}
+      </fieldset>
+      <TextField
+        label="Title"
+        name="title"
+        value={title}
+        onChange={(event) => setTitle(event.currentTarget.value)}
+        error={errors.title}
+      />
+      <TextArea
+        label="Description"
+        value={description}
+        onChange={setDescription}
+        error={errors.description}
+      />
+      {existing && (
+        <p className="text-sm text-gray-700">
+          Updating makes version {existing.version + 1}. Earlier approvals and change requests stop
+          counting, so reviewers need to look again.
+        </p>
+      )}
+      {mutation.isError && <FormAlert>{submissionErrorMessage(mutation.error)}</FormAlert>}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="submit"
+          disabled={mutation.isPending}
+          aria-busy={mutation.isPending || undefined}
+          className={buttonStyles.primary}
+        >
+          {existing ? 'Update submission' : 'Submit'}
+        </button>
+        <Link
+          to={existing ? submissionUrl(projectId, existing.id) : submissionsUrl(projectId)}
+          className={buttonStyles.secondary}
+        >
+          Cancel
+        </Link>
+      </div>
+    </form>
+  );
+}
+
+function ChangesLoader({
+  projectId,
+  existing,
+}: {
+  projectId: string;
+  existing: SubmissionDetail | null;
+}) {
+  const changes = useCopyChanges(projectId);
+
+  if (changes.isPending) return <Loading>Looking for changed files in your copy…</Loading>;
+  if (changes.isError) {
+    if (errorCode(changes.error) === 'no_copy') {
+      return (
+        <div className={`${cardStyle} space-y-2`}>
+          <p className="text-gray-700">
+            You don’t have a copy of this project yet. Open the IDE to make one, change some files,
+            then come back here.
+          </p>
+          <Link to={idePageUrl(projectId)} className={linkStyle}>
+            Open IDE
+          </Link>
+        </div>
+      );
+    }
+    return (
+      <div className="space-y-2">
+        <FormAlert>{submissionErrorMessage(changes.error)}</FormAlert>
+        <button type="button" className={buttonStyles.secondary} onClick={() => changes.refetch()}>
+          Try again
+        </button>
+      </div>
+    );
+  }
+  if (changes.data.files.length === 0) {
+    return (
+      <div className={`${cardStyle} space-y-2`}>
+        <p className="text-gray-700">
+          Nothing to submit: no file in your copy differs from main. Change files in the IDE first.
+        </p>
+        <Link to={idePageUrl(projectId)} className={linkStyle}>
+          Open IDE
+        </Link>
+      </div>
+    );
+  }
+  return <PickerForm projectId={projectId} files={changes.data.files} existing={existing} />;
+}
+
+/** `/projects/:projectId/submissions/new`: pick changed files from my copy and submit them. */
+export function NewSubmissionPage() {
+  const { project } = useProjectContext();
+  return (
+    <section aria-labelledby="new-submission-heading" className="space-y-4">
+      <FocusHeading level={2}>
+        <span id="new-submission-heading">Submit work</span>
+      </FocusHeading>
+      <ChangesLoader projectId={project.id} existing={null} />
+    </section>
+  );
+}
+
+/** `/projects/:projectId/submissions/:submissionId/update`: the same picker, pre-ticked. */
+export function UpdateSubmissionPage() {
+  const { project } = useProjectContext();
+  const submissionId = useParams().submissionId ?? '';
+  const submission = useSubmission(project.id, submissionId);
+
+  let body;
+  if (submission.isPending) {
+    body = <Loading>Loading the submission…</Loading>;
+  } else if (submission.isError) {
+    body = isNotFound(submission.error) ? (
+      <FormAlert>There is no submission at this address.</FormAlert>
+    ) : (
+      <LoadError
+        what="the submission"
+        error={submission.error}
+        onRetry={() => submission.refetch()}
+      />
+    );
+  } else if (!submission.data.viewerActions.includes('update')) {
+    body = (
+      <div className="space-y-2">
+        <p className="text-gray-700">
+          Only the author can update this submission, and only while it’s open.
+        </p>
+        <Link to={submissionUrl(project.id, submissionId)} className={linkStyle}>
+          Back to the submission
+        </Link>
+      </div>
+    );
+  } else {
+    body = <ChangesLoader projectId={project.id} existing={submission.data} />;
+  }
+
+  return (
+    <section aria-labelledby="update-submission-heading" className="space-y-4">
+      <FocusHeading level={2}>
+        <span id="update-submission-heading">Update submission</span>
+      </FocusHeading>
+      {body}
+    </section>
+  );
+}

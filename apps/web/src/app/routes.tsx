@@ -15,6 +15,9 @@ import { ProjectLayout } from '../pages/project/ProjectLayout';
 import { SettingsPage } from '../pages/project/SettingsPage';
 import { BlobPage } from '../pages/project/repository/BlobPage';
 import { FilesPage } from '../pages/project/repository/FilesPage';
+import { ReviewPage } from '../pages/project/submissions/ReviewPage';
+import { SubmissionsPage } from '../pages/project/submissions/SubmissionsPage';
+import { NewSubmissionPage, UpdateSubmissionPage } from '../pages/project/submissions/SubmitPage';
 
 export const routes: RouteObject[] = [
   // The IDE fills the whole window, so it sits outside the normal page layout.
@@ -39,6 +42,10 @@ export const routes: RouteObject[] = [
               { index: true, element: <OverviewPage /> },
               { path: 'files/*', element: <FilesPage /> },
               { path: 'blob/*', element: <BlobPage /> },
+              { path: 'submissions', element: <SubmissionsPage /> },
+              { path: 'submissions/new', element: <NewSubmissionPage /> },
+              { path: 'submissions/:submissionId', element: <ReviewPage /> },
+              { path: 'submissions/:submissionId/update', element: <UpdateSubmissionPage /> },
               { path: 'members', element: <MembersPage /> },
               { path: 'activity', element: <ActivityPage /> },
               { path: 'settings', element: <SettingsPage /> },

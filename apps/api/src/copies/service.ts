@@ -5,7 +5,7 @@ import { CopyViewSchema, type CopyView } from '@devspace/shared';
 import { recordActivity } from '../activity/log.ts';
 import { env } from '../config/env.ts';
 import { Prisma } from '../generated/prisma/client.ts';
-import { cleanIdentity, type Identity } from '../git/repo.ts';
+import { cleanIdentity, lastCommit, MAIN_REF, type Identity } from '../git/repo.ts';
 import { runGit } from '../git/run.ts';
 import { HttpError } from '../lib/http-error.ts';
 import { prisma } from '../lib/prisma.ts';
@@ -83,7 +83,7 @@ async function cloneCopy(
   dir: string,
   branch: string,
   identity: Identity,
-): Promise<void> {
+): Promise<string> {
   await runGit(
     ['clone', '--quiet', '--no-hardlinks', '--template=', '--branch', 'main', '--', repoPath, dir],
     { allowLocalRepo: true, timeoutMs: CLONE_TIMEOUT_MS },
@@ -95,6 +95,13 @@ async function cloneCopy(
   const who = cleanIdentity(identity);
   await runGit(['config', '--local', '--', 'user.name', who.name], inCopy);
   await runGit(['config', '--local', '--', 'user.email', who.email], inCopy);
+  // The main commit the copy starts from. Read now, while the folder is still ours (it isn't
+  // the member's until it is moved into place); never from a copy folder after that.
+  const head = (await runGit(['rev-parse', '--verify', 'HEAD^{commit}'], inCopy)).stdout
+    .toString('utf8')
+    .trim();
+  if (!/^[0-9a-f]{40}([0-9a-f]{24})?$/.test(head)) throw new Error('unexpected clone head');
+  return head;
 }
 
 function isPrismaError(err: unknown, code: string): boolean {
@@ -127,10 +134,10 @@ export async function ensureCopy(
   const temp = `${target}.new`;
   await mkdir(projectCopiesDir(projectId), { recursive: true });
   try {
-    await cloneCopy(project.repoPath, temp, branchName, user);
+    const baseSha = await cloneCopy(project.repoPath, temp, branchName, user);
     const row = await prisma.$transaction(async (tx) => {
       const created = await tx.copy.create({
-        data: { id, projectId, userId: user.id, branchName },
+        data: { id, projectId, userId: user.id, branchName, baseSha },
         select: copySelect,
       });
       await recordActivity(tx, {
@@ -172,4 +179,40 @@ export async function removeProjectCopies(projectId: string): Promise<void> {
       err instanceof Error ? err.message : err,
     );
   }
+}
+
+/**
+ * The main commit a copy was made from. Copies made before Phase 6 have none stored: they get
+ * the project's current main, which is exact because nothing had merged before Phase 7.
+ */
+export async function copyBaseSha(
+  copy: { id: string; baseSha: string | null },
+  repoPath: string,
+): Promise<string> {
+  if (copy.baseSha) return copy.baseSha;
+  const main = await lastCommit(repoPath, MAIN_REF);
+  if (!main) throw notReady();
+  await prisma.copy.updateMany({
+    where: { id: copy.id, baseSha: null },
+    data: { baseSha: main.sha },
+  });
+  const row = await prisma.copy.findUniqueOrThrow({
+    where: { id: copy.id },
+    select: { baseSha: true },
+  });
+  return row.baseSha ?? main.sha;
+}
+
+/** At startup: gives every copy made before Phase 6 its base commit. Returns how many. */
+export async function backfillCopyBaseShas(): Promise<number> {
+  const rows = await prisma.copy.findMany({
+    where: { baseSha: null, project: { repoStatus: 'ready', repoPath: { not: null } } },
+    select: { id: true, baseSha: true, project: { select: { repoPath: true } } },
+  });
+  let count = 0;
+  for (const row of rows) {
+    await copyBaseSha(row, row.project.repoPath!);
+    count++;
+  }
+  return count;
 }

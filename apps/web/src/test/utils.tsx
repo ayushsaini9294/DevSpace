@@ -15,6 +15,13 @@ import type {
   CopyResponse,
   IdeLaunchResponse,
   CopyView,
+  Comment,
+  CommentResponse,
+  CopyChangesResponse,
+  SubmissionDetail,
+  SubmissionFileResponse,
+  SubmissionListResponse,
+  SubmissionResponse,
   CreateInvitationResponseSchema,
   ErrorResponse,
   FileResponse,
@@ -67,7 +74,12 @@ export type StubBody =
   | TreeResponse
   | FileResponse
   | CopyResponse
-  | IdeLaunchResponse;
+  | IdeLaunchResponse
+  | CopyChangesResponse
+  | SubmissionListResponse
+  | SubmissionResponse
+  | SubmissionFileResponse
+  | CommentResponse;
 
 export type StubReply =
   | { status: 200 | 201 | 202; body: StubBody }
@@ -207,6 +219,54 @@ export function testCopy(overrides: Partial<CopyView> = {}): CopyView {
     containerStatus: 'none',
     createdAt: '2026-09-27T10:00:00.000Z',
     lastActiveAt: null,
+    ...overrides,
+  };
+}
+
+// ---------- Submissions (Phase 6) ----------
+
+/** A submission as GET /submissions/:id would describe it, by default authored by someone else. */
+export function testSubmission(overrides: Partial<SubmissionDetail> = {}): SubmissionDetail {
+  return {
+    id: 'sub-1',
+    title: 'Add the login page',
+    status: 'open',
+    author: { id: 'user-2', name: 'Grace Hopper' },
+    version: 1,
+    fileCount: 1,
+    commentCount: 0,
+    approvals: 0,
+    createdAt: '2026-09-28T10:00:00.000Z',
+    updatedAt: '2026-09-28T10:00:00.000Z',
+    description: '',
+    baseSha: 'a'.repeat(40),
+    headSha: 'b'.repeat(40),
+    rejectReason: null,
+    closedAt: null,
+    files: [{ path: 'src/app.ts', change: 'modified' }],
+    reviews: [],
+    comments: [],
+    viewerActions: [],
+    ...overrides,
+  };
+}
+
+/** A comment on a submission, by default a general one by the test user. */
+export function testComment(overrides: Partial<Comment> = {}): Comment {
+  return {
+    id: 'comment-1',
+    author: { id: testUser.id, name: testUser.name },
+    parentId: null,
+    path: null,
+    side: null,
+    line: null,
+    startLine: null,
+    version: 1,
+    body: 'Looks good',
+    suggestion: null,
+    suggestionStatus: null,
+    outdated: false,
+    createdAt: '2026-09-28T10:00:00.000Z',
     ...overrides,
   };
 }

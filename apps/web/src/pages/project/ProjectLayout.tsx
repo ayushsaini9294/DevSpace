@@ -80,6 +80,9 @@ export function ProjectLayout() {
           >
             Files
           </NavLink>
+          <NavLink to={`${base}/submissions`} className={tabClass}>
+            Submissions
+          </NavLink>
           <NavLink to={`${base}/members`} className={tabClass}>
             Members
           </NavLink>

@@ -51,7 +51,10 @@ export async function initBare(dir: string): Promise<void> {
 
 /** Stores `content` as a blob and returns its id. */
 export async function writeBlob(gitDir: string, content: string | Buffer): Promise<string> {
-  const { stdout } = await runGit(['hash-object', '-w', '--stdin'], { gitDir, input: content });
+  const { stdout } = await runGit(['hash-object', '-w', '--stdin', '--no-filters'], {
+    gitDir,
+    input: content,
+  });
   return assertSha(stdout.toString('utf8').trim());
 }
 
@@ -206,4 +209,86 @@ export async function lastCommit(gitDir: string, ref: string): Promise<CommitInf
     committedAt: new Date(date),
     subject: subject ?? '',
   };
+}
+
+export interface FlatTreeEntry {
+  /** `100644`, `100755`, `120000` (symlink) or `160000` (submodule). */
+  mode: string;
+  sha: string;
+  /** Null for submodules. */
+  size: number | null;
+  /** Full path from the tree's root. */
+  path: string;
+}
+
+/** Every file in a commit's tree, recursively (`ls-tree -r -z --long --full-tree`). */
+export async function listAllFiles(gitDir: string, commitSha: string): Promise<FlatTreeEntry[]> {
+  const { stdout } = await runGit(
+    ['ls-tree', '-r', '-z', '--long', '--full-tree', `${assertSha(commitSha)}^{tree}`],
+    { gitDir, maxBuffer: 256 * 1024 * 1024 },
+  );
+  const entries: FlatTreeEntry[] = [];
+  let start = 0;
+  while (start < stdout.length) {
+    let end = stdout.indexOf(0, start);
+    if (end === -1) end = stdout.length;
+    const record = stdout.subarray(start, end);
+    start = end + 1;
+    const tab = record.indexOf(0x09);
+    if (tab === -1) continue;
+    const meta = record.subarray(0, tab).toString('utf8').trim().split(/ +/);
+    if (meta.length !== 4) continue;
+    const [mode, , sha, size] = meta as [string, string, string, string];
+    entries.push({
+      mode,
+      sha,
+      size: /^\d+$/.test(size) ? Number(size) : null,
+      path: record.subarray(tab + 1).toString('utf8'),
+    });
+  }
+  return entries;
+}
+
+export interface IndexChange {
+  path: string;
+  /** Null removes the path. */
+  entry: { mode: '100644' | '100755' | '120000'; sha: string } | null;
+}
+
+const ZERO_SHA = '0'.repeat(40);
+
+/**
+ * Builds the tree of `baseSha` with `changes` applied, using a temporary index file in
+ * `indexDir` (a DevSpace temp folder). Paths travel only on stdin. Returns the new tree's id.
+ */
+export async function treeWithChanges(
+  gitDir: string,
+  baseSha: string,
+  changes: readonly IndexChange[],
+  indexFile: string,
+): Promise<string> {
+  const env = { GIT_INDEX_FILE: indexFile };
+  await runGit(['read-tree', `${assertSha(baseSha)}^{tree}`], { gitDir, env });
+  const input = changes
+    .map((c) => {
+      if (/[\0\n]/.test(c.path) || c.path === '') throw new Error('bad path');
+      return c.entry
+        ? `${c.entry.mode} ${assertSha(c.entry.sha)}\t${c.path}\0`
+        : `0 ${ZERO_SHA}\t${c.path}\0`;
+    })
+    .join('');
+  if (input) {
+    await runGit(['update-index', '--add', '--remove', '--replace', '-z', '--index-info'], {
+      gitDir,
+      env,
+      input,
+    });
+  }
+  const { stdout } = await runGit(['write-tree'], { gitDir, env });
+  return assertSha(stdout.toString('utf8').trim());
+}
+
+/** Deletes `ref` (a ref we built) if it exists. */
+export async function deleteRef(gitDir: string, ref: string): Promise<void> {
+  await runGit(['update-ref', '-d', '--', ref], { gitDir });
 }

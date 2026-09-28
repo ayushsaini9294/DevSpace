@@ -201,7 +201,7 @@ export async function treeResponse(projectId: string, path: string) {
 const BINARY_SNIFF_BYTES = 8000;
 
 /** UTF-8 text, or null if the bytes look binary (a NUL early on, or invalid UTF-8). */
-function decodeText(bytes: Buffer): string | null {
+export function decodeText(bytes: Buffer): string | null {
   if (bytes.subarray(0, BINARY_SNIFF_BYTES).includes(0)) return null;
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(bytes);

@@ -4,6 +4,7 @@ import { createApp } from './app.ts';
 import { recoverInterruptedImports } from './repository/import.ts';
 import { createIdeServer } from './ide/proxy.ts';
 import { recoverIdeContainers } from './ide/service.ts';
+import { backfillCopyBaseShas } from './copies/service.ts';
 
 // Imports that were running when the API last stopped can't resume: mark them failed.
 try {
@@ -23,6 +24,14 @@ try {
   if (count > 0) console.log(`Checked ${count} IDE container(s) left from the last run`);
 } catch (err) {
   console.error('Could not check IDE containers:', err instanceof Error ? err.message : err);
+}
+
+// Copies made before Phase 6 get their base commit (the project's main at that time).
+try {
+  const count = await backfillCopyBaseShas();
+  if (count > 0) console.log(`Set the base commit of ${count} older copies`);
+} catch (err) {
+  console.error('Could not set base commits:', err instanceof Error ? err.message : err);
 }
 
 const app = createApp();

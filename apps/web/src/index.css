@@ -1,1 +1,8 @@
 @import 'tailwindcss';
+
+/* A line with review comments, marked in the diff's gutter (see DiffViewer). */
+.devspace-commented-line {
+  background: #1d4ed8;
+  width: 4px !important;
+  margin-left: 3px;
+}

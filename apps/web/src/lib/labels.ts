@@ -85,6 +85,28 @@ export function describeActivity(entry: ActivityEntry): string {
         ? `${actor} tried to import from ${url}, but it failed`
         : `${actor} tried to import the repository, but it failed`;
     }
+    case 'submission.created': {
+      const title = dataString(data, 'title');
+      return title
+        ? `${actor} submitted “${title}” for review`
+        : `${actor} submitted work for review`;
+    }
+    case 'submission.updated':
+      return `${actor} updated a submission`;
+    case 'submission.commented':
+      return `${actor} commented on a submission`;
+    case 'submission.reviewed':
+      return dataString(data, 'decision') === 'changes_requested'
+        ? `${actor} requested changes on a submission`
+        : `${actor} approved a submission`;
+    case 'submission.suggestion_accepted':
+      return `${actor} accepted a suggested change`;
+    case 'submission.suggestion_rejected':
+      return `${actor} rejected a suggested change`;
+    case 'submission.rejected':
+      return `${actor} rejected a submission`;
+    case 'submission.closed':
+      return `${actor} closed a submission`;
     default:
       return `${actor}: ${entry.action}`;
   }

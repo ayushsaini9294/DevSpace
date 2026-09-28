@@ -116,7 +116,7 @@ describe('Files link', () => {
     const links = within(nav())
       .getAllByRole('link')
       .map((link) => link.textContent);
-    expect(links).toEqual(['Overview', 'Files', 'Members', 'Activity']);
+    expect(links).toEqual(['Overview', 'Files', 'Submissions', 'Members', 'Activity']);
     expect(within(nav()).getByRole('link', { name: 'Files' })).toHaveAttribute(
       'href',
       '/projects/project-1/files',

@@ -5,6 +5,7 @@ import { FocusHeading, buttonStyles, linkStyle } from '../../components/ui';
 import { useLaunchIde, useMyCopy, useStartIde } from '../../lib/copies';
 import { errorCode, errorMessage, isNotFound } from '../../lib/formErrors';
 import { useProject } from '../../lib/projects';
+import { newSubmissionUrl } from '../../lib/submissions';
 import { Spinner } from './repository/parts';
 
 const NO_PROJECT = 'There is no project you can open at this address.';
@@ -191,6 +192,9 @@ export function IdePage() {
         <FocusHeading className="min-w-0 flex-1 truncate text-sm font-semibold">
           {projectName ? `IDE: ${projectName}` : 'IDE'}
         </FocusHeading>
+        <Link to={newSubmissionUrl(projectId)} className={`${buttonStyles.primary} shrink-0 py-1`}>
+          Submit work
+        </Link>
         {running && (
           <button
             type="button"

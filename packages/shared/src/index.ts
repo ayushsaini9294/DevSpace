@@ -6,3 +6,4 @@ export * from './invitations.ts';
 export * from './permissions.ts';
 export * from './projects.ts';
 export * from './repository.ts';
+export * from './submissions.ts';

@@ -19,7 +19,15 @@ export type ActivityAction =
   | 'repository.created'
   | 'repository.imported'
   | 'repository.import_failed'
-  | 'copy.created';
+  | 'copy.created'
+  | 'submission.created'
+  | 'submission.updated'
+  | 'submission.commented'
+  | 'submission.reviewed'
+  | 'submission.suggestion_accepted'
+  | 'submission.suggestion_rejected'
+  | 'submission.rejected'
+  | 'submission.closed';
 
 export interface ActivityInput {
   projectId: string;

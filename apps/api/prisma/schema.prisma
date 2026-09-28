@@ -32,6 +32,9 @@ model User {
   copies              Copy[]
   ideTickets          IdeTicket[]
   ideSessions         IdeSession[]
+  submissions         Submission[]
+  reviews             Review[]
+  comments            Comment[]
 
   @@map("users")
 }
@@ -96,6 +99,7 @@ model Project {
   invitations Invitation[]
   activity    ActivityLog[]
   copies      Copy[]
+  submissions Submission[]
 
   @@index([teamId])
   @@map("projects")
@@ -211,9 +215,14 @@ model Copy {
   diskCheckedAt   DateTime?           @map("disk_checked_at")
   /// True while the folder is over the 5 GB limit (set by the worker; not shown in the app yet).
   overDiskLimit   Boolean             @default(false) @map("over_disk_limit")
+  /// The main commit this copy was made from (Phase 7 moves it when the copy is updated).
+  /// Submissions are compared with it. Null only for copies made before Phase 6 until first
+  /// use, when it is filled with the project's current main (exact: nothing had merged yet).
+  baseSha         String?             @map("base_sha")
   createdAt       DateTime            @default(now()) @map("created_at")
   ideTickets      IdeTicket[]
   ideSessions     IdeSession[]
+  submissions     Submission[]
 
   @@unique([projectId, userId])
   @@index([userId])
@@ -264,4 +273,140 @@ model IdeSession {
   @@index([userId])
   @@index([copyId])
   @@map("ide_sessions")
+}
+
+// ---------- Phase 6: submissions and review ----------
+
+enum SubmissionStatus {
+  open
+  changes_requested
+  approved
+  needs_update
+  merged
+  rejected
+  closed
+  reverted
+
+  @@map("submission_status")
+}
+
+enum FileChange {
+  added
+  modified
+  deleted
+
+  @@map("file_change")
+}
+
+enum ReviewDecision {
+  approved
+  changes_requested
+
+  @@map("review_decision")
+}
+
+enum DiffSide {
+  base
+  head
+
+  @@map("diff_side")
+}
+
+enum SuggestionStatus {
+  pending
+  accepted
+  rejected
+
+  @@map("suggestion_status")
+}
+
+/// Work a member submitted from their copy. Each version's snapshot commit lives in the bare
+/// repo at refs/submissions/<id>/v<version>; file contents are never stored here.
+model Submission {
+  id           String           @id @default(uuid())
+  projectId    String           @map("project_id")
+  project      Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  copyId       String           @map("copy_id")
+  copy         Copy             @relation(fields: [copyId], references: [id], onDelete: Cascade)
+  authorId     String           @map("author_id")
+  author       User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  /// Phase 8 adds the relation to tasks.
+  taskId       String?          @map("task_id")
+  title        String
+  description  String           @default("")
+  baseSha      String           @map("base_sha")
+  headSha      String           @map("head_sha")
+  version      Int              @default(1)
+  status       SubmissionStatus @default(open)
+  rejectReason String?          @map("reject_reason")
+  mergedSha    String?          @map("merged_sha")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+  closedAt     DateTime?        @map("closed_at")
+  files        SubmissionFile[]
+  reviews      Review[]
+  comments     Comment[]
+
+  @@index([projectId, createdAt])
+  @@index([copyId, status])
+  @@index([authorId])
+  @@map("submissions")
+}
+
+/// The files in a submission's current version.
+model SubmissionFile {
+  submissionId String     @map("submission_id")
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  path         String
+  change       FileChange
+
+  @@id([submissionId, path])
+  @@map("submission_files")
+}
+
+model Review {
+  id           String         @id @default(uuid())
+  submissionId String         @map("submission_id")
+  submission   Submission     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  reviewerId   String         @map("reviewer_id")
+  reviewer     User           @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+  decision     ReviewDecision
+  body         String?
+  /// The submission version reviewed; stale once the submission's version is higher.
+  version      Int
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  @@index([submissionId, createdAt])
+  @@index([reviewerId])
+  @@map("reviews")
+}
+
+model Comment {
+  id               String            @id @default(uuid())
+  submissionId     String            @map("submission_id")
+  submission       Submission        @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  authorId         String            @map("author_id")
+  author           User              @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  /// A reply (one level deep).
+  parentId         String?           @map("parent_id")
+  parent           Comment?          @relation("Replies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies          Comment[]         @relation("Replies")
+  /// path, side, line and startLine are all null for a general comment or a reply.
+  path             String?
+  side             DiffSide?
+  line             Int?
+  startLine        Int?              @map("start_line")
+  /// The text of `line` when the comment was written (for "outdated").
+  lineText         String?           @map("line_text")
+  version          Int
+  body             String
+  /// Replacement text for lines startLine..line on the head side.
+  suggestion       String?
+  suggestionStatus SuggestionStatus? @map("suggestion_status")
+  createdAt        DateTime          @default(now()) @map("created_at")
+
+  @@index([submissionId, createdAt])
+  @@index([parentId])
+  @@index([authorId])
+  @@map("comments")
 }

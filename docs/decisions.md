@@ -50,3 +50,14 @@ The local PostgreSQL already has a `devspace` role and database from the old pro
 - Development moves into WSL 2 Ubuntu (the safest option): the repo, Node, the API and the web dev server run there, and PostgreSQL and Redis run from Docker Compose. The API talks to Docker through its local socket, so Docker is never reachable over the network. The browser on Windows still opens the app at `localhost`.
 - The IDE image includes Node.js 24 LTS with npm, so `npm install` works in the IDE terminal. Packages that compile native code need a compiler toolchain, which is left out for now.
 - The IDE runs on its own site, never on the app's address, so code running in a member's container can't act as that member in DevSpace. In development the app is at `http://localhost:5173` and the IDE at `http://127.0.0.1:3100`; in production the IDE gets its own domain. The app hands the browser a one-time launch link (single use, valid 60 seconds), which gives the IDE its own short-lived cookie. The API also refuses changes that come from any other address.
+
+## 2026-09-28: Submissions and review (Phase 6)
+
+- Members don't need to commit in the IDE. Submitting reads the ticked files straight from the copy's folder and makes a hidden snapshot commit in the project's repository. The copy and main are not touched.
+- A submission is compared with the version of main the copy was made from, so newer changes to main never look like the member undid them.
+- The API treats everything in a copy folder as untrusted, including its `.git` folder and symlinks. It never runs git inside a copy and never follows a link out of it.
+- Updating a submission resets its approvals: status goes back to Open and it needs a fresh approval (owner).
+- Accepting a suggested fix writes it into the author's copy and updates the submission in one click (owner).
+- Comments stay after an update; ones whose line changed are marked "outdated" (owner).
+- Only leaders and co-leaders reject, with a reason. Members with the Approve permission approve or request changes (owner, as in the blueprint).
+- Everyone in the project can see every submission. The author can always comment on their own submission, to reply.

@@ -26,6 +26,7 @@ import { removeProjectContainers, stopMemberIde } from '../ide/service.ts';
 import { projectInvitationsRouter } from '../invitations/routes.ts';
 import { repositoryRouter } from '../repository/routes.ts';
 import { removeProjectRepository } from '../repository/service.ts';
+import { submissionsRouter } from '../submissions/routes.ts';
 import { forbidden, readPermissions, requireProjectAction } from './access.ts';
 import { memberSelect, projectResponse, toMember, toProjectSummary } from './views.ts';
 
@@ -38,6 +39,7 @@ const memberNotFound = () =>
 projectsRouter.use('/:projectId/invitations', projectInvitationsRouter);
 projectsRouter.use('/:projectId', repositoryRouter);
 projectsRouter.use('/:projectId', copyRouter);
+projectsRouter.use('/:projectId', submissionsRouter);
 
 projectsRouter.get('/', async (req, res) => {
   const user = req.user as AuthUser;

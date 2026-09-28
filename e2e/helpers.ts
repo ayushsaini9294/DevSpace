@@ -1,4 +1,48 @@
+import { execFileSync } from 'node:child_process';
+import { join, resolve } from 'node:path';
 import { expect, type Browser, type Page } from '@playwright/test';
+
+/** Same defaults as the API (`REPOS_DIR` / `COPIES_DIR`, else `<repo root>/.data/...`). */
+export const REPOS_DIR = resolve(process.env.REPOS_DIR || '.data/repos');
+export const COPIES_DIR = resolve(process.env.COPIES_DIR || '.data/copies');
+
+/** A project's bare repository on disk: `<REPOS_DIR>/<projectId>.git`. */
+export function bareRepoDir(projectId: string) {
+  return join(REPOS_DIR, `${projectId}.git`);
+}
+
+/** A member's copy folder on disk: `<COPIES_DIR>/<projectId>/<copyId>`. */
+export function copyFolder(projectId: string, copyId: string) {
+  return join(COPIES_DIR, projectId, copyId);
+}
+
+/**
+ * Runs git against a project's bare repository (never inside a copy), without user or system
+ * config or hooks, and returns stdout without its trailing newline.
+ */
+export function bareGit(
+  projectId: string,
+  args: string[],
+  options: { input?: string; env?: Record<string, string> } = {},
+) {
+  return execFileSync('git', ['-c', 'core.hooksPath=/dev/null', ...args], {
+    encoding: 'utf8',
+    input: options.input,
+    env: {
+      ...process.env,
+      GIT_DIR: bareRepoDir(projectId),
+      GIT_CONFIG_NOSYSTEM: '1',
+      GIT_CONFIG_GLOBAL: '/dev/null',
+      GIT_TERMINAL_PROMPT: '0',
+      ...options.env,
+    },
+  }).replace(/\n$/, '');
+}
+
+/** The project id from a project path like /projects/abc. */
+export function projectIdFrom(projectPath: string) {
+  return projectPath.split('/').pop()!;
+}
 
 export const PASSWORD = 'correct-horse-battery-1';
 
@@ -104,7 +148,7 @@ export async function createLeaderWithProject(page: Page): Promise<LeaderProject
 
 export function projectNav(
   page: Page,
-  name: 'Overview' | 'Files' | 'Members' | 'Activity' | 'Settings',
+  name: 'Overview' | 'Files' | 'Submissions' | 'Members' | 'Activity' | 'Settings',
 ) {
   return page.getByRole('link', { name, exact: true });
 }
@@ -166,4 +210,43 @@ export async function setUpLeaderAndMember(page: Page, browser: Browser) {
   const memberPage = await newUserPage(browser);
   await joinAsNewUser(memberPage, inviteLink, member, lp);
   return { lp, member, memberPage };
+}
+
+/** On the project page (leader or co-leader): sets up an empty repository (README.md only). */
+export async function setUpEmptyRepository(page: Page) {
+  await projectNav(page, 'Files').click();
+  await expect(
+    page.getByRole('heading', { name: 'Set up the repository', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('radio', { name: 'Start empty', exact: true }).check();
+  await page.getByRole('button', { name: 'Set up repository', exact: true }).click();
+  await expect(
+    page.getByRole('main').getByRole('link', { name: 'README.md', exact: true }),
+  ).toBeVisible();
+}
+
+/** Invites a new user from the leader's page and joins them in their own browser context. */
+export async function addMember(leaderPage: Page, browser: Browser, lp: LeaderProject) {
+  const user = uniqueUser();
+  const link = await createInviteLink(leaderPage, user.email);
+  const page = await newUserPage(browser);
+  await joinAsNewUser(page, link, user, lp);
+  return { user, page };
+}
+
+/** On the Members page (leader): switches one of a member's permissions on and waits for the save. */
+export async function grantPermission(
+  leaderPage: Page,
+  member: User,
+  permission: 'Comment' | 'Approve submissions',
+) {
+  const row = leaderPage.getByRole('listitem').filter({ hasText: member.email });
+  const box = row.getByRole('checkbox', { name: permission, exact: true });
+  await expect(box).not.toBeChecked();
+  const saved = leaderPage.waitForResponse(
+    (res) => res.request().method() === 'PATCH' && res.url().includes('/members/') && res.ok(),
+  );
+  await box.click();
+  await saved;
+  await expect(box).toBeChecked();
 }

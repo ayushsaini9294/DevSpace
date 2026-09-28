@@ -8,10 +8,18 @@ export class HttpError extends Error {
   readonly status: number;
   readonly body: ErrorResponse;
 
-  constructor(status: number, error: string, message: string, fields?: ErrorResponse['fields']) {
+  constructor(
+    status: number,
+    error: string,
+    message: string,
+    fields?: ErrorResponse['fields'],
+    details?: ErrorResponse['details'],
+  ) {
     super(message);
     this.name = 'HttpError';
     this.status = status;
-    this.body = fields ? { error, message, fields } : { error, message };
+    this.body = { error, message };
+    if (fields) this.body.fields = fields;
+    if (details) this.body.details = details;
   }
 }
