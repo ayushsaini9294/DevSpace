@@ -284,6 +284,30 @@ function ChangesLoader({
       </div>
     );
   }
+  const lockedIn = [
+    ...new Set(changes.data.files.map((f) => f.openSubmissionId).filter((id) => id !== null)),
+  ];
+  if (!existing && changes.data.files.every((f) => f.openSubmissionId !== null)) {
+    return (
+      <div className={`${cardStyle} space-y-2`}>
+        <p className="text-gray-700">
+          Nothing new to submit: every changed file in your copy is already in one of your open
+          submissions, and a file can be in only one at a time. To send newer edits of those files,
+          open the submission and click Update. To start a new submission, change other files in the
+          IDE.
+        </p>
+        <ul className="space-y-1">
+          {lockedIn.map((id, index) => (
+            <li key={id}>
+              <Link to={submissionUrl(projectId, id)} className={linkStyle}>
+                {lockedIn.length === 1 ? 'Your open submission' : `Open submission ${index + 1}`}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
   return <PickerForm projectId={projectId} files={changes.data.files} existing={existing} />;
 }
 

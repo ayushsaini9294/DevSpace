@@ -285,6 +285,24 @@ describe('New submission page', () => {
     expect(screen.queryByRole('button', { name: 'Submit' })).not.toBeInTheDocument();
   });
 
+  it('explains when every changed file is already in an open submission', async () => {
+    stubApi(
+      base(
+        changesRoute([
+          { path: 'README.md', change: 'modified', openSubmissionId: 'sub-9' },
+          { path: 'practice.cpp', change: 'added', openSubmissionId: 'sub-9' },
+        ]),
+      ),
+    );
+    renderApp('/projects/project-1/submissions/new');
+    expect(await screen.findByText(/Nothing new to submit/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Your open submission' })).toHaveAttribute(
+      'href',
+      '/projects/project-1/submissions/sub-9',
+    );
+    expect(screen.queryByRole('button', { name: 'Submit' })).not.toBeInTheDocument();
+  });
+
   it('is linked from the IDE toolbar', async () => {
     stubApi(
       base({
