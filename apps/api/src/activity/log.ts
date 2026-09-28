@@ -1,4 +1,8 @@
-import { ActivityListResponseSchema, type ActivityEntry } from '@devspace/shared';
+import {
+  ActivityListResponseSchema,
+  type ActivityEntry,
+  type TaskActivityAction,
+} from '@devspace/shared';
 import type { Prisma } from '../generated/prisma/client.ts';
 import { prisma } from '../lib/prisma.ts';
 import type { Db } from '../projects/access.ts';
@@ -31,7 +35,8 @@ export type ActivityAction =
   | 'submission.merged'
   | 'submission.reverted'
   | 'copy.updated'
-  | 'copy.helped';
+  | 'copy.helped'
+  | TaskActivityAction;
 
 export interface ActivityInput {
   projectId: string;

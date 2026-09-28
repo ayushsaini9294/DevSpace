@@ -31,6 +31,17 @@ function roleLabel(value: string | null): string | null {
   return value;
 }
 
+const TASK_STATUS_WORDS: Record<string, string> = {
+  todo: 'To do',
+  in_progress: 'In progress',
+  in_review: 'In review',
+  done: 'Done',
+};
+
+function taskStatusLabel(value: string | null): string | null {
+  return value === null ? null : (TASK_STATUS_WORDS[value] ?? value);
+}
+
 /** A human-readable sentence for an activity entry; unknown actions fall back to the raw code. */
 export function describeActivity(entry: ActivityEntry): string {
   const actor = entry.actorName ?? 'Someone';
@@ -127,6 +138,37 @@ export function describeActivity(entry: ActivityEntry): string {
     case 'copy.helped': {
       const owner = dataString(data, 'ownerName', 'memberName', 'targetName', 'name');
       return owner ? `${actor} opened ${owner}’s copy` : `${actor} opened a member’s copy`;
+    }
+    case 'task.created': {
+      const title = dataString(data, 'title');
+      return title ? `${actor} created the task “${title}”` : `${actor} created a task`;
+    }
+    case 'task.updated': {
+      const title = dataString(data, 'title');
+      return title ? `${actor} edited the task “${title}”` : `${actor} edited a task`;
+    }
+    case 'task.deleted': {
+      const title = dataString(data, 'title');
+      return title ? `${actor} deleted the task “${title}”` : `${actor} deleted a task`;
+    }
+    case 'task.moved': {
+      const title = dataString(data, 'title');
+      const task = title ? `“${title}”` : 'a task';
+      const to = taskStatusLabel(dataString(data, 'to'));
+      const from = taskStatusLabel(dataString(data, 'from'));
+      const where = to ? (from ? ` from ${from} to ${to}` : ` to ${to}`) : '';
+      // Automatic moves (a linked submission changed) have no actor.
+      if (entry.actorName === null || data.automatic === true) {
+        return `The task ${task} moved${where} automatically`;
+      }
+      return `${actor} moved the task ${task}${where}`;
+    }
+    case 'task.done_confirmed': {
+      const title = dataString(data, 'title');
+      const task = title ? `“${title}”` : 'a task';
+      return data.done === false
+        ? `${actor} said the task ${task} isn’t done yet`
+        : `${actor} marked the task ${task} done`;
     }
     default:
       return `${actor}: ${entry.action}`;

@@ -24,6 +24,9 @@ import type {
   SubmissionFileResponse,
   SubmissionListResponse,
   SubmissionResponse,
+  TaskListResponse,
+  TaskResponse,
+  TaskView,
   CreateInvitationResponseSchema,
   ErrorResponse,
   FileResponse,
@@ -83,7 +86,9 @@ export type StubBody =
   | SubmissionListResponse
   | SubmissionResponse
   | SubmissionFileResponse
-  | CommentResponse;
+  | CommentResponse
+  | TaskListResponse
+  | TaskResponse;
 
 export type StubReply =
   | { status: 200 | 201 | 202; body: StubBody }
@@ -263,6 +268,7 @@ export function testSubmission(overrides: Partial<SubmissionDetail> = {}): Submi
     revertedBy: null,
     revertedAt: null,
     mergeBlocker: null,
+    task: null,
     ...overrides,
   };
 }
@@ -283,6 +289,30 @@ export function testComment(overrides: Partial<Comment> = {}): Comment {
     suggestionStatus: null,
     outdated: false,
     createdAt: '2026-09-28T10:00:00.000Z',
+    ...overrides,
+  };
+}
+
+// ---------- Tasks (Phase 8) ----------
+
+/** A task as GET /tasks would describe it: in To do, assigned to the test user. */
+export function testTask(overrides: Partial<TaskView> = {}): TaskView {
+  return {
+    id: 'task-1',
+    title: 'Build the login page',
+    description: '',
+    status: 'todo',
+    dueDate: null,
+    position: 1,
+    assignees: [{ id: testUser.id, name: testUser.name }],
+    createdBy: { id: 'user-2', name: 'Grace Hopper' },
+    doneConfirmPending: false,
+    reopenNote: null,
+    linkedSubmissions: [],
+    createdAt: '2026-09-28T10:00:00.000Z',
+    updatedAt: '2026-09-28T10:00:00.000Z',
+    completedAt: null,
+    viewerActions: [],
     ...overrides,
   };
 }

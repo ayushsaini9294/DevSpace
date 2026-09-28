@@ -192,7 +192,7 @@ export async function createLeaderWithProject(page: Page): Promise<LeaderProject
 
 export function projectNav(
   page: Page,
-  name: 'Overview' | 'Files' | 'Submissions' | 'Members' | 'Activity' | 'Settings',
+  name: 'Overview' | 'Files' | 'Submissions' | 'Tasks' | 'Members' | 'Activity' | 'Settings',
 ) {
   return page.getByRole('link', { name, exact: true });
 }
@@ -282,7 +282,7 @@ export async function addMember(leaderPage: Page, browser: Browser, lp: LeaderPr
 export async function grantPermission(
   leaderPage: Page,
   member: User,
-  permission: 'Comment' | 'Approve submissions',
+  permission: 'Comment' | 'Approve submissions' | 'Create tasks',
 ) {
   const row = leaderPage.getByRole('listitem').filter({ hasText: member.email });
   const box = row.getByRole('checkbox', { name: permission, exact: true });

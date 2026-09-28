@@ -27,6 +27,7 @@ import { projectInvitationsRouter } from '../invitations/routes.ts';
 import { repositoryRouter } from '../repository/routes.ts';
 import { removeProjectRepository } from '../repository/service.ts';
 import { submissionsRouter } from '../submissions/routes.ts';
+import { tasksRouter } from '../tasks/routes.ts';
 import { forbidden, readPermissions, requireProjectAction } from './access.ts';
 import { memberSelect, projectResponse, toMember, toProjectSummary } from './views.ts';
 
@@ -40,6 +41,7 @@ projectsRouter.use('/:projectId/invitations', projectInvitationsRouter);
 projectsRouter.use('/:projectId', repositoryRouter);
 projectsRouter.use('/:projectId', copyRouter);
 projectsRouter.use('/:projectId', submissionsRouter);
+projectsRouter.use('/:projectId', tasksRouter);
 
 projectsRouter.get('/', async (req, res) => {
   const user = req.user as AuthUser;
@@ -237,6 +239,8 @@ projectsRouter.delete('/:projectId/members/:userId', async (req, res) => {
       where: { projectId, userId: targetId, role: target.role },
     });
     if (count !== 1) throw new HttpError(409, 'conflict', 'The member changed; try again');
+    // They are no longer assigned to any of the project's tasks (Phase 8).
+    await tx.taskAssignee.deleteMany({ where: { userId: targetId, task: { projectId } } });
     await recordActivity(tx, {
       projectId,
       actorId: access.userId,

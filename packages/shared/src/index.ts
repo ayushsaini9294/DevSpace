@@ -7,3 +7,4 @@ export * from './permissions.ts';
 export * from './projects.ts';
 export * from './repository.ts';
 export * from './submissions.ts';
+export * from './tasks.ts';

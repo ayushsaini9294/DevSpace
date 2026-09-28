@@ -32,6 +32,8 @@ export const submissionKeys = {
   file: (projectId: string, id: string, headSha: string, path: string) =>
     [...submissionKeys.detail(projectId, id), 'file', headSha, path] as const,
   changes: (projectId: string) => [...queryKeys.project(projectId), 'copy', 'changes'] as const,
+  /** The task board (lib/tasks.ts): linked tasks move when submissions change. */
+  tasks: (projectId: string) => [...queryKeys.project(projectId), 'tasks'] as const,
 };
 
 // ---------- URLs ----------
@@ -120,6 +122,7 @@ function submissionChanged(
       queryKey: [...submissionKeys.all(projectId), 'list'],
     }),
     queryClient.invalidateQueries({ queryKey: submissionKeys.changes(projectId) }),
+    queryClient.invalidateQueries({ queryKey: submissionKeys.tasks(projectId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.activity(projectId) }),
   ]);
 }
@@ -182,6 +185,7 @@ function useMainMutation(projectId: string, id: string, action: 'merge' | 'rever
           queryKey: [...queryKeys.project(projectId), 'repository'],
         }),
         queryClient.invalidateQueries({ queryKey: [...queryKeys.project(projectId), 'copy'] }),
+        queryClient.invalidateQueries({ queryKey: submissionKeys.tasks(projectId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.activity(projectId) }),
       ]);
     },
@@ -318,6 +322,8 @@ export function submissionErrorMessage(error: unknown): string {
         ? `This merge can’t be undone: later merges changed the same lines in ${paths.join(', ')}. Main was not changed.`
         : 'This merge can’t be undone: later merges changed the same lines. Main was not changed.';
     }
+    case 'task_done':
+      return 'That task is already Done, so new work can’t be linked to it. Pick another task, or No task.';
     case 'forbidden':
       return 'You don’t have permission to do that.';
     case 'validation_error': {

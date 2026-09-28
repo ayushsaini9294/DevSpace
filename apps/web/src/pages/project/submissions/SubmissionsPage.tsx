@@ -13,6 +13,7 @@ import {
   useSubmissions,
   type SubmissionFilter,
 } from '../../../lib/submissions';
+import { TASK_STATUS_LABELS, taskUrl } from '../../../lib/tasks';
 import { formatWhen, fullDate } from '../../../lib/time';
 import { useProjectContext } from '../ProjectLayout';
 import { StatusBadge } from './parts';
@@ -81,6 +82,15 @@ export function SubmissionsPage() {
                 {formatWhen(s.updatedAt)}
               </time>
             </p>
+            {s.task && (
+              <p className="text-sm text-gray-600">
+                Task:{' '}
+                <Link to={taskUrl(project.id, s.task.id)} className={`${linkStyle} break-words`}>
+                  {s.task.title}
+                </Link>{' '}
+                <span className="text-gray-500">({TASK_STATUS_LABELS[s.task.status]})</span>
+              </p>
+            )}
           </li>
         ))}
       </ul>

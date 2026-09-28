@@ -107,10 +107,10 @@ jobs:
         env:
           # Projects' bare Git repositories (Phase 4), kept out of the checkout; the API creates
           # the folder. Set per step because `runner` isn't available in job-level env.
-          # e2e/submissions.spec.ts and merge.spec.ts read it to check snapshots and main with git
-          # (Phases 6 and 7).
+          # e2e/submissions.spec.ts, merge.spec.ts and tasks.spec.ts read it to check snapshots and main with git
+          # (Phases 6 to 8).
           REPOS_DIR: ${{ runner.temp }}/devspace-repos
-          # Members' copies (Phase 5). e2e/ide.spec.ts, submissions.spec.ts and merge.spec.ts read
+          # Members' copies (Phase 5). e2e/ide.spec.ts, submissions.spec.ts, merge.spec.ts and tasks.spec.ts read
           # the same variable; the specs write files into copies as the runner user, the same user
           # the API and worker run as, so ownership matches without any chown.
           # `npm run dev` passes both variables to the API and to the worker, which updates copies

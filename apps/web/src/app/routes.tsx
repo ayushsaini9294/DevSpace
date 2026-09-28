@@ -18,6 +18,7 @@ import { FilesPage } from '../pages/project/repository/FilesPage';
 import { ReviewPage } from '../pages/project/submissions/ReviewPage';
 import { SubmissionsPage } from '../pages/project/submissions/SubmissionsPage';
 import { NewSubmissionPage, UpdateSubmissionPage } from '../pages/project/submissions/SubmitPage';
+import { TasksPage } from '../pages/project/tasks/TasksPage';
 
 export const routes: RouteObject[] = [
   // The IDE fills the whole window, so it sits outside the normal page layout.
@@ -50,6 +51,7 @@ export const routes: RouteObject[] = [
               { path: 'submissions/new', element: <NewSubmissionPage /> },
               { path: 'submissions/:submissionId', element: <ReviewPage /> },
               { path: 'submissions/:submissionId/update', element: <UpdateSubmissionPage /> },
+              { path: 'tasks', element: <TasksPage /> },
               { path: 'members', element: <MembersPage /> },
               { path: 'activity', element: <ActivityPage /> },
               { path: 'settings', element: <SettingsPage /> },

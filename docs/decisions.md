@@ -70,3 +70,12 @@ The local PostgreSQL already has a `devspace` role and database from the old pro
 - Undo adds a new commit that reverses the merge. If later merges changed the same lines, undo is refused with a list of the files, so main is never left half-undone (owner).
 - After an undo, the author's files stay as they are in their copy and show up again as changed files they can fix and resubmit; other copies lose the change as normal (owner).
 - Leaders and co-leaders can open any member's copy in the IDE at any time. Every time is logged, and the member sees who opened their copy (owner).
+
+## 2026-09-28: Tasks (Phase 8)
+
+- Assignees move their own tasks between To do and In progress; leaders and co-leaders move any task anywhere. In review is set by linked submissions, and Done only by a leader (owner).
+- If a task's linked submission is rejected or closed and no other linked submission is open, the task goes back to In progress (owner).
+- If the merge of a Done task's linked submission is undone, the task goes back to In progress with a note saying why (owner).
+- The board supports drag and drop, plus a status menu on each card for keyboard and phone use (owner).
+- A submission links at most one task; a task can have many submissions. Done tasks can't be linked to new submissions.
+- Leaders answer "Mark this task done?" after a linked merge; "Not yet" returns the task to In progress unless other linked work is still open.

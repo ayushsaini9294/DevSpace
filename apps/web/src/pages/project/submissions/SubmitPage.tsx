@@ -1,9 +1,11 @@
 import { useId, useState, type FormEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import {
   CreateSubmissionRequestSchema,
   type ChangedFile,
+  type CreateSubmissionRequest,
   type SubmissionDetail,
+  type UpdateSubmissionRequest,
 } from '@devspace/shared';
 import { FormAlert } from '../../../components/AuthPageShell';
 import { TextField } from '../../../components/TextField';
@@ -28,6 +30,7 @@ import {
 } from '../../../lib/submissions';
 import { useProjectContext } from '../ProjectLayout';
 import { ChangeLabel, TextArea } from './parts';
+import { TaskSelect } from './TaskSelect';
 
 type Field = 'title' | 'description' | 'paths';
 
@@ -95,11 +98,14 @@ function PickerForm({
   projectId,
   files,
   existing,
+  initialTaskId,
 }: {
   projectId: string;
   files: ChangedFile[];
   /** The submission being updated, or null for a new one. */
   existing: SubmissionDetail | null;
+  /** A task picked beforehand (e.g. from the board), for a new submission. */
+  initialTaskId: string;
 }) {
   const navigate = useNavigate();
   const create = useCreateSubmission(projectId);
@@ -119,6 +125,8 @@ function PickerForm({
   const [title, setTitle] = useState(existing?.title ?? '');
   const [description, setDescription] = useState(existing?.description ?? '');
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
+  const originalTaskId = existing ? (existing.task?.id ?? '') : '';
+  const [taskId, setTaskId] = useState(existing ? originalTaskId : initialTaskId);
 
   const changedPaths = new Set(files.map((f) => f.path));
   const noLongerChanged = existing
@@ -145,9 +153,18 @@ function PickerForm({
       return;
     }
     setErrors({});
-    mutation.mutate(checked.data, {
-      onSuccess: (submission) => navigate(submissionUrl(projectId, submission.id)),
-    });
+    const onSuccess = (submission: SubmissionDetail) =>
+      navigate(submissionUrl(projectId, submission.id));
+    if (existing) {
+      const changes: UpdateSubmissionRequest = { ...checked.data };
+      // Send the link only when it changed: null unlinks, a missing field keeps it.
+      if (taskId !== originalTaskId) changes.taskId = taskId || null;
+      update.mutate(changes, { onSuccess });
+    } else {
+      const request: CreateSubmissionRequest = { ...checked.data };
+      if (taskId) request.taskId = taskId;
+      create.mutate(request, { onSuccess });
+    }
   }
 
   return (
@@ -212,6 +229,12 @@ function PickerForm({
         onChange={setDescription}
         error={errors.description}
       />
+      <TaskSelect
+        projectId={projectId}
+        value={taskId}
+        onChange={setTaskId}
+        current={existing?.task ?? null}
+      />
       {existing && (
         <p className="text-sm text-gray-700">
           Updating makes version {existing.version + 1}. Earlier approvals and change requests stop
@@ -242,9 +265,11 @@ function PickerForm({
 function ChangesLoader({
   projectId,
   existing,
+  initialTaskId = '',
 }: {
   projectId: string;
   existing: SubmissionDetail | null;
+  initialTaskId?: string;
 }) {
   const changes = useCopyChanges(projectId);
 
@@ -308,18 +333,31 @@ function ChangesLoader({
       </div>
     );
   }
-  return <PickerForm projectId={projectId} files={changes.data.files} existing={existing} />;
+  return (
+    <PickerForm
+      projectId={projectId}
+      files={changes.data.files}
+      existing={existing}
+      initialTaskId={initialTaskId}
+    />
+  );
 }
 
 /** `/projects/:projectId/submissions/new`: pick changed files from my copy and submit them. */
 export function NewSubmissionPage() {
   const { project } = useProjectContext();
+  // `?task=<id>` preselects a task (the board links here).
+  const [params] = useSearchParams();
   return (
     <section aria-labelledby="new-submission-heading" className="space-y-4">
       <FocusHeading level={2}>
         <span id="new-submission-heading">Submit work</span>
       </FocusHeading>
-      <ChangesLoader projectId={project.id} existing={null} />
+      <ChangesLoader
+        projectId={project.id}
+        existing={null}
+        initialTaskId={params.get('task') ?? ''}
+      />
     </section>
   );
 }

@@ -38,6 +38,7 @@ import {
 } from '../../../lib/submissions';
 import { formatWhen, fullDate } from '../../../lib/time';
 import { useProjectContext } from '../ProjectLayout';
+import { LinkedTaskPanel } from '../tasks/LinkedTaskPanel';
 import {
   MergeBlockerNote,
   MergeDialog,
@@ -882,6 +883,7 @@ function Review({
           </p>
         )}
         <MergeInfo submission={submission} />
+        <LinkedTaskPanel projectId={projectId} submission={submission} />
         <MergeBlockerNote submission={submission} isLead={isLead} />
         <Actions ctx={ctx} />
         <NeedsUpdatePanel projectId={projectId} submission={submission} />

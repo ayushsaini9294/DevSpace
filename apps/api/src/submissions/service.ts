@@ -42,6 +42,12 @@ import { decodeText } from '../repository/service.ts';
 import { removeDir } from '../repository/storage.ts';
 import { withCopySubmissionLock } from '../merge/lock.ts';
 import { recheckProject } from '../merge/service.ts';
+import {
+  assertTaskLinkable,
+  lockTask,
+  onSubmissionEnded,
+  onSubmissionOpened,
+} from '../tasks/automatic.ts';
 import { diffCopy, openCopyFileForWrite, readChosen, type CopyChange } from './scan.ts';
 import { approvalCount, mergeBlocker, reviewSelect, statusFromReviews } from './status.ts';
 
@@ -224,7 +230,9 @@ export async function createSubmission(
   const baseSha = await copyBaseSha(copy, gitDir);
   const root = copyDir(access.project.id, copy.id);
   const id = randomUUID();
+  const taskId = input.taskId ?? null;
   await withCopySubmissionLock(copy.id, async (tx) => {
+    if (taskId) await assertTaskLinkable(tx, access.project.id, taskId);
     const chosen = pickChanges(await diffCopy(gitDir, baseSha, root), input.paths);
     await assertFilesFree(tx, copy.id, input.paths);
     const head = await buildSnapshot(gitDir, baseSha, root, chosen, input.title, author);
@@ -234,6 +242,7 @@ export async function createSubmission(
         projectId: access.project.id,
         copyId: copy.id,
         authorId: author.id,
+        taskId,
         title: input.title,
         description: input.description,
         baseSha,
@@ -246,8 +255,9 @@ export async function createSubmission(
       actorId: author.id,
       action: 'submission.created',
       target: id,
-      data: { title: input.title, version: 1, files: chosen.length },
+      data: { title: input.title, version: 1, files: chosen.length, taskId },
     });
+    if (taskId) await onSubmissionOpened(tx, taskId);
     await updateRef(gitDir, snapshotRef(id, 1), head);
   });
   await recheckAfter(access.project.id);
@@ -279,6 +289,15 @@ async function applyUpdate(
   author: Author,
 ): Promise<void> {
   if (!isActiveSubmissionStatus(sub.status)) throw notActive();
+  // Phase 8: a task id links it (checked), null unlinks, missing keeps the link.
+  const taskId = input.taskId === undefined ? sub.taskId : input.taskId;
+  // Lock the old and new task in a fixed order, so two updates swapping tasks can't deadlock.
+  for (const t of [...new Set([sub.taskId, taskId])].filter((v) => v !== null).sort()) {
+    await lockTask(tx, t);
+  }
+  if (input.taskId && input.taskId !== sub.taskId) {
+    await assertTaskLinkable(tx, sub.projectId, input.taskId);
+  }
   const copy = await tx.copy.findUniqueOrThrow({
     where: { id: sub.copyId },
     select: { id: true, baseSha: true },
@@ -301,6 +320,7 @@ async function applyUpdate(
       version,
       status: 'open',
       conflictPaths: [],
+      taskId,
     },
   });
   if (count !== 1) throw notActive();
@@ -313,8 +333,11 @@ async function applyUpdate(
     actorId: author.id,
     action: 'submission.updated',
     target: sub.id,
-    data: { title, version, files: chosen.length },
+    data: { title, version, files: chosen.length, taskId },
   });
+  // The task it no longer links is treated as if this submission had closed.
+  if (sub.taskId && sub.taskId !== taskId) await onSubmissionEnded(tx, sub.taskId, sub.id);
+  if (taskId) await onSubmissionOpened(tx, taskId);
   await updateRef(gitDir, snapshotRef(sub.id, version), head);
 }
 
@@ -362,7 +385,11 @@ function splitLines(text: string): string[] {
 
 function viewerActions(
   access: ProjectAccess,
-  sub: { authorId: string; status: SubmissionStatus },
+  sub: {
+    authorId: string;
+    status: SubmissionStatus;
+    task: { doneConfirmPending: boolean } | null;
+  },
 ): SubmissionViewerAction[] {
   const blocker = mergeBlocker(sub.status, access.project.settings);
   const active = isActiveSubmissionStatus(sub.status);
@@ -378,7 +405,16 @@ function viewerActions(
   if (active && (isAuthor || isLead(access))) actions.push('close');
   if (blocker === null && may('submission.merge')) actions.push('merge');
   if (sub.status === 'merged' && may('submission.revert')) actions.push('revert');
+  if (isLead(access) && sub.task?.doneConfirmPending) actions.push('confirmTaskDone');
   return actions;
+}
+
+const linkedTaskSelect = {
+  select: { id: true, title: true, status: true, doneConfirmPending: true },
+} as const;
+
+function linkedTask(task: { id: string; title: string; status: string } | null) {
+  return task ? { id: task.id, title: task.title, status: task.status } : null;
 }
 
 /** GET /submissions?status= — newest first. */
@@ -393,6 +429,7 @@ export async function listSubmissions(access: ProjectAccess, status: 'active' | 
       author: { select: { id: true, name: true } },
       reviews: { select: reviewSelect },
       _count: { select: { files: true, comments: true } },
+      task: linkedTaskSelect,
     },
   });
   return {
@@ -408,6 +445,7 @@ export async function listSubmissions(access: ProjectAccess, status: 'active' | 
         approvals: approvalCount(row.reviews, row.version),
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
+        task: linkedTask(row.task),
       }),
     ),
   };
@@ -456,6 +494,7 @@ export async function submissionDetail(access: ProjectAccess, id: string) {
       author: { select: { id: true, name: true } },
       mergedBy: { select: { id: true, name: true } },
       revertedBy: { select: { id: true, name: true } },
+      task: linkedTaskSelect,
       files: { orderBy: { path: 'asc' } },
       reviews: {
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
@@ -508,6 +547,7 @@ export async function submissionDetail(access: ProjectAccess, id: string) {
     approvals: approvalCount(row.reviews, row.version),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    task: linkedTask(row.task),
     description: row.description,
     baseSha: row.baseSha,
     headSha: row.headSha,
@@ -854,6 +894,7 @@ export async function rejectSubmission(
       target: sub.id,
       data: { reason },
     });
+    if (sub.taskId) await onSubmissionEnded(tx, sub.taskId, sub.id);
   });
 }
 
@@ -875,5 +916,6 @@ export async function closeSubmission(access: ProjectAccess, id: string): Promis
       target: sub.id,
       data: {},
     });
+    if (sub.taskId) await onSubmissionEnded(tx, sub.taskId, sub.id);
   });
 }

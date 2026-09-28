@@ -37,6 +37,8 @@ model User {
   comments            Comment[]
   mergedSubmissions   Submission[]    @relation("MergedBy")
   revertedSubmissions Submission[]    @relation("RevertedBy")
+  createdTasks        Task[]          @relation("TaskCreatedBy")
+  taskAssignments     TaskAssignee[]
 
   @@map("users")
 }
@@ -102,6 +104,7 @@ model Project {
   activity    ActivityLog[]
   copies      Copy[]
   submissions Submission[]
+  tasks       Task[]
 
   @@index([teamId])
   @@map("projects")
@@ -336,8 +339,9 @@ model Submission {
   copy          Copy             @relation(fields: [copyId], references: [id], onDelete: Cascade)
   authorId      String           @map("author_id")
   author        User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  /// Phase 8 adds the relation to tasks.
+  /// The linked task (Phase 8); cleared when the task is deleted.
   taskId        String?          @map("task_id")
+  task          Task?            @relation(fields: [taskId], references: [id], onDelete: SetNull)
   title         String
   description   String           @default("")
   baseSha       String           @map("base_sha")
@@ -366,6 +370,7 @@ model Submission {
   @@index([copyId, status])
   @@index([authorId])
   @@index([projectId, status])
+  @@index([taskId])
   @@map("submissions")
 }
 
@@ -425,4 +430,58 @@ model Comment {
   @@index([parentId])
   @@index([authorId])
   @@map("comments")
+}
+
+// ---------- Phase 8: tasks ----------
+
+enum TaskStatus {
+  todo
+  in_progress
+  in_review
+  done
+
+  @@map("task_status")
+}
+
+/// A card on the project's task board. Its column moves by hand (TaskAssignee members between
+/// todo and in_progress; leaders and co-leaders anywhere) and automatically with its linked
+/// submissions (tasks/automatic.ts).
+model Task {
+  id                 String         @id @default(uuid())
+  projectId          String         @map("project_id")
+  project            Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title              String
+  description        String         @default("")
+  status             TaskStatus     @default(todo)
+  /// A calendar date (no time zone).
+  dueDate            DateTime?      @map("due_date") @db.Date
+  createdById        String         @map("created_by_id")
+  createdBy          User           @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  /// Order inside its column (lower first).
+  position           Float          @default(0)
+  /// A linked submission was merged and a leader hasn't answered "Mark this task done?" yet.
+  doneConfirmPending Boolean        @default(false) @map("done_confirm_pending")
+  /// Why the task was reopened automatically; cleared by the next manual move or confirmation.
+  reopenNote         String?        @map("reopen_note")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+  completedAt        DateTime?      @map("completed_at")
+  assignees          TaskAssignee[]
+  submissions        Submission[]
+
+  @@index([projectId, status, position])
+  @@index([createdById])
+  @@map("tasks")
+}
+
+/// 1–10 per task, all current project members (removing a member removes their assignments).
+model TaskAssignee {
+  taskId String @map("task_id")
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
+  @@index([userId])
+  @@map("task_assignees")
 }

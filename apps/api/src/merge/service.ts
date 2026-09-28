@@ -21,6 +21,7 @@ import { prisma } from '../lib/prisma.ts';
 import { forbidden, readSettings, type ProjectAccess } from '../projects/access.ts';
 import { reviewSelect, statusFromReviews } from '../submissions/status.ts';
 import { queueCopyUpdates } from '../jobs/copy-updates.ts';
+import { onSubmissionMerged, onSubmissionReverted } from '../tasks/automatic.ts';
 import { withProjectLock, type Tx } from './lock.ts';
 
 /**
@@ -235,6 +236,8 @@ export async function mergeSubmission(
       target: sub.id,
       data: { title: sub.title, sha: commit },
     });
+    // Phase 8: the linked task waits for a lead's "Mark this task done?".
+    if (sub.taskId) await onSubmissionMerged(tx, sub.taskId);
     // Last: main moves only if nothing above failed, and only from the main we merged into.
     await moveMain(gitDir, commit, main);
     await recheckConflicts(tx, gitDir, sub.projectId, commit);
@@ -320,6 +323,8 @@ export async function revertSubmission(
       target: sub.id,
       data: { title: sub.title, sha: commit },
     });
+    // Phase 8: a done (or waiting) linked task goes back to In progress with a note.
+    if (sub.taskId) await onSubmissionReverted(tx, sub.taskId, sub.title);
     await moveMain(gitDir, commit, main);
     await recheckConflicts(tx, gitDir, sub.projectId, commit);
     return null;

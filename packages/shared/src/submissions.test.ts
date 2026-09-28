@@ -46,6 +46,15 @@ describe('UpdateSubmissionRequestSchema', () => {
   it('allows an empty body (re-read the same files)', () => {
     expect(UpdateSubmissionRequestSchema.parse({})).toEqual({});
   });
+
+  it('takes a task id, null to unlink, or nothing to keep the link', () => {
+    expect(UpdateSubmissionRequestSchema.parse({ taskId: 't1' })).toEqual({ taskId: 't1' });
+    expect(UpdateSubmissionRequestSchema.parse({ taskId: null })).toEqual({ taskId: null });
+    expect(UpdateSubmissionRequestSchema.safeParse({ taskId: '' }).success).toBe(false);
+    expect(
+      CreateSubmissionRequestSchema.parse({ title: 'x', paths: ['a'], taskId: 't1' }).taskId,
+    ).toBe('t1');
+  });
 });
 
 describe('SubmissionListQuerySchema', () => {
@@ -130,6 +139,7 @@ describe('response schemas', () => {
       approvals: 0,
       createdAt: now,
       updatedAt: now,
+      task: null,
       description: '',
       baseSha: 'a'.repeat(40),
       headSha: 'b'.repeat(40),
@@ -166,6 +176,16 @@ describe('response schemas', () => {
     expect(SubmissionDetailSchema.safeParse({ ...detail, mergeBlocker: 'nope' }).success).toBe(
       false,
     );
+    const linked = SubmissionDetailSchema.parse({
+      ...detail,
+      task: { id: 't1', title: 'Task', status: 'in_review' },
+      viewerActions: ['confirmTaskDone'],
+    });
+    expect(linked.task?.status).toBe('in_review');
+    expect(
+      SubmissionDetailSchema.safeParse({ ...detail, task: { id: 't1', title: 'T', status: 'x' } })
+        .success,
+    ).toBe(false);
   });
 
   it('know which statuses are active', () => {

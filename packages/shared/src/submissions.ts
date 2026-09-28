@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { RepoPathSchema } from './repository.ts';
+import { LinkedTaskSchema, SubmissionTaskIdSchema } from './task-status.ts';
 
 /**
  * Submissions and review (Phase 6). All routes are under /api/projects/:projectId and answer
@@ -71,6 +72,8 @@ export const SuggestionStatusSchema = z.enum(['pending', 'accepted', 'rejected']
  * - `close`: author or leader/co-leader, while active
  * - `merge`: `submission.merge` (leaders and co-leaders), and `mergeBlocker` is null (Phase 7)
  * - `revert`: `submission.revert` (leaders and co-leaders), while `merged` (Phase 7)
+ * - `confirmTaskDone`: leaders and co-leaders while the linked task has `doneConfirmPending`
+ *   (answer with POST /tasks/:taskId/confirm-done) (Phase 8)
  */
 export const SubmissionViewerActionSchema = z.enum([
   'update',
@@ -83,6 +86,7 @@ export const SubmissionViewerActionSchema = z.enum([
   'close',
   'merge',
   'revert',
+  'confirmTaskDone',
 ]);
 
 /**
@@ -142,11 +146,14 @@ export const CopyChangesResponseSchema = z.object({
  * POST /api/projects/:projectId/submissions — any member, from their own copy. 201
  * SubmissionResponse. Errors: 409 `no_copy`; 409 `no_changes` (a path isn't changed; `details.paths`);
  * 409 `file_in_open_submission` (`details.paths`, `details.submissionId`); 409 `submission_too_large`.
+ * `taskId` links a task (Phase 8): 400 `validation_error` on `taskId` if it isn't a task of
+ * this project; 409 `task_done` if the task is done. Linking moves the task to `in_review`.
  */
 export const CreateSubmissionRequestSchema = z.object({
   title: SubmissionTitleSchema,
   description: SubmissionDescriptionSchema.default(''),
   paths: SubmissionPathsSchema,
+  taskId: SubmissionTaskIdSchema.optional(),
 });
 
 /** GET /api/projects/:projectId/submissions?status=active|all (default active). */
@@ -166,6 +173,8 @@ export const SubmissionSummarySchema = z.object({
   approvals: z.number().int(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
+  /** The linked task (Phase 8), or null. */
+  task: LinkedTaskSchema.nullable(),
 });
 
 export const SubmissionFileSchema = z.object({ path: z.string(), change: FileChangeSchema });
@@ -266,11 +275,13 @@ export const SubmissionFileResponseSchema = z.object({
  * POST /submissions/:id/update — author only, while active (409 `submission_not_active`).
  * Re-reads the files from my copy (`paths` defaults to the current list), bumps `version`,
  * marks every earlier review stale and sets the status back to `open`. Same 409s as create.
+ * `taskId`: a task id links it (same checks as create), `null` unlinks, missing keeps the link.
  */
 export const UpdateSubmissionRequestSchema = z.object({
   title: SubmissionTitleSchema.optional(),
   description: SubmissionDescriptionSchema.optional(),
   paths: SubmissionPathsSchema.optional(),
+  taskId: SubmissionTaskIdSchema.optional(),
 });
 
 const LineSchema = z.number().int().min(1).max(10_000_000);
