@@ -28,13 +28,18 @@ export function cleanIdentity(identity: Identity): Identity {
   return { name, email };
 }
 
-function identityEnv(identity: Identity, date?: Date): Record<string, string> {
+function identityEnv(
+  identity: Identity,
+  date?: Date,
+  committer?: Identity,
+): Record<string, string> {
   const { name, email } = cleanIdentity(identity);
+  const by = committer ? cleanIdentity(committer) : { name, email };
   const env: Record<string, string> = {
     GIT_AUTHOR_NAME: name,
     GIT_AUTHOR_EMAIL: email,
-    GIT_COMMITTER_NAME: name,
-    GIT_COMMITTER_EMAIL: email,
+    GIT_COMMITTER_NAME: by.name,
+    GIT_COMMITTER_EMAIL: by.email,
   };
   if (date) {
     const stamp = `${Math.floor(date.getTime() / 1000)} +0000`;
@@ -77,7 +82,10 @@ export async function writeTree(gitDir: string, entries: readonly NewTreeEntry[]
   return assertSha(stdout.toString('utf8').trim());
 }
 
-/** Creates a commit object for `tree` with the given parents, credited to `identity`. */
+/**
+ * Creates a commit object for `tree` with the given parents, credited to `identity` (author,
+ * and committer unless `committer` is given).
+ */
 export async function writeCommit(
   gitDir: string,
   tree: string,
@@ -85,13 +93,14 @@ export async function writeCommit(
   message: string,
   identity: Identity,
   date?: Date,
+  committer?: Identity,
 ): Promise<string> {
   const args = ['commit-tree', assertSha(tree)];
   for (const parent of parents) args.push('-p', assertSha(parent));
   const { stdout } = await runGit(args, {
     gitDir,
     input: message,
-    env: identityEnv(identity, date),
+    env: identityEnv(identity, date, committer),
   });
   return assertSha(stdout.toString('utf8').trim());
 }
@@ -291,4 +300,116 @@ export async function treeWithChanges(
 /** Deletes `ref` (a ref we built) if it exists. */
 export async function deleteRef(gitDir: string, ref: string): Promise<void> {
   await runGit(['update-ref', '-d', '--', ref], { gitDir });
+}
+
+// ---------- Merging (Phase 7) ----------
+
+/** The commit `ref` (a constant, or a sha) points at, or null if it doesn't exist. */
+export async function resolveCommit(gitDir: string, ref: string): Promise<string | null> {
+  try {
+    const { stdout } = await runGit(
+      ['rev-parse', '--verify', '--quiet', '--end-of-options', `${ref}^{commit}`],
+      { gitDir },
+    );
+    return assertSha(stdout.toString('utf8').trim());
+  } catch (err) {
+    if (err instanceof GitError && err.kind === 'failed' && err.exitCode === 1) return null;
+    throw err;
+  }
+}
+
+/** The tree of a commit. */
+export async function treeOf(gitDir: string, commit: string): Promise<string> {
+  const { stdout } = await runGit(['rev-parse', '--verify', `${assertSha(commit)}^{tree}`], {
+    gitDir,
+  });
+  return assertSha(stdout.toString('utf8').trim());
+}
+
+/** The first parent of a commit, or null for a root commit. */
+export async function parentOf(gitDir: string, commit: string): Promise<string | null> {
+  return resolveCommit(gitDir, `${assertSha(commit)}^1`);
+}
+
+/** Is `ancestor` reachable from `descendant` (or the same commit)? */
+export async function isAncestor(
+  gitDir: string,
+  ancestor: string,
+  descendant: string,
+): Promise<boolean> {
+  const { exitCode } = await runGit(
+    ['merge-base', '--is-ancestor', assertSha(ancestor), assertSha(descendant)],
+    { gitDir, okExitCodes: [1] },
+  );
+  return exitCode === 0;
+}
+
+/**
+ * Moves `ref` from `oldSha` to `newSha` only if it still points at `oldSha` (compare-and-swap);
+ * git fails otherwise, and nothing changes.
+ */
+export async function casRef(
+  gitDir: string,
+  ref: string,
+  newSha: string,
+  oldSha: string,
+): Promise<void> {
+  await runGit(['update-ref', '--', ref, assertSha(newSha), assertSha(oldSha)], { gitDir });
+}
+
+export interface MergeResult {
+  /** The merged tree; for conflicts it holds Git's conflict markers (or one side's version). */
+  tree: string;
+  /** Conflicted paths, sorted. Empty for a clean merge. */
+  conflicts: string[];
+}
+
+/**
+ * A three-way merge done entirely in the object store (`git merge-tree --write-tree`): nothing
+ * is checked out and no ref moves. `ours` and `theirs` may be refs we built (their names become
+ * the conflict marker labels) or shas; `base` is a commit.
+ */
+export async function mergeTree(
+  gitDir: string,
+  base: string,
+  ours: string,
+  theirs: string,
+): Promise<MergeResult> {
+  const { stdout, exitCode } = await runGit(
+    [
+      'merge-tree',
+      '--write-tree',
+      '-z',
+      '--name-only',
+      '--no-messages',
+      `--merge-base=${assertSha(base)}`,
+      '--end-of-options',
+      ours,
+      theirs,
+    ],
+    { gitDir, okExitCodes: [1], maxBuffer: 64 * 1024 * 1024 },
+  );
+  const parts = stdout.toString('utf8').split('\0');
+  const tree = assertSha(parts[0] ?? '');
+  const conflicts =
+    exitCode === 1 ? [...new Set(parts.slice(1).filter((p) => p !== ''))].sort(byPath) : [];
+  return { tree, conflicts };
+}
+
+/** Byte-order path comparison (what git uses). */
+export function byPath(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** Paths that differ between two commits or trees (no rename detection), sorted. */
+export async function changedPaths(gitDir: string, from: string, to: string): Promise<string[]> {
+  const { stdout } = await runGit(
+    ['diff-tree', '-r', '-z', '--name-only', '--no-renames', assertSha(from), assertSha(to)],
+    { gitDir, maxBuffer: 64 * 1024 * 1024 },
+  );
+  return stdout
+    .toString('utf8')
+    .split('\0')
+    .filter((p) => p !== '')
+    .sort(byPath);
 }

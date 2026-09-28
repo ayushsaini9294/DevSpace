@@ -1,9 +1,9 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import {
   acceptDialogs,
+  addFileToMain,
   addMember,
   bareGit,
   copyFolder,
@@ -12,6 +12,7 @@ import {
   projectIdFrom,
   projectNav,
   setUpEmptyRepository,
+  writeInCopy,
 } from './helpers';
 
 // Phase 6 Done-when: a member submits selected files; a reviewer comments and approves. The test
@@ -27,50 +28,9 @@ const README_PATH = 'README.md';
 const NEW_PATH = 'notes/new.txt';
 const NEW_CONTENT = 'a brand new file\n';
 
-/**
- * Test setup only: adds APP_PATH to main in the bare repository with git plumbing (a commit whose
- * parent is the current main). The app can only change main through a merged submission, which is
- * Phase 7; before then, an empty repository holds only README.md. Returns the new main.
- */
-function addFileToMain(projectId: string, path: string, content: string) {
-  const parent = bareGit(projectId, ['rev-parse', '--verify', 'refs/heads/main^{commit}']);
-  const blob = bareGit(projectId, ['hash-object', '-w', '--stdin', '--no-filters'], {
-    input: content,
-  });
-  // A temporary index outside the repository, removed afterwards.
-  const temp = mkdtempSync(join(tmpdir(), 'devspace-e2e-'));
-  let tree: string;
-  try {
-    const env = { GIT_INDEX_FILE: join(temp, 'index') };
-    bareGit(projectId, ['read-tree', parent], { env });
-    bareGit(projectId, ['update-index', '--add', '--cacheinfo', `100644,${blob},${path}`], {
-      env,
-    });
-    tree = bareGit(projectId, ['write-tree'], { env });
-  } finally {
-    rmSync(temp, { recursive: true, force: true });
-  }
-  const commit = bareGit(projectId, ['commit-tree', tree, '-p', parent, '-m', `Add ${path}`], {
-    env: {
-      GIT_AUTHOR_NAME: 'E2E setup',
-      GIT_AUTHOR_EMAIL: 'e2e@example.com',
-      GIT_COMMITTER_NAME: 'E2E setup',
-      GIT_COMMITTER_EMAIL: 'e2e@example.com',
-    },
-  });
-  bareGit(projectId, ['update-ref', 'refs/heads/main', commit, parent]);
-  return commit;
-}
-
 /** Sorts file entries by path, by code point (not locale), to compare lists. */
 function byPath(a: { path: string }, b: { path: string }) {
   return a.path < b.path ? -1 : a.path > b.path ? 1 : 0;
-}
-
-function writeInCopy(folder: string, path: string, content: string) {
-  const file = join(folder, path);
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, content);
 }
 
 function status(page: Page) {

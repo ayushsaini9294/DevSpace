@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { CopyResponseSchema, CopyViewSchema, IdeLaunchResponseSchema } from './copies.ts';
+import {
+  CopyResponseSchema,
+  CopyUpdatePreviewSchema,
+  CopyUpdateResponseSchema,
+  CopyViewSchema,
+  IdeLaunchResponseSchema,
+} from './copies.ts';
 
 const copy = {
   id: '6f1c1f0e-5b7a-4a52-9b0e-1d2f3a4b5c6d',
@@ -7,7 +13,33 @@ const copy = {
   containerStatus: 'none',
   createdAt: '2026-09-27T12:00:00.000Z',
   lastActiveAt: null,
+  behind: false,
+  pendingConflictPaths: [],
+  unresolvedPaths: [],
+  helpers: [],
 };
+
+describe('Phase 7 copy schemas', () => {
+  it('accept helpers, previews and update results', () => {
+    const helped = {
+      ...copy,
+      behind: true,
+      pendingConflictPaths: ['a.txt'],
+      helpers: [{ user: { id: 'u', name: 'Lee' }, at: '2026-09-28T12:00:00.000Z' }],
+    };
+    expect(CopyViewSchema.parse(helped)).toEqual(helped);
+    expect(CopyUpdatePreviewSchema.parse({ behind: true, conflictPaths: [] })).toEqual({
+      behind: true,
+      conflictPaths: [],
+    });
+    expect(CopyUpdateResponseSchema.parse({ copy, conflictPaths: ['x'] }).conflictPaths).toEqual([
+      'x',
+    ]);
+    expect(CopyUpdateResponseSchema.safeParse({ copy: null, conflictPaths: [] }).success).toBe(
+      false,
+    );
+  });
+});
 
 describe('CopyViewSchema', () => {
   it('accepts a copy', () => {

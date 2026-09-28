@@ -93,11 +93,14 @@ export interface RunGitOptions {
    * path we built. Never set this for a command that touches a user-supplied URL.
    */
   allowLocalRepo?: boolean;
+  /** Exit codes other than 0 that still count as success (e.g. 1 = conflicts for merge-tree). */
+  okExitCodes?: readonly number[];
 }
 
 export interface GitResult {
   stdout: Buffer;
   stderr: string;
+  exitCode: number;
 }
 
 const IS_WINDOWS = process.platform === 'win32';
@@ -206,10 +209,10 @@ export function runGit(args: readonly string[], options: RunGitOptions = {}): Pr
     child.on('close', (code) => {
       if (failure) {
         finish(failure);
-      } else if (code !== 0) {
+      } else if (code !== 0 && !(code !== null && options.okExitCodes?.includes(code))) {
         finish(new GitError('failed', `git ${command} exited with ${code}`, code, stderr));
       } else {
-        finish(null, { stdout: Buffer.concat(chunks), stderr });
+        finish(null, { stdout: Buffer.concat(chunks), stderr, exitCode: code ?? 0 });
       }
     });
 

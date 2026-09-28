@@ -61,3 +61,12 @@ The local PostgreSQL already has a `devspace` role and database from the old pro
 - Comments stay after an update; ones whose line changed are marked "outdated" (owner).
 - Only leaders and co-leaders reject, with a reason. Members with the Approve permission approve or request changes (owner, as in the blueprint).
 - Everyone in the project can see every submission. The author can always comment on their own submission, to reply.
+
+## 2026-09-28: Merge, conflicts, undo and copy updates (Phase 7)
+
+- Each merge is one new commit on main, credited to the submission's author; the leader who merged is recorded as committer. All merging happens in the project's repository; the server still never runs git inside a member's copy.
+- When main changes, every open submission is re-checked; one that now conflicts shows Needs update until the author updates their copy and the submission.
+- Updating a copy never overwrites the member's work. In automatic mode, a copy whose update would conflict is left untouched and the member is told. When they click Update my copy, clashing lines are written into the file between conflict markers (`<<<<<<< your copy` / `>>>>>>> main`) for them to resolve in VS Code (owner).
+- Undo adds a new commit that reverses the merge. If later merges changed the same lines, undo is refused with a list of the files, so main is never left half-undone (owner).
+- After an undo, the author's files stay as they are in their copy and show up again as changed files they can fix and resubmit; other copies lose the change as normal (owner).
+- Leaders and co-leaders can open any member's copy in the IDE at any time. Every time is logged, and the member sees who opened their copy (owner).

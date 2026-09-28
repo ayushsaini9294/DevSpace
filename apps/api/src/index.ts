@@ -5,6 +5,7 @@ import { recoverInterruptedImports } from './repository/import.ts';
 import { createIdeServer } from './ide/proxy.ts';
 import { recoverIdeContainers } from './ide/service.ts';
 import { backfillCopyBaseShas } from './copies/service.ts';
+import { closeCopyUpdateQueue } from './jobs/copy-updates.ts';
 
 // Imports that were running when the API last stopped can't resume: mark them failed.
 try {
@@ -65,6 +66,7 @@ async function shutdown(signal: string): Promise<void> {
   ideServer.close();
   ideServer.closeAllConnections();
   server.close(async (err) => {
+    await closeCopyUpdateQueue();
     await prisma.$disconnect().catch(() => undefined);
     process.exit(err ? 1 : 0);
   });

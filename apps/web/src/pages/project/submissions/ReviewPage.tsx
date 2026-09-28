@@ -38,6 +38,13 @@ import {
 } from '../../../lib/submissions';
 import { formatWhen, fullDate } from '../../../lib/time';
 import { useProjectContext } from '../ProjectLayout';
+import {
+  MergeBlockerNote,
+  MergeDialog,
+  MergeInfo,
+  NeedsUpdatePanel,
+  RevertDialog,
+} from './MergeParts';
 import { ChangeLabel, Dialog, StatusBadge, Tag, TextArea } from './parts';
 
 /** Diffs open by default only for small submissions; bigger ones open file by file. */
@@ -592,7 +599,7 @@ function FileSection({
 
 // ---------- Actions ----------
 
-type DialogKind = 'approved' | 'changes_requested' | 'reject' | 'close';
+type DialogKind = 'approved' | 'changes_requested' | 'reject' | 'close' | 'merge' | 'revert';
 
 function ReviewDialog({
   ctx,
@@ -682,6 +689,31 @@ function Actions({ ctx }: { ctx: Ctx }) {
   const close = () => setDialog(null);
   const buttons: ReactNode[] = [];
 
+  if (can(submission, 'merge')) {
+    buttons.push(
+      <button
+        key="merge"
+        type="button"
+        className={buttonStyles.primary}
+        onClick={() => setDialog('merge')}
+      >
+        Merge
+      </button>,
+    );
+  }
+  if (can(submission, 'revert')) {
+    buttons.push(
+      <button
+        key="revert"
+        type="button"
+        className={buttonStyles.dangerOutline}
+        onClick={() => setDialog('revert')}
+      >
+        Undo merge
+      </button>,
+    );
+  }
+
   if (can(submission, 'update')) {
     buttons.push(
       <Link
@@ -753,6 +785,12 @@ function Actions({ ctx }: { ctx: Ctx }) {
       )}
       {dialog === 'reject' && <RejectDialog ctx={ctx} onClose={close} />}
       {dialog === 'close' && <CloseDialog ctx={ctx} onClose={close} />}
+      {dialog === 'merge' && (
+        <MergeDialog projectId={projectId} submission={submission} onClose={close} />
+      )}
+      {dialog === 'revert' && (
+        <RevertDialog projectId={projectId} submission={submission} onClose={close} />
+      )}
     </>
   );
 }
@@ -782,7 +820,16 @@ function Reviews({ submission }: { submission: SubmissionDetail }) {
 
 // ---------- Page ----------
 
-function Review({ projectId, submission }: { projectId: string; submission: SubmissionDetail }) {
+function Review({
+  projectId,
+  submission,
+  isLead,
+}: {
+  projectId: string;
+  submission: SubmissionDetail;
+  /** A leader or co-leader, who could merge once nothing blocks it. */
+  isLead: boolean;
+}) {
   const ctx: Ctx = { projectId, submission };
 
   const { general, byPath, orphaned, replies } = useMemo(() => {
@@ -834,7 +881,10 @@ function Review({ projectId, submission }: { projectId: string; submission: Subm
             Rejected: <span className="whitespace-pre-wrap">{submission.rejectReason}</span>
           </p>
         )}
+        <MergeInfo submission={submission} />
+        <MergeBlockerNote submission={submission} isLead={isLead} />
         <Actions ctx={ctx} />
+        <NeedsUpdatePanel projectId={projectId} submission={submission} />
       </header>
 
       <section aria-labelledby="reviews-heading" className="space-y-2">
@@ -933,5 +983,11 @@ export function ReviewPage() {
       />
     );
   }
-  return <Review projectId={project.id} submission={submission.data} />;
+  return (
+    <Review
+      projectId={project.id}
+      submission={submission.data}
+      isLead={project.allowedActions.includes('submission.merge')}
+    />
+  );
 }

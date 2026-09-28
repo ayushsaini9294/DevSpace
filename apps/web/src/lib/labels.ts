@@ -107,6 +107,27 @@ export function describeActivity(entry: ActivityEntry): string {
       return `${actor} rejected a submission`;
     case 'submission.closed':
       return `${actor} closed a submission`;
+    case 'submission.merged': {
+      const title = dataString(data, 'title');
+      return title
+        ? `${actor} merged “${title}” into main`
+        : `${actor} merged a submission into main`;
+    }
+    case 'submission.reverted': {
+      const title = dataString(data, 'title');
+      return title
+        ? `${actor} undid the merge of “${title}”`
+        : `${actor} undid the merge of a submission`;
+    }
+    case 'copy.updated':
+      // Automatic updates (after a merge or undo) have no actor.
+      return entry.actorName === null || data.automatic === true
+        ? 'A copy was updated to the latest main automatically'
+        : `${actor} updated their copy to the latest main`;
+    case 'copy.helped': {
+      const owner = dataString(data, 'ownerName', 'memberName', 'targetName', 'name');
+      return owner ? `${actor} opened ${owner}’s copy` : `${actor} opened a member’s copy`;
+    }
     default:
       return `${actor}: ${entry.action}`;
   }

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { Link } from 'react-router';
 import {
   CreateInvitationRequestSchema,
   INVITATION_TTL_DAYS,
@@ -21,6 +22,7 @@ import {
   buttonStyles,
   cardStyle,
 } from '../../components/ui';
+import { canOpenMemberCopies, memberIdePageUrl } from '../../lib/copies';
 import { describeServerError, errorMessage } from '../../lib/formErrors';
 import { PERMISSION_KEYS, PERMISSION_LABELS, ROLE_LABELS } from '../../lib/labels';
 import {
@@ -273,6 +275,8 @@ function MemberRow({
   const showRemove = !isMe && canRemoveMember(actor, member.role);
   const showTransfer = !isMe && project.allowedActions.includes('project.transferOwnership');
   const showLeave = isMe && canLeave(actor);
+  // Leads may open any member's copy in the IDE (logged, and the member is told).
+  const showOpenCopy = !isMe && canOpenMemberCopies(project);
 
   const busy = update.isPending || remove.isPending || transfer.isPending || leave.isPending;
   const failed = [update, remove, transfer, leave].find((m) => m.isError);
@@ -310,8 +314,17 @@ function MemberRow({
         />
       )}
 
-      {(showRoleChange || showRemove || showTransfer || showLeave) && (
+      {(showOpenCopy || showRoleChange || showRemove || showTransfer || showLeave) && (
         <div className="flex flex-wrap gap-2">
+          {showOpenCopy && (
+            <Link
+              to={memberIdePageUrl(project.id, member.userId)}
+              aria-label={`Open copy of ${member.name}`}
+              className={buttonStyles.secondary}
+            >
+              Open copy
+            </Link>
+          )}
           {showRoleChange && (
             <button
               type="button"

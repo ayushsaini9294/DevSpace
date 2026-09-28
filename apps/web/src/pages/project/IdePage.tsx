@@ -1,22 +1,38 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
+import type { CopyView } from '@devspace/shared';
 import { FormAlert } from '../../components/AuthPageShell';
 import { FocusHeading, buttonStyles, linkStyle } from '../../components/ui';
-import { useLaunchIde, useMyCopy, useStartIde } from '../../lib/copies';
+import { useCopy, useLaunchIde, useStartIde, type CopyOwner } from '../../lib/copies';
 import { errorCode, errorMessage, isNotFound } from '../../lib/formErrors';
-import { useProject } from '../../lib/projects';
+import { useMembers, useProject } from '../../lib/projects';
 import { newSubmissionUrl } from '../../lib/submissions';
+import { CopyUpdates } from './CopyUpdates';
 import { Spinner } from './repository/parts';
 
 const NO_PROJECT = 'There is no project you can open at this address.';
+const NO_MEMBER_COPY =
+  'This member has no copy yet (they haven’t opened the project’s IDE), or isn’t in the project any more.';
+const NOT_A_LEAD = 'Only leaders and co-leaders can open a member’s copy.';
 
-/** Why the start request failed, in words for this page. */
-function startErrorMessage(error: unknown): string {
-  if (errorCode(error) === 'repository_not_ready') {
+/** While my own IDE is open, re-read my copy this often, so main's changes and fixed conflicts show. */
+const OWN_COPY_REFRESH_MS = 15_000;
+
+/** Words that differ between my own IDE and a member's copy opened by a lead. */
+type Words = { ide: string; Ide: string; notFound: string };
+
+const OWN_WORDS: Words = { ide: 'your IDE', Ide: 'Your IDE', notFound: NO_PROJECT };
+const MEMBER_WORDS: Words = { ide: 'the IDE', Ide: 'The IDE', notFound: NO_MEMBER_COPY };
+
+/** Why a request failed, in words for this page. */
+function failureMessage(error: unknown, words: Words, action: string): string {
+  const code = errorCode(error);
+  if (code === 'repository_not_ready') {
     return 'The project’s repository isn’t ready yet. Once a leader or co-leader has set it up, you can open the IDE.';
   }
-  if (isNotFound(error)) return NO_PROJECT;
-  return `Could not start your IDE. ${errorMessage(error)}`;
+  if (code === 'forbidden') return NOT_A_LEAD;
+  if (isNotFound(error)) return words.notFound;
+  return `Could not ${action} ${words.ide}. ${errorMessage(error)}`;
 }
 
 function Centered({ children }: { children: ReactNode }) {
@@ -64,18 +80,22 @@ function Problem({
  */
 function IdeFrame({
   projectId,
+  owner,
+  words,
   title,
   onRelaunch,
   onRestart,
 }: {
   projectId: string;
+  owner: CopyOwner;
+  words: Words;
   title: string;
   /** Remount this frame, which asks for a new launch URL. */
   onRelaunch: () => void;
   /** Start the container again (it stopped before the IDE opened). */
   onRestart: () => void;
 }) {
-  const { mutate, data, error, isError, isSuccess } = useLaunchIde(projectId);
+  const { mutate, data, error, isError, isSuccess } = useLaunchIde(projectId, owner);
 
   // Once per mount (the ref keeps StrictMode's second effect from using up another ticket).
   const launched = useRef(false);
@@ -89,18 +109,15 @@ function IdeFrame({
     if (errorCode(error) === 'ide_not_running') {
       return (
         <Problem
-          message="Your IDE stopped before it could open. Your files are kept."
+          message={`${words.Ide} stopped before it could open. The files are kept.`}
           retryLabel="Start the IDE"
           onRetry={onRestart}
         />
       );
     }
-    const message = isNotFound(error)
-      ? NO_PROJECT
-      : `Could not open your IDE. ${errorMessage(error)}`;
-    return <Problem message={message} onRetry={onRelaunch} />;
+    return <Problem message={failureMessage(error, words, 'open')} onRetry={onRelaunch} />;
   }
-  if (!isSuccess) return <Waiting>Opening your IDE…</Waiting>;
+  if (!isSuccess) return <Waiting>Opening {words.ide}…</Waiting>;
 
   return (
     <iframe
@@ -114,15 +131,32 @@ function IdeFrame({
   );
 }
 
+/** My copy's updates, as a strip under the IDE toolbar (nothing when all is quiet). */
+function OwnCopyStrip({ projectId, copy }: { projectId: string; copy: CopyView }) {
+  return (
+    <div className="max-h-[40vh] shrink-0 overflow-y-auto border-b border-gray-200 bg-white px-4 py-2 empty:hidden">
+      <CopyUpdates projectId={projectId} copy={copy} />
+    </div>
+  );
+}
+
 /**
  * `/projects/:projectId/ide`: starts (or reuses) my copy's IDE, waits while it starts, then
- * shows VS Code full size. Outside the normal page layout so the editor gets the whole window.
+ * shows VS Code full size. `/projects/:projectId/members/:userId/ide` does the same for a
+ * member's copy, opened by a leader or co-leader. Outside the normal page layout so the editor
+ * gets the whole window.
  */
 export function IdePage() {
-  const projectId = useParams().projectId ?? '';
+  const params = useParams();
+  const projectId = params.projectId ?? '';
+  const owner: CopyOwner = params.userId ?? null;
+  const own = owner === null;
+  const words = own ? OWN_WORDS : MEMBER_WORDS;
+
   const project = useProject(projectId);
-  const startIde = useStartIde(projectId);
-  const myCopy = useMyCopy(projectId, startIde.isSuccess);
+  const members = useMembers(projectId, !own);
+  const startIde = useStartIde(projectId, owner);
+  const copy = useCopy(projectId, owner, startIde.isSuccess, own ? OWN_COPY_REFRESH_MS : false);
   const { mutate } = startIde;
   // Changing this remounts the frame, which asks for a fresh launch URL.
   const [launchKey, setLaunchKey] = useState(0);
@@ -139,34 +173,40 @@ export function IdePage() {
   }, [mutate]);
 
   const projectName = project.data?.name;
-  const back = `/projects/${projectId}`;
+  const memberName = own
+    ? null
+    : (members.data?.find((member) => member.userId === owner)?.name ?? null);
+  const back = own ? `/projects/${projectId}` : `/projects/${projectId}/members`;
   let running = false;
 
   let body: ReactNode;
   if (startIde.isError) {
-    body = <Problem message={startErrorMessage(startIde.error)} onRetry={start} />;
-  } else if (!startIde.isSuccess || myCopy.isPending) {
-    body = <Waiting>Starting your IDE…</Waiting>;
-  } else if (myCopy.isError) {
+    body = <Problem message={failureMessage(startIde.error, words, 'start')} onRetry={start} />;
+  } else if (!startIde.isSuccess || copy.isPending) {
+    body = <Waiting>Starting {words.ide}…</Waiting>;
+  } else if (copy.isError) {
     body = (
       <Problem
-        message={`Could not check on your IDE. ${errorMessage(myCopy.error)}`}
+        message={`Could not check on ${words.ide}. ${errorMessage(copy.error)}`}
         onRetry={start}
       />
     );
   } else {
-    const status = myCopy.data?.containerStatus ?? 'none';
+    const status = copy.data?.containerStatus ?? 'none';
     if (status === 'starting') {
-      body = <Waiting>Starting your IDE…</Waiting>;
+      body = <Waiting>Starting {words.ide}…</Waiting>;
     } else if (status === 'failed') {
-      body = <Problem message="Your IDE couldn’t start." onRetry={start} />;
+      body = <Problem message={`${words.Ide} couldn’t start.`} onRetry={start} />;
     } else if (status === 'running') {
       running = true;
+      const target = own ? projectName : memberName ? `${memberName}’s copy` : 'a member’s copy';
       body = (
         <IdeFrame
           key={launchKey}
           projectId={projectId}
-          title={projectName ? `VS Code for ${projectName}` : 'VS Code'}
+          owner={owner}
+          words={words}
+          title={target ? `VS Code for ${target}` : 'VS Code'}
           onRelaunch={relaunch}
           onRestart={start}
         />
@@ -175,7 +215,7 @@ export function IdePage() {
       // Stopped (for example after 30 idle minutes) or not started: the files are kept.
       body = (
         <Problem
-          message="Your IDE isn’t running. Your files are kept."
+          message={`${words.Ide} isn’t running. The files are kept.`}
           retryLabel="Start the IDE"
           onRetry={start}
         />
@@ -183,18 +223,27 @@ export function IdePage() {
     }
   }
 
+  let heading: string;
+  if (own) heading = projectName ? `IDE: ${projectName}` : 'IDE';
+  else heading = memberName ? `${memberName}’s copy` : 'Member’s copy';
+
   return (
     <div className="flex h-dvh flex-col bg-gray-50 text-gray-900">
       <header className="flex shrink-0 items-center gap-3 border-b border-gray-200 bg-white px-4 py-2">
         <Link to={back} className={`${linkStyle} shrink-0 text-sm`}>
-          ← Back to the project
+          {own ? '← Back to the project' : '← Back to members'}
         </Link>
         <FocusHeading className="min-w-0 flex-1 truncate text-sm font-semibold">
-          {projectName ? `IDE: ${projectName}` : 'IDE'}
+          {heading}
         </FocusHeading>
-        <Link to={newSubmissionUrl(projectId)} className={`${buttonStyles.primary} shrink-0 py-1`}>
-          Submit work
-        </Link>
+        {own && (
+          <Link
+            to={newSubmissionUrl(projectId)}
+            className={`${buttonStyles.primary} shrink-0 py-1`}
+          >
+            Submit work
+          </Link>
+        )}
         {running && (
           <button
             type="button"
@@ -205,6 +254,13 @@ export function IdePage() {
           </button>
         )}
       </header>
+      {!own && (
+        <p className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-950">
+          You’re working in {memberName ?? 'this member'}’s copy to help them. Changes you make here
+          are theirs; they are told you opened it.
+        </p>
+      )}
+      {own && copy.data && <OwnCopyStrip projectId={projectId} copy={copy.data} />}
       <main className="flex min-h-0 flex-1 flex-col">{body}</main>
     </div>
   );

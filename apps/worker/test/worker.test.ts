@@ -6,6 +6,12 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { prisma } from '@devspace/api/prisma';
 import { Queue } from 'bullmq';
 import {
+  closeCopyUpdateQueue,
+  queueCopyUpdates,
+  useCopyUpdateQueue,
+} from '@devspace/api/copy-updates';
+import { startCopyUpdates } from '../src/copy-updates.ts';
+import {
   EVERY_MS,
   JOB_NAME,
   SCHEDULER_ID,
@@ -74,6 +80,49 @@ async function idleCopy() {
   writeFileSync(join(dir, 'README.md'), '# hi\n');
   return copy;
 }
+
+describe.skipIf(!!why)('the copy updates job (needs Redis)', () => {
+  it('runs the jobs the API queues after a merge or revert', { timeout: 60_000 }, async () => {
+    const queueName = `devspace-copy-updates-test-${randomUUID()}`;
+    const updates = await startCopyUpdates({ redisUrl: REDIS_URL, queueName });
+    try {
+      // A project in automatic mode with no repository yet: the job runs and has nothing to do.
+      const user = await prisma.user.create({
+        data: {
+          name: 'Worker Test',
+          email: `worker-${randomUUID()}@example.test`,
+          passwordHash: 'x',
+        },
+      });
+      userIds.push(user.id);
+      const team = await prisma.team.create({ data: { name: 'Worker Team', ownerId: user.id } });
+      const project = await prisma.project.create({
+        data: { teamId: team.id, name: 'Worker Project', settings: {} },
+      });
+      const done = new Promise<unknown>((resolve, reject) => {
+        updates.worker.on('completed', (job, result) => {
+          if (job.data.projectId === project.id) resolve(result);
+        });
+        updates.worker.on('failed', (job, err) => {
+          if (job?.data.projectId === project.id) reject(err);
+        });
+      });
+      // Queued exactly as the API does it.
+      useCopyUpdateQueue(queueName);
+      await queueCopyUpdates(project.id);
+      expect(await done).toEqual({ updated: [], pending: [], upToDate: [], failed: [] });
+    } finally {
+      useCopyUpdateQueue(null);
+      await closeCopyUpdateQueue();
+      const connection = new Redis(REDIS_URL, { maxRetriesPerRequest: null });
+      const queue = new Queue(queueName, { connection });
+      await queue.obliterate({ force: true });
+      await queue.close();
+      await connection.quit();
+      await updates.close();
+    }
+  });
+});
 
 describe.skipIf(!!why)('the worker (needs Redis; stopping needs Docker)', () => {
   it(

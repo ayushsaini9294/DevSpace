@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     "./housekeeping": "./src/housekeeping/index.ts",
-    "./prisma": "./src/lib/prisma.ts"
+    "./prisma": "./src/lib/prisma.ts",
+    "./copy-updates": "./src/jobs/worker-exports.ts"
   },
   "scripts": {
     "predev": "npm run db:generate",
@@ -25,10 +26,12 @@
     "@devspace/shared": "^0.1.0",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
+    "bullmq": "^6.3.9",
     "cookie-parser": "^1.4.7",
     "dockerode": "^5.0.1",
     "express": "^5.2.1",
     "ignore": "^7.0.10",
+    "ioredis": "^6.0.0",
     "pg": "^8.23.0",
     "zod": "^4.6.5"
   },

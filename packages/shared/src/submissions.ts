@@ -69,6 +69,8 @@ export const SuggestionStatusSchema = z.enum(['pending', 'accepted', 'rejected']
  * - `approve` / `requestChanges`: `submission.approve`, not the author, while active
  * - `reject`: `submission.reject` (leaders and co-leaders), while active
  * - `close`: author or leader/co-leader, while active
+ * - `merge`: `submission.merge` (leaders and co-leaders), and `mergeBlocker` is null (Phase 7)
+ * - `revert`: `submission.revert` (leaders and co-leaders), while `merged` (Phase 7)
  */
 export const SubmissionViewerActionSchema = z.enum([
   'update',
@@ -79,7 +81,20 @@ export const SubmissionViewerActionSchema = z.enum([
   'requestChanges',
   'reject',
   'close',
+  'merge',
+  'revert',
 ]);
+
+/**
+ * Why the submission can't be merged right now (the same for every viewer), or null when a
+ * lead may merge it:
+ * - `not_active`: it isn't active (merged, rejected, closed or reverted)
+ * - `needs_update`: it conflicts with main (`conflictPaths`); the author must update their copy
+ *   and the submission
+ * - `approval_required`: the project requires an approval and the status isn't `approved`
+ * A merge can still be refused with 409 `already_in_main` or `merge_conflict` (found at merge time).
+ */
+export const MergeBlockerSchema = z.enum(['needs_update', 'approval_required', 'not_active']);
 
 // ---------- Shared pieces ----------
 
@@ -202,6 +217,17 @@ export const SubmissionDetailSchema = SubmissionSummarySchema.extend({
   /** Oldest first; replies follow the same order (group them by `parentId`). */
   comments: z.array(CommentSchema),
   viewerActions: z.array(SubmissionViewerActionSchema),
+  /** Files that conflict with the current main (sorted); non-empty exactly when `needs_update`. */
+  conflictPaths: z.array(z.string()),
+  /** The commit on main this submission became, once merged (kept after a revert). */
+  mergedSha: z.string().nullable(),
+  mergedBy: UserRefSchema.nullable(),
+  mergedAt: z.iso.datetime().nullable(),
+  /** The commit on main that undid the merge, once reverted. */
+  revertedSha: z.string().nullable(),
+  revertedBy: UserRefSchema.nullable(),
+  revertedAt: z.iso.datetime().nullable(),
+  mergeBlocker: MergeBlockerSchema.nullable(),
 });
 
 /** GET /api/projects/:projectId/submissions — newest first. */
@@ -336,12 +362,30 @@ export const RejectSubmissionRequestSchema = z.object({
 
 // POST /submissions/:id/close (no body) — author or leader/co-leader, while active. SubmissionResponse.
 
+// ---------- Merge and revert (Phase 7) ----------
+
+// POST /submissions/:id/merge (no body) — `submission.merge`. Adds exactly one commit to main
+// (author = the submission's author, committer = the merging lead). SubmissionResponse with
+// status `merged`. Errors: 409 `submission_not_active`; 409 `approval_required`; 409
+// `merge_conflict` (`details.paths`; the submission becomes `needs_update`); 409
+// `already_in_main` (merging would not change main); 403 without the permission.
+//
+// POST /submissions/:id/revert (no body) — `submission.revert`, status `merged` (else 409
+// `submission_not_active`). Adds one commit to main that undoes the merge. SubmissionResponse
+// with status `reverted`. 409 `revert_conflict` (`details.paths`) when later merges changed the
+// same lines: main is left untouched.
+
+/** `details` of 409 `merge_conflict` and `revert_conflict`. */
+export const ConflictDetailsSchema = z.object({ paths: z.array(z.string()) });
+
 export type SubmissionStatus = z.infer<typeof SubmissionStatusSchema>;
 export type FileChange = z.infer<typeof FileChangeSchema>;
 export type ReviewDecision = z.infer<typeof ReviewDecisionSchema>;
 export type DiffSide = z.infer<typeof DiffSideSchema>;
 export type SuggestionStatus = z.infer<typeof SuggestionStatusSchema>;
 export type SubmissionViewerAction = z.infer<typeof SubmissionViewerActionSchema>;
+export type MergeBlocker = z.infer<typeof MergeBlockerSchema>;
+export type ConflictDetails = z.infer<typeof ConflictDetailsSchema>;
 export type UserRef = z.infer<typeof UserRefSchema>;
 export type ChangedFile = z.infer<typeof ChangedFileSchema>;
 export type CopyChangesResponse = z.infer<typeof CopyChangesResponseSchema>;

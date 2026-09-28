@@ -35,6 +35,8 @@ model User {
   submissions         Submission[]
   reviews             Review[]
   comments            Comment[]
+  mergedSubmissions   Submission[]    @relation("MergedBy")
+  revertedSubmissions Submission[]    @relation("RevertedBy")
 
   @@map("users")
 }
@@ -194,35 +196,39 @@ model ActivityLog {
 /// A member's own working copy of a project: a git clone of the bare repo on its own branch,
 /// stored at <COPIES_DIR>/<projectId>/<id> (computed, never stored or sent to clients).
 model Copy {
-  id              String              @id @default(uuid())
-  projectId       String              @map("project_id")
-  project         Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  userId          String              @map("user_id")
-  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                   String              @id @default(uuid())
+  projectId            String              @map("project_id")
+  project              Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId               String              @map("user_id")
+  user                 User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// `copy/<userId>`, branched from main when the copy was made.
-  branchName      String              @map("branch_name")
+  branchName           String              @map("branch_name")
   /// The IDE container's Docker id (named devspace-ide-<id>); null before the first start.
   /// Its connection token is never stored here: it lives only in the container's settings
   /// (root-only on the Docker host) and in the API's memory.
-  containerId     String?             @map("container_id")
-  containerStatus CopyContainerStatus @default(none) @map("container_status")
+  containerId          String?             @map("container_id")
+  containerStatus      CopyContainerStatus @default(none) @map("container_status")
   /// Why the last IDE start failed (for logs and support; never sent to the browser).
-  containerError  String?             @map("container_error")
+  containerError       String?             @map("container_error")
   /// When the IDE last started or carried traffic (updated at most every 30 s).
-  lastActiveAt    DateTime?           @map("last_active_at")
+  lastActiveAt         DateTime?           @map("last_active_at")
   /// The copy folder's size on disk in bytes at the last check by the worker (null: never checked).
-  diskBytes       BigInt?             @map("disk_bytes")
-  diskCheckedAt   DateTime?           @map("disk_checked_at")
+  diskBytes            BigInt?             @map("disk_bytes")
+  diskCheckedAt        DateTime?           @map("disk_checked_at")
   /// True while the folder is over the 5 GB limit (set by the worker; not shown in the app yet).
-  overDiskLimit   Boolean             @default(false) @map("over_disk_limit")
+  overDiskLimit        Boolean             @default(false) @map("over_disk_limit")
   /// The main commit this copy was made from (Phase 7 moves it when the copy is updated).
   /// Submissions are compared with it. Null only for copies made before Phase 6 until first
   /// use, when it is filled with the project's current main (exact: nothing had merged yet).
-  baseSha         String?             @map("base_sha")
-  createdAt       DateTime            @default(now()) @map("created_at")
-  ideTickets      IdeTicket[]
-  ideSessions     IdeSession[]
-  submissions     Submission[]
+  baseSha              String?             @map("base_sha")
+  /// Files a copy update wrote conflict markers into (Phase 7); pruned once resolved.
+  markerPaths          String[]            @default([]) @map("marker_paths")
+  /// Automatic mode found these conflicts and left the copy untouched (cleared by an update).
+  pendingConflictPaths String[]            @default([]) @map("pending_conflict_paths")
+  createdAt            DateTime            @default(now()) @map("created_at")
+  ideTickets           IdeTicket[]
+  ideSessions          IdeSession[]
+  submissions          Submission[]
 
   @@unique([projectId, userId])
   @@index([userId])
@@ -323,33 +329,43 @@ enum SuggestionStatus {
 /// Work a member submitted from their copy. Each version's snapshot commit lives in the bare
 /// repo at refs/submissions/<id>/v<version>; file contents are never stored here.
 model Submission {
-  id           String           @id @default(uuid())
-  projectId    String           @map("project_id")
-  project      Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  copyId       String           @map("copy_id")
-  copy         Copy             @relation(fields: [copyId], references: [id], onDelete: Cascade)
-  authorId     String           @map("author_id")
-  author       User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  id            String           @id @default(uuid())
+  projectId     String           @map("project_id")
+  project       Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  copyId        String           @map("copy_id")
+  copy          Copy             @relation(fields: [copyId], references: [id], onDelete: Cascade)
+  authorId      String           @map("author_id")
+  author        User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
   /// Phase 8 adds the relation to tasks.
-  taskId       String?          @map("task_id")
-  title        String
-  description  String           @default("")
-  baseSha      String           @map("base_sha")
-  headSha      String           @map("head_sha")
-  version      Int              @default(1)
-  status       SubmissionStatus @default(open)
-  rejectReason String?          @map("reject_reason")
-  mergedSha    String?          @map("merged_sha")
-  createdAt    DateTime         @default(now()) @map("created_at")
-  updatedAt    DateTime         @updatedAt @map("updated_at")
-  closedAt     DateTime?        @map("closed_at")
-  files        SubmissionFile[]
-  reviews      Review[]
-  comments     Comment[]
+  taskId        String?          @map("task_id")
+  title         String
+  description   String           @default("")
+  baseSha       String           @map("base_sha")
+  headSha       String           @map("head_sha")
+  version       Int              @default(1)
+  status        SubmissionStatus @default(open)
+  rejectReason  String?          @map("reject_reason")
+  mergedSha     String?          @map("merged_sha")
+  /// Files that conflict with the current main (set by the conflict re-check, Phase 7).
+  conflictPaths String[]         @default([]) @map("conflict_paths")
+  mergedById    String?          @map("merged_by_id")
+  mergedBy      User?            @relation("MergedBy", fields: [mergedById], references: [id], onDelete: SetNull)
+  mergedAt      DateTime?        @map("merged_at")
+  revertedSha   String?          @map("reverted_sha")
+  revertedById  String?          @map("reverted_by_id")
+  revertedBy    User?            @relation("RevertedBy", fields: [revertedById], references: [id], onDelete: SetNull)
+  revertedAt    DateTime?        @map("reverted_at")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+  closedAt      DateTime?        @map("closed_at")
+  files         SubmissionFile[]
+  reviews       Review[]
+  comments      Comment[]
 
   @@index([projectId, createdAt])
   @@index([copyId, status])
   @@index([authorId])
+  @@index([projectId, status])
   @@map("submissions")
 }
 

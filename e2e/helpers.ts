@@ -1,5 +1,7 @@
 import { execFileSync } from 'node:child_process';
-import { join, resolve } from 'node:path';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { expect, type Browser, type Page } from '@playwright/test';
 
 /** Same defaults as the API (`REPOS_DIR` / `COPIES_DIR`, else `<repo root>/.data/...`). */
@@ -37,6 +39,48 @@ export function bareGit(
       ...options.env,
     },
   }).replace(/\n$/, '');
+}
+
+/**
+ * Test setup only: adds a file to main in the bare repository with git plumbing (a commit whose
+ * parent is the current main), before any copy exists. An empty repository holds only README.md,
+ * and the app changes main only through a merged submission. Returns the new main.
+ */
+export function addFileToMain(projectId: string, path: string, content: string) {
+  const parent = bareGit(projectId, ['rev-parse', '--verify', 'refs/heads/main^{commit}']);
+  const blob = bareGit(projectId, ['hash-object', '-w', '--stdin', '--no-filters'], {
+    input: content,
+  });
+  // A temporary index outside the repository, removed afterwards.
+  const temp = mkdtempSync(join(tmpdir(), 'devspace-e2e-'));
+  let tree: string;
+  try {
+    const env = { GIT_INDEX_FILE: join(temp, 'index') };
+    bareGit(projectId, ['read-tree', parent], { env });
+    bareGit(projectId, ['update-index', '--add', '--cacheinfo', `100644,${blob},${path}`], {
+      env,
+    });
+    tree = bareGit(projectId, ['write-tree'], { env });
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+  const commit = bareGit(projectId, ['commit-tree', tree, '-p', parent, '-m', `Add ${path}`], {
+    env: {
+      GIT_AUTHOR_NAME: 'E2E setup',
+      GIT_AUTHOR_EMAIL: 'e2e@example.com',
+      GIT_COMMITTER_NAME: 'E2E setup',
+      GIT_COMMITTER_EMAIL: 'e2e@example.com',
+    },
+  });
+  bareGit(projectId, ['update-ref', 'refs/heads/main', commit, parent]);
+  return commit;
+}
+
+/** Writes a file into a copy folder on disk, as the member's IDE would. */
+export function writeInCopy(folder: string, path: string, content: string) {
+  const file = join(folder, path);
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, content);
 }
 
 /** The project id from a project path like /projects/abc. */

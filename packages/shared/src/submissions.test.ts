@@ -138,10 +138,32 @@ describe('response schemas', () => {
       files: [{ path: 'a', change: 'modified' }],
       reviews: [],
       comments: [],
-      viewerActions: ['update', 'comment'],
+      viewerActions: ['update', 'comment', 'merge'],
+      conflictPaths: [],
+      mergedSha: null,
+      mergedBy: null,
+      mergedAt: null,
+      revertedSha: null,
+      revertedBy: null,
+      revertedAt: null,
+      mergeBlocker: null,
     };
     expect(SubmissionDetailSchema.parse(detail)).toEqual(detail);
-    expect(SubmissionDetailSchema.safeParse({ ...detail, viewerActions: ['merge'] }).success).toBe(
+    expect(
+      SubmissionDetailSchema.safeParse({ ...detail, viewerActions: ['publish'] }).success,
+    ).toBe(false);
+    expect(
+      SubmissionDetailSchema.parse({
+        ...detail,
+        status: 'merged',
+        mergedSha: 'c'.repeat(40),
+        mergedBy: { id: 'u2', name: 'Lee' },
+        mergedAt: now,
+        mergeBlocker: 'not_active',
+        viewerActions: ['comment', 'revert'],
+      }).mergeBlocker,
+    ).toBe('not_active');
+    expect(SubmissionDetailSchema.safeParse({ ...detail, mergeBlocker: 'nope' }).success).toBe(
       false,
     );
   });

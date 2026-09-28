@@ -23,7 +23,11 @@ export const routes: RouteObject[] = [
   // The IDE fills the whole window, so it sits outside the normal page layout.
   {
     element: <RequireAuth />,
-    children: [{ path: 'projects/:projectId/ide', element: <IdePage /> }],
+    children: [
+      { path: 'projects/:projectId/ide', element: <IdePage /> },
+      // A leader or co-leader in a member's copy (Phase 7): the same page, for that copy.
+      { path: 'projects/:projectId/members/:userId/ide', element: <IdePage /> },
+    ],
   },
   {
     element: <Layout />,

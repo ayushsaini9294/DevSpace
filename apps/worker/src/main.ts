@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { prisma } from '@devspace/api/prisma';
+import { startCopyUpdates } from './copy-updates.ts';
 import { startHousekeeping } from './housekeeping.ts';
 
 /**
@@ -12,7 +13,10 @@ const env = z
   .parse(process.env);
 
 const housekeeping = await startHousekeeping({ redisUrl: env.REDIS_URL });
-console.log(`Worker running housekeeping every minute (Redis ${new URL(env.REDIS_URL).host})`);
+const copyUpdates = await startCopyUpdates({ redisUrl: env.REDIS_URL });
+console.log(
+  `Worker running housekeeping every minute and copy updates (Redis ${new URL(env.REDIS_URL).host})`,
+);
 
 let shuttingDown = false;
 async function shutdown(signal: string): Promise<void> {
@@ -22,6 +26,7 @@ async function shutdown(signal: string): Promise<void> {
   const forceExit = setTimeout(() => process.exit(1), 30_000);
   forceExit.unref();
   try {
+    await copyUpdates.close();
     await housekeeping.close();
     await prisma.$disconnect();
     process.exit(0);

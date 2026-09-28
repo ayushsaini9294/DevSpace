@@ -14,6 +14,7 @@ import {
 } from '@devspace/shared';
 import type { AuthUser } from '../auth/session.ts';
 import { parseBody } from '../lib/validate.ts';
+import { mergeSubmission, revertSubmission } from '../merge/service.ts';
 import { requireProjectAction } from '../projects/access.ts';
 import {
   addComment,
@@ -125,5 +126,21 @@ submissionsRouter.post('/submissions/:submissionId/close', async (req, res) => {
   const access = await requireProjectAction(req);
   const id = param(req, 'submissionId');
   await closeSubmission(access, id);
+  res.json(await respond(access, id));
+});
+
+/** Phase 7: `submission.merge` — one new commit on main. */
+submissionsRouter.post('/submissions/:submissionId/merge', async (req, res) => {
+  const access = await requireProjectAction(req);
+  const id = param(req, 'submissionId');
+  await mergeSubmission(access, author(req), id);
+  res.json(await respond(access, id));
+});
+
+/** Phase 7: `submission.revert` — one new commit on main that undoes the merge. */
+submissionsRouter.post('/submissions/:submissionId/revert', async (req, res) => {
+  const access = await requireProjectAction(req);
+  const id = param(req, 'submissionId');
+  await revertSubmission(access, author(req), id);
   res.json(await respond(access, id));
 });

@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { copyDir } from '../copies/service.ts';
+import { retryBehindCopies, type ProjectUpdateResult } from '../copies/update.ts';
 import { containerName, docker, isNotFound } from '../ide/docker.ts';
 import { withCopyDbLock } from '../ide/lock.ts';
 import { prisma } from '../lib/prisma.ts';
@@ -146,11 +147,15 @@ export async function checkCopySizes(options: HousekeepingOptions = {}): Promise
   return result;
 }
 
-/** One housekeeping run: idle IDEs first, then disk use. */
+/**
+ * One housekeeping run: idle IDEs first, then disk use, then (Phase 7) copies of automatic-mode
+ * projects that are still behind main.
+ */
 export async function runHousekeeping(
   options: HousekeepingOptions = {},
-): Promise<{ idle: IdleResult; disk: DiskResult }> {
+): Promise<{ idle: IdleResult; disk: DiskResult; updates: ProjectUpdateResult }> {
   const idle = await stopIdleIdes(options);
   const disk = await checkCopySizes(options);
-  return { idle, disk };
+  const updates = await retryBehindCopies({ copyIds: options.copyIds });
+  return { idle, disk, updates };
 }

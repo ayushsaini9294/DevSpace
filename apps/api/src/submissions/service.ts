@@ -18,7 +18,6 @@ import {
   type CreateReviewRequest,
   type CreateSubmissionRequest,
   type FileSide,
-  type ReviewDecision,
   type SubmissionStatus,
   type SubmissionViewerAction,
   type UpdateSubmissionRequest,
@@ -41,7 +40,12 @@ import { prisma } from '../lib/prisma.ts';
 import { forbidden, type ProjectAccess } from '../projects/access.ts';
 import { decodeText } from '../repository/service.ts';
 import { removeDir } from '../repository/storage.ts';
+import { withCopySubmissionLock } from '../merge/lock.ts';
+import { recheckProject } from '../merge/service.ts';
 import { diffCopy, openCopyFileForWrite, readChosen, type CopyChange } from './scan.ts';
+import { approvalCount, mergeBlocker, reviewSelect, statusFromReviews } from './status.ts';
+
+export { statusFromReviews };
 
 type Tx = Prisma.TransactionClient;
 
@@ -75,19 +79,9 @@ function isLead(access: ProjectAccess): boolean {
 }
 
 /**
- * Runs `fn` in a transaction holding the advisory lock for one copy's submissions, so the
- * file-lock rule and version numbers can't race (submit, update and suggestion accept all
- * take it). Git work happens inside, so the timeout is generous.
+ * Submit, update and suggestion accept run under the copy's submission lock (merge/lock.ts),
+ * so the file-lock rule and version numbers can't race; copy updates take it too.
  */
-async function withCopySubmissionLock<T>(copyId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
-  return prisma.$transaction(
-    async (tx) => {
-      await tx.$queryRaw`SELECT 1 FROM pg_advisory_xact_lock(hashtext('devspace.submission'), hashtext(${copyId}))`;
-      return fn(tx);
-    },
-    { maxWait: 30_000, timeout: 180_000 },
-  );
-}
 
 async function inTx<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
   return prisma.$transaction(fn, { maxWait: 30_000, timeout: 180_000 });
@@ -256,7 +250,20 @@ export async function createSubmission(
     });
     await updateRef(gitDir, snapshotRef(id, 1), head);
   });
+  await recheckAfter(access.project.id);
   return id;
+}
+
+/** After a submit or update: re-check every active submission against main (Phase 7). */
+async function recheckAfter(projectId: string): Promise<void> {
+  try {
+    await recheckProject(projectId);
+  } catch (err) {
+    console.error(
+      `Could not re-check the submissions of project ${projectId}:`,
+      err instanceof Error ? err.message : err,
+    );
+  }
 }
 
 /**
@@ -293,6 +300,7 @@ async function applyUpdate(
       headSha: head,
       version,
       status: 'open',
+      conflictPaths: [],
     },
   });
   if (count !== 1) throw notActive();
@@ -334,6 +342,7 @@ export async function updateSubmission(
     const sub = await lockSubmission(tx, access.project.id, id);
     await applyUpdate(tx, gitDir, sub, input, author);
   });
+  await recheckAfter(access.project.id);
 }
 
 // ---------- Reading ----------
@@ -351,43 +360,11 @@ function splitLines(text: string): string[] {
   return text.split('\n');
 }
 
-interface ReviewRow {
-  reviewerId: string;
-  decision: ReviewDecision;
-  version: number;
-  createdAt: Date;
-}
-
-/** Each reviewer's latest review on the current version (earlier versions' are stale). */
-function latestCurrentReviews(reviews: readonly ReviewRow[], version: number): ReviewRow[] {
-  const latest = new Map<string, ReviewRow>();
-  for (const review of reviews) {
-    if (review.version !== version) continue;
-    const seen = latest.get(review.reviewerId);
-    if (!seen || seen.createdAt <= review.createdAt) latest.set(review.reviewerId, review);
-  }
-  return [...latest.values()];
-}
-
-/** Any changes requested → changes_requested; otherwise any approval → approved; else open. */
-export function statusFromReviews(
-  reviews: readonly ReviewRow[],
-  version: number,
-): SubmissionStatus {
-  const latest = latestCurrentReviews(reviews, version);
-  if (latest.some((r) => r.decision === 'changes_requested')) return 'changes_requested';
-  if (latest.some((r) => r.decision === 'approved')) return 'approved';
-  return 'open';
-}
-
-function approvalCount(reviews: readonly ReviewRow[], version: number): number {
-  return latestCurrentReviews(reviews, version).filter((r) => r.decision === 'approved').length;
-}
-
 function viewerActions(
   access: ProjectAccess,
   sub: { authorId: string; status: SubmissionStatus },
 ): SubmissionViewerAction[] {
+  const blocker = mergeBlocker(sub.status, access.project.settings);
   const active = isActiveSubmissionStatus(sub.status);
   const isAuthor = sub.authorId === access.userId;
   const may = (action: Parameters<typeof can>[2]) => can(access.role, access.permissions, action);
@@ -399,15 +376,10 @@ function viewerActions(
   if (active && !isAuthor && may('submission.approve')) actions.push('approve', 'requestChanges');
   if (active && may('submission.reject')) actions.push('reject');
   if (active && (isAuthor || isLead(access))) actions.push('close');
+  if (blocker === null && may('submission.merge')) actions.push('merge');
+  if (sub.status === 'merged' && may('submission.revert')) actions.push('revert');
   return actions;
 }
-
-const reviewSelect = {
-  reviewerId: true,
-  decision: true,
-  version: true,
-  createdAt: true,
-} as const;
 
 /** GET /submissions?status= — newest first. */
 export async function listSubmissions(access: ProjectAccess, status: 'active' | 'all') {
@@ -482,6 +454,8 @@ export async function submissionDetail(access: ProjectAccess, id: string) {
     where: { id, projectId: access.project.id },
     include: {
       author: { select: { id: true, name: true } },
+      mergedBy: { select: { id: true, name: true } },
+      revertedBy: { select: { id: true, name: true } },
       files: { orderBy: { path: 'asc' } },
       reviews: {
         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
@@ -551,6 +525,14 @@ export async function submissionDetail(access: ProjectAccess, id: string) {
     })),
     comments,
     viewerActions: viewerActions(access, row),
+    conflictPaths: [...row.conflictPaths].sort(),
+    mergedSha: row.mergedSha,
+    mergedBy: row.mergedBy,
+    mergedAt: row.mergedAt?.toISOString() ?? null,
+    revertedSha: row.revertedSha,
+    revertedBy: row.revertedBy,
+    revertedAt: row.revertedAt?.toISOString() ?? null,
+    mergeBlocker: mergeBlocker(row.status, access.project.settings),
   });
 }
 
@@ -784,6 +766,7 @@ export async function respondToSuggestion(
   if (!isActiveSubmissionStatus(found.status)) throw notActive();
   if (decision === 'accept') {
     await acceptSuggestion(access, author, gitDir, found.copyId, id, commentId);
+    await recheckAfter(access.project.id);
     return;
   }
   await inTx(async (tx) => {

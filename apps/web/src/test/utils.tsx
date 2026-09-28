@@ -13,6 +13,8 @@ import type {
   ActivityListResponseSchema,
   AuthResponse,
   CopyResponse,
+  CopyUpdatePreview,
+  CopyUpdateResponse,
   IdeLaunchResponse,
   CopyView,
   Comment,
@@ -75,6 +77,8 @@ export type StubBody =
   | FileResponse
   | CopyResponse
   | IdeLaunchResponse
+  | CopyUpdatePreview
+  | CopyUpdateResponse
   | CopyChangesResponse
   | SubmissionListResponse
   | SubmissionResponse
@@ -219,6 +223,10 @@ export function testCopy(overrides: Partial<CopyView> = {}): CopyView {
     containerStatus: 'none',
     createdAt: '2026-09-27T10:00:00.000Z',
     lastActiveAt: null,
+    behind: false,
+    pendingConflictPaths: [],
+    unresolvedPaths: [],
+    helpers: [],
     ...overrides,
   };
 }
@@ -247,6 +255,14 @@ export function testSubmission(overrides: Partial<SubmissionDetail> = {}): Submi
     reviews: [],
     comments: [],
     viewerActions: [],
+    conflictPaths: [],
+    mergedSha: null,
+    mergedBy: null,
+    mergedAt: null,
+    revertedSha: null,
+    revertedBy: null,
+    revertedAt: null,
+    mergeBlocker: null,
     ...overrides,
   };
 }

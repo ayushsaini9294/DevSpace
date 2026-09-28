@@ -162,6 +162,45 @@ export function useCloseSubmission(projectId: string, id: string) {
   );
 }
 
+/**
+ * Merge or undo (Phase 7). Main moves, so besides this submission, refresh every submission
+ * (others may now need an update), the repository, and my copy (it may now be behind). A 409
+ * (e.g. `merge_conflict`, which sets Needs update) also re-reads this submission.
+ */
+function useMainMutation(projectId: string, id: string, action: 'merge' | 'revert') {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () =>
+      SubmissionResponseSchema.parse(
+        await apiPost(api(projectId, `/submissions/${enc(id)}/${action}`)),
+      ).submission,
+    onSuccess: (submission) => {
+      queryClient.setQueryData(submissionKeys.detail(projectId, submission.id), submission);
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: submissionKeys.all(projectId) }),
+        queryClient.invalidateQueries({
+          queryKey: [...queryKeys.project(projectId), 'repository'],
+        }),
+        queryClient.invalidateQueries({ queryKey: [...queryKeys.project(projectId), 'copy'] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.activity(projectId) }),
+      ]);
+    },
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 409) {
+        return queryClient.invalidateQueries({ queryKey: submissionKeys.detail(projectId, id) });
+      }
+    },
+  });
+}
+
+export function useMergeSubmission(projectId: string, id: string) {
+  return useMainMutation(projectId, id, 'merge');
+}
+
+export function useRevertSubmission(projectId: string, id: string) {
+  return useMainMutation(projectId, id, 'revert');
+}
+
 export function useRespondSuggestion(projectId: string, id: string) {
   return useSubmissionMutation(
     projectId,
@@ -252,7 +291,7 @@ export function submissionErrorMessage(error: unknown): string {
     case 'submission_too_large':
       return 'This is too large to submit: at most 1,000 files, 10 MB per file and 100 MB in total (and copies with at most 20,000 files).';
     case 'submission_not_active':
-      return 'This submission is no longer open, so that can’t be done now. Reload the page to see its status.';
+      return 'This submission’s status has changed, so that can’t be done now. Reload the page to see its status.';
     case 'own_submission':
       return 'You can’t review your own submission.';
     case 'suggestion_stale':
@@ -261,6 +300,24 @@ export function submissionErrorMessage(error: unknown): string {
       return 'This suggestion was already accepted or rejected. Reload the page to see it.';
     case 'copy_changed':
       return 'A file in your copy changed while it was being read. Please try again.';
+    case 'main_changed':
+      return 'Main changed while this was running, so nothing was done. Please try again.';
+    case 'approval_required':
+      return 'This project needs an approval before merging: at least one current approval and no open change request.';
+    case 'merge_conflict': {
+      const { paths } = errorDetails(error);
+      return paths.length
+        ? `This submission now conflicts with main in: ${paths.join(', ')}. Its author needs to update it before it can be merged.`
+        : 'This submission now conflicts with main. Its author needs to update it before it can be merged.';
+    }
+    case 'already_in_main':
+      return 'Main already has these changes, so merging would change nothing.';
+    case 'revert_conflict': {
+      const { paths } = errorDetails(error);
+      return paths.length
+        ? `This merge can’t be undone: later merges changed the same lines in ${paths.join(', ')}. Main was not changed.`
+        : 'This merge can’t be undone: later merges changed the same lines. Main was not changed.';
+    }
     case 'forbidden':
       return 'You don’t have permission to do that.';
     case 'validation_error': {

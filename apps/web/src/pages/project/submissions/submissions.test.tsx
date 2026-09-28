@@ -727,7 +727,9 @@ describe('Review page', () => {
     renderApp('/projects/project-1/submissions/sub-1');
     await user.click(await screen.findByRole('button', { name: 'Close' }));
     await user.click(screen.getByRole('button', { name: 'Close submission' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('This submission is no longer open');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This submission’s status has changed',
+    );
   });
 
   it('says when there is no such submission', async () => {

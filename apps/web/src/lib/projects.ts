@@ -153,12 +153,13 @@ export function useDeleteProject(projectId: string) {
 
 // ---------- Members ----------
 
-export function useMembers(projectId: string) {
+export function useMembers(projectId: string, enabled = true) {
   return useQuery({
     queryKey: queryKeys.members(projectId),
     queryFn: async () =>
       MemberListResponseSchema.parse(await apiFetch(`/api/projects/${enc(projectId)}/members`))
         .members,
+    enabled,
   });
 }
 

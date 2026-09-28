@@ -33,7 +33,33 @@ export async function ownedCopy(copyId: string, userId: string) {
   });
 }
 
-/** Makes a launch ticket for the user's copy and returns the URL that carries it. */
+/**
+ * The copy if `userId` may open it in the IDE right now; else null. That is its owner (still a
+ * member of the project), or — Phase 7, a lead helping — a current leader or co-leader of the
+ * copy's project while the owner is still a member. Checked on every request, so a lead who is
+ * demoted or removed loses access at once.
+ */
+export async function accessibleCopy(copyId: string, userId: string) {
+  const owned = await ownedCopy(copyId, userId);
+  if (owned) return owned;
+  const copy = await prisma.copy.findFirst({
+    where: {
+      id: copyId,
+      project: { members: { some: { userId, role: { in: ['leader', 'co_leader'] } } } },
+    },
+    select: { id: true, containerStatus: true, userId: true, projectId: true },
+  });
+  if (!copy) return null;
+  const ownerIsMember = await prisma.projectMember.count({
+    where: { projectId: copy.projectId, userId: copy.userId },
+  });
+  return ownerIsMember > 0 ? { id: copy.id, containerStatus: copy.containerStatus } : null;
+}
+
+/**
+ * Makes a launch ticket bound to (user, copy) and returns the URL that carries it. The user is
+ * the copy's owner, or a lead opening a member's copy (the caller checks which).
+ */
 export async function createLaunchUrl(userId: string, copyId: string): Promise<string> {
   const now = new Date();
   // Housekeeping: nothing expired is ever used, so it can go.
@@ -72,7 +98,7 @@ export async function redeemTicket(
   }
   const now = Date.now();
   if (row.expiresAt.getTime() <= now) return null;
-  if (!(await ownedCopy(row.copyId, row.userId))) return null;
+  if (!(await accessibleCopy(row.copyId, row.userId))) return null;
 
   await prisma.ideSession.deleteMany({ where: { expiresAt: { lt: new Date(now) } } });
   const cookieValue = randomSecret();
@@ -89,7 +115,8 @@ export async function redeemTicket(
 
 /**
  * The copy an IDE cookie value opens, if the session is for `copyId`, hasn't expired, and its
- * user still owns the copy and is still a member of the project. Checked on every request.
+ * user may still open the copy (its owner, or a current lead: see accessibleCopy). Checked on
+ * every request.
  */
 export async function ideSessionCopy(cookieValue: string, copyId: string) {
   if (cookieValue.length < 20 || cookieValue.length > 200) return null;
@@ -100,7 +127,7 @@ export async function ideSessionCopy(cookieValue: string, copyId: string) {
   if (!session || session.copyId !== copyId || session.expiresAt.getTime() <= Date.now()) {
     return null;
   }
-  return ownedCopy(copyId, session.userId);
+  return accessibleCopy(copyId, session.userId);
 }
 
 /** Cookie attributes shared by both IDE-site cookies (set inside a cross-site iframe). */

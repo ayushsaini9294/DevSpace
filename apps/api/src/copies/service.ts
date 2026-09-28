@@ -5,12 +5,13 @@ import { CopyViewSchema, type CopyView } from '@devspace/shared';
 import { recordActivity } from '../activity/log.ts';
 import { env } from '../config/env.ts';
 import { Prisma } from '../generated/prisma/client.ts';
-import { cleanIdentity, lastCommit, MAIN_REF, type Identity } from '../git/repo.ts';
+import { cleanIdentity, lastCommit, MAIN_REF, resolveCommit, type Identity } from '../git/repo.ts';
 import { runGit } from '../git/run.ts';
 import { HttpError } from '../lib/http-error.ts';
 import { prisma } from '../lib/prisma.ts';
 import { projectNotFound } from '../projects/access.ts';
 import { moveIntoPlace, removeDir } from '../repository/storage.ts';
+import { readRegular } from './safe-fs.ts';
 
 /**
  * Working copies: each member has exactly one per project, a real git clone of the project's
@@ -39,26 +40,107 @@ const notReady = () =>
 
 export const copySelect = {
   id: true,
+  projectId: true,
+  userId: true,
   branchName: true,
   containerStatus: true,
   createdAt: true,
   lastActiveAt: true,
+  baseSha: true,
+  markerPaths: true,
+  pendingConflictPaths: true,
+  project: { select: { repoPath: true, repoStatus: true } },
 } as const;
 
-/** The browser's view of a copy row: no paths, no container id, no token, no IDE link. */
-export function toView(row: {
+export interface CopyViewRow {
   id: string;
+  projectId: string;
+  userId: string;
   branchName: string;
   containerStatus: string;
   createdAt: Date;
   lastActiveAt: Date | null;
-}): CopyView {
+  baseSha: string | null;
+  markerPaths: string[];
+  pendingConflictPaths: string[];
+  project: { repoPath: string | null; repoStatus: string };
+}
+
+/** How far back `helpers` looks. */
+export const HELPER_WINDOW_MS = 24 * 60 * 60 * 1000;
+/** Marker files larger than this aren't read again (they stay listed). */
+const MAX_MARKER_CHECK_BYTES = 10 * 1024 * 1024;
+const MARKER_LINE = /^(<<<<<<< |>>>>>>> )/m;
+
+/** Main moved since the copy's base. */
+async function isBehind(row: CopyViewRow): Promise<boolean> {
+  if (row.project.repoStatus !== 'ready' || !row.project.repoPath || !row.baseSha) return false;
+  const main = await resolveCommit(row.project.repoPath, MAIN_REF);
+  return main !== null && main !== row.baseSha;
+}
+
+/**
+ * The marker files that still hold a `<<<<<<< ` or `>>>>>>> ` line (read without following
+ * links). Resolved ones are dropped from the row.
+ */
+async function unresolvedMarkers(row: CopyViewRow): Promise<string[]> {
+  if (row.markerPaths.length === 0) return [];
+  const root = copyDir(row.projectId, row.id);
+  const still: string[] = [];
+  for (const path of row.markerPaths) {
+    const bytes = await readRegular(root, path, MAX_MARKER_CHECK_BYTES).catch(() => null);
+    if (bytes && MARKER_LINE.test(bytes.toString('latin1'))) still.push(path);
+  }
+  if (still.length !== row.markerPaths.length) {
+    await prisma.copy.updateMany({
+      where: { id: row.id, markerPaths: { equals: row.markerPaths } },
+      data: { markerPaths: still },
+    });
+  }
+  return still.sort();
+}
+
+/** Leaders and co-leaders (not the owner) who opened the copy in the last 24 h, newest first. */
+async function copyHelpers(row: CopyViewRow) {
+  const entries = await prisma.activityLog.findMany({
+    where: {
+      projectId: row.projectId,
+      action: 'copy.helped',
+      target: row.userId,
+      actorId: { not: row.userId },
+      createdAt: { gte: new Date(Date.now() - HELPER_WINDOW_MS) },
+    },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { createdAt: true, actor: { select: { id: true, name: true } } },
+    take: 200,
+  });
+  const seen = new Set<string>();
+  const helpers = [];
+  for (const entry of entries) {
+    if (!entry.actor || seen.has(entry.actor.id)) continue;
+    seen.add(entry.actor.id);
+    helpers.push({ user: entry.actor, at: entry.createdAt.toISOString() });
+  }
+  return helpers;
+}
+
+/** The browser's view of a copy row: no paths, no container id, no token, no IDE link. */
+export async function toView(row: CopyViewRow): Promise<CopyView> {
+  const [behind, unresolvedPaths, helpers] = await Promise.all([
+    isBehind(row),
+    unresolvedMarkers(row),
+    copyHelpers(row),
+  ]);
   return CopyViewSchema.parse({
     id: row.id,
     branchName: row.branchName,
     containerStatus: row.containerStatus,
     createdAt: row.createdAt.toISOString(),
     lastActiveAt: row.lastActiveAt?.toISOString() ?? null,
+    behind,
+    pendingConflictPaths: [...row.pendingConflictPaths].sort(),
+    unresolvedPaths,
+    helpers,
   });
 }
 
@@ -68,7 +150,7 @@ export async function findCopy(projectId: string, userId: string): Promise<CopyV
     where: { projectId_userId: { projectId, userId } },
     select: copySelect,
   });
-  return row && toView(row);
+  return row && (await toView(row));
 }
 
 /**
@@ -150,7 +232,7 @@ export async function ensureCopy(
       await moveIntoPlace(temp, target);
       return created;
     });
-    return { copy: toView(row), created: true };
+    return { copy: await toView(row), created: true };
   } catch (err) {
     // No row points at this attempt's folder (the transaction failed), so it can go.
     await removeDir(target).catch(() => undefined);

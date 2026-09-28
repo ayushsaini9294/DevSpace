@@ -245,11 +245,20 @@ export async function openIde(
   user: Identity & { id: string },
 ): Promise<CopyView> {
   const { copy } = await ensureCopy(projectId, user);
+  return startCopyIde(copy.id, projectId);
+}
+
+/**
+ * Starts or reuses the IDE container of an existing copy (the owner's POST /copy/ide, or a lead
+ * opening a member's copy). Returns right away with `starting` or `running`.
+ */
+export async function startCopyIde(copyId: string, projectId: string): Promise<CopyView> {
+  const copy = { id: copyId };
   return withCopyLock(copy.id, async () => {
     if (starts.has(copy.id)) {
       const row = await prisma.copy.findUnique({ where: { id: copy.id }, select: copySelect });
       if (!row) throw projectNotFound(); // the project was deleted meanwhile
-      return toView(row);
+      return await toView(row);
     }
     // Under the copy's database lock, so the worker can't stop the container in between.
     const { row, start } = await withCopyDbLock(copy.id, async (tx) => {
@@ -272,7 +281,7 @@ export async function openIde(
     });
     // Only after the transaction committed `starting`.
     if (start) launchStart(copy.id, projectId);
-    return toView(row);
+    return await toView(row);
   });
 }
 

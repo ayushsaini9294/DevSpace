@@ -46,7 +46,13 @@ export async function startHousekeeping(options: {
     async (job: Job<HousekeepingJobData>) => {
       const started = Date.now();
       const result = await runHousekeeping({ copyIds: job.data?.copyIds });
-      const { idle, disk } = result;
+      const { idle, disk, updates } = result;
+      if (updates.updated.length || updates.pending.length || updates.failed.length) {
+        console.log(
+          `Housekeeping: updated ${updates.updated.length} cop(ies) behind main, ` +
+            `${updates.pending.length} left with conflicts, ${updates.failed.length} to retry`,
+        );
+      }
       if (idle.stopped.length || idle.failed.length || disk.over.length || disk.failed.length) {
         console.log(
           `Housekeeping: stopped ${idle.stopped.length} idle IDE(s)` +

@@ -36,6 +36,8 @@ const EnvSchema = z
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
     DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+    /** Redis, for queueing jobs for the worker (the worker reads the same variable). */
+    REDIS_URL: z.string().trim().min(1).default('redis://localhost:6379'),
     /** Where the projects' bare Git repositories live. Relative paths resolve against the cwd. */
     REPOS_DIR: folder(DEFAULT_REPOS_DIR),
     /** Where the members' working copies live: `<COPIES_DIR>/<projectId>/<copyId>`. */

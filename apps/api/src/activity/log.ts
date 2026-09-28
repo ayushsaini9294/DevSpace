@@ -27,7 +27,11 @@ export type ActivityAction =
   | 'submission.suggestion_accepted'
   | 'submission.suggestion_rejected'
   | 'submission.rejected'
-  | 'submission.closed';
+  | 'submission.closed'
+  | 'submission.merged'
+  | 'submission.reverted'
+  | 'copy.updated'
+  | 'copy.helped';
 
 export interface ActivityInput {
   projectId: string;
