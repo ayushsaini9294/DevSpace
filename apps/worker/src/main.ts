@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { prisma } from '@devspace/api/prisma';
+import { closeEmitter } from '@devspace/api/copy-updates';
 import { startCopyUpdates } from './copy-updates.ts';
 import { startHousekeeping } from './housekeeping.ts';
 
@@ -28,6 +29,7 @@ async function shutdown(signal: string): Promise<void> {
   try {
     await copyUpdates.close();
     await housekeeping.close();
+    await closeEmitter();
     await prisma.$disconnect();
     process.exit(0);
   } catch (err) {

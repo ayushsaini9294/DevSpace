@@ -213,10 +213,9 @@ describe('members page', () => {
     expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument();
     expect(screen.queryByText('Pending invitations')).not.toBeInTheDocument();
     expect(within(rowFor('Cleo Member')).getByText('Extra permissions: Approve submissions'));
-    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual([
-      'Log out',
-      'Leave project',
-    ]);
+    // The page's own buttons (the top bar has the bell, my name and Log out).
+    const page = within(screen.getByRole('main'));
+    expect(page.getAllByRole('button').map((b) => b.textContent)).toEqual(['Leave project']);
   });
 
   it('switches a permission on with a PATCH of just that key', async () => {

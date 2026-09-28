@@ -3,6 +3,8 @@ import { recordActivity } from '../activity/log.ts';
 import type { Prisma } from '../generated/prisma/client.ts';
 import { HttpError } from '../lib/http-error.ts';
 import type { Tx } from '../merge/lock.ts';
+import { notify, projectLeads } from '../notifications/service.ts';
+import { invalidateAfterCommit } from '../realtime/emitter.ts';
 
 /**
  * The automatic task rules (Phase 8). Each runs inside the same transaction as the submission
@@ -83,6 +85,8 @@ async function autoSet(
         : {}),
     },
   });
+  // The board reloads even when only the prompt or note changed (no activity row then).
+  await invalidateAfterCommit(tx, task.projectId, ['tasks']);
   if (moved) {
     await recordActivity(tx, {
       projectId: task.projectId,
@@ -118,10 +122,23 @@ export async function onSubmissionOpened(tx: Tx, taskId: string): Promise<void> 
 }
 
 /** Rule 2: a linked submission merged → In review, waiting for a lead's confirmation. */
-export async function onSubmissionMerged(tx: Tx, taskId: string): Promise<void> {
+export async function onSubmissionMerged(
+  tx: Tx,
+  taskId: string,
+  submissionId: string,
+  actorId: string | null,
+): Promise<void> {
   const task = await readLocked(tx, taskId);
   if (!task || task.status === 'done') return;
   await autoSet(tx, task, 'in_review', { doneConfirmPending: true });
+  // Phase 9: leads are asked "Mark this task done?" (not the lead who just merged).
+  await notify(tx, {
+    type: 'task.confirm_done',
+    projectId: task.projectId,
+    userIds: await projectLeads(tx, task.projectId),
+    actorId,
+    data: { taskId: task.id, title: task.title, submissionId },
+  });
 }
 
 /**
@@ -147,6 +164,8 @@ export async function onSubmissionReverted(
   tx: Tx,
   taskId: string,
   submissionTitle: string,
+  submissionId: string,
+  actorId: string | null,
 ): Promise<void> {
   const task = await readLocked(tx, taskId);
   if (!task || (task.status !== 'done' && !task.doneConfirmPending)) return;
@@ -154,8 +173,15 @@ export async function onSubmissionReverted(
     submissionTitle.length > MAX_NOTE_TITLE
       ? `${submissionTitle.slice(0, MAX_NOTE_TITLE - 1)}…`
       : submissionTitle;
-  await autoSet(tx, task, 'in_progress', {
-    doneConfirmPending: false,
-    reopenNote: `Merge of '${title}' was undone`,
+  const note = `Merge of '${title}' was undone`;
+  await autoSet(tx, task, 'in_progress', { doneConfirmPending: false, reopenNote: note });
+  // Phase 9: its assignees are told.
+  const assignees = await tx.taskAssignee.findMany({ where: { taskId }, select: { userId: true } });
+  await notify(tx, {
+    type: 'task.reopened',
+    projectId: task.projectId,
+    userIds: assignees.map((a) => a.userId),
+    actorId,
+    data: { taskId: task.id, title: task.title, submissionId, note },
   });
 }

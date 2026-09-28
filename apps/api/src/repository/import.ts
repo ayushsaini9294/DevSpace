@@ -11,6 +11,7 @@ import {
   removeDir,
   repoDir,
 } from './storage.ts';
+import { transaction } from '../lib/transaction.ts';
 
 export const IMPORT_TIMEOUT_MS = 5 * 60 * 1000;
 const WATCHDOG_INTERVAL_MS = 1000;
@@ -149,7 +150,7 @@ async function runImport(
     if (reason) throw new ImportFailure('stopped');
     await moveIntoPlace(temp, target);
 
-    const done = await prisma.$transaction(async (tx) => {
+    const done = await transaction(async (tx) => {
       const { count } = await tx.project.updateMany({
         where: { id: projectId, repoStatus: 'importing', importUrl: url },
         data: { repoStatus: 'ready', repoPath: target, repoError: null },
@@ -187,28 +188,26 @@ async function runImport(
     await removeDir(temp).catch((e: unknown) =>
       console.error(`Could not remove ${temp}:`, e instanceof Error ? e.message : e),
     );
-    await prisma
-      .$transaction(async (tx) => {
-        const { count } = await tx.project.updateMany({
-          where: { id: projectId, repoStatus: 'importing', importUrl: url },
-          data: { repoStatus: 'failed', repoError: message, repoPath: null },
-        });
-        if (count === 1) {
-          await recordActivity(tx, {
-            projectId,
-            actorId,
-            action: 'repository.import_failed',
-            data: { url, error: message },
-          });
-        }
-      })
-      .catch((e: unknown) => {
-        // The project may have been deleted meanwhile; nothing else to update.
-        console.error(
-          `Could not record the failed import for ${projectId}:`,
-          e instanceof Error ? e.message : e,
-        );
+    await transaction(async (tx) => {
+      const { count } = await tx.project.updateMany({
+        where: { id: projectId, repoStatus: 'importing', importUrl: url },
+        data: { repoStatus: 'failed', repoError: message, repoPath: null },
       });
+      if (count === 1) {
+        await recordActivity(tx, {
+          projectId,
+          actorId,
+          action: 'repository.import_failed',
+          data: { url, error: message },
+        });
+      }
+    }).catch((e: unknown) => {
+      // The project may have been deleted meanwhile; nothing else to update.
+      console.error(
+        `Could not record the failed import for ${projectId}:`,
+        e instanceof Error ? e.message : e,
+      );
+    });
   }
 }
 

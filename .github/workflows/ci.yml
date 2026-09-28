@@ -28,7 +28,8 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
-      # BullMQ queues for the worker (Phase 5 idle IDE stop and disk checks; Phase 7 copy updates).
+      # BullMQ queues for the worker (Phase 5 idle IDE stop and disk checks; Phase 7 copy updates),
+      # plus Phase 9 presence and the Socket.io Redis adapter (e2e/presence.spec.ts checks live updates).
       redis:
         image: redis:7-alpine
         ports:
@@ -76,7 +77,8 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      # IDE containers (Phase 5): the image, its network and firewall, then a check on a real
+      # IDE containers (Phase 5): the image (devspace-ide:2 with the tracker extension, Phase 9; built
+      # after npm ci because the tracker is a workspace), its network and firewall, then a check on a real
       # container that the image works when locked down and that the network is isolated. Before
       # the unit tests, so the API's real-container tests run instead of skipping.
       - name: Build IDE image
@@ -107,7 +109,7 @@ jobs:
         env:
           # Projects' bare Git repositories (Phase 4), kept out of the checkout; the API creates
           # the folder. Set per step because `runner` isn't available in job-level env.
-          # e2e/submissions.spec.ts, merge.spec.ts and tasks.spec.ts read it to check snapshots and main with git
+          # e2e/submissions.spec.ts, merge.spec.ts, tasks.spec.ts and presence.spec.ts read it to check snapshots and main with git
           # (Phases 6 to 8).
           REPOS_DIR: ${{ runner.temp }}/devspace-repos
           # Members' copies (Phase 5). e2e/ide.spec.ts, submissions.spec.ts, merge.spec.ts and tasks.spec.ts read

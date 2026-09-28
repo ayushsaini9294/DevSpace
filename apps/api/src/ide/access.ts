@@ -130,6 +130,33 @@ export async function ideSessionCopy(cookieValue: string, copyId: string) {
   return accessibleCopy(copyId, session.userId);
 }
 
+/**
+ * Like ideSessionCopy, but also says who is using the IDE (Phase 9 presence reports): the
+ * session's id (the cookie's hash), its user, and the copy's project and owner.
+ */
+export async function ideSessionUser(cookieValue: string, copyId: string) {
+  if (cookieValue.length < 20 || cookieValue.length > 200) return null;
+  const sessionId = hash(cookieValue);
+  const session = await prisma.ideSession.findUnique({
+    where: { id: sessionId },
+    select: { userId: true, copyId: true, expiresAt: true },
+  });
+  if (!session || session.copyId !== copyId || session.expiresAt.getTime() <= Date.now()) {
+    return null;
+  }
+  if (!(await accessibleCopy(copyId, session.userId))) return null;
+  const copy = await prisma.copy.findUnique({
+    where: { id: copyId },
+    select: { id: true, projectId: true, userId: true },
+  });
+  if (!copy) return null;
+  return {
+    sessionId,
+    userId: session.userId,
+    copy: { id: copy.id, projectId: copy.projectId, ownerId: copy.userId },
+  };
+}
+
 /** Cookie attributes shared by both IDE-site cookies (set inside a cross-site iframe). */
 function ideCookieAttributes(copyId: string): string[] {
   return [

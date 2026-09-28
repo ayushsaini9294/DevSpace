@@ -3,7 +3,9 @@ import type { ProjectDetail, User } from '@devspace/shared';
 import { FocusHeading, LoadError, Loading, linkStyle } from '../../components/ui';
 import { useCurrentUser } from '../../lib/auth';
 import { isNotFound } from '../../lib/formErrors';
+import { useProjectRoom } from '../../lib/liveStore';
 import { useProject } from '../../lib/projects';
+import { TeamPanel } from './TeamPanel';
 
 export type ProjectContext = { project: ProjectDetail; me: User };
 
@@ -41,6 +43,8 @@ export function ProjectLayout() {
   const project = useProject(projectId);
   const currentUser = useCurrentUser();
   const { pathname } = useLocation();
+  // Live updates for this project while any of its pages is open.
+  useProjectRoom(projectId);
 
   if (project.isPending) return <Loading>Loading project…</Loading>;
   if (project.isError) {
@@ -99,6 +103,7 @@ export function ProjectLayout() {
           )}
         </nav>
       </header>
+      <TeamPanel projectId={project.data.id} myId={currentUser.data.id} />
       <Outlet context={context} />
     </div>
   );

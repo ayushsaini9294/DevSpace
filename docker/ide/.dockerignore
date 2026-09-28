@@ -1,0 +1,5 @@
+# Only the files the Dockerfile copies (the tracker is built on the host by npm run ide:build).
+*
+!start.sh
+!tracker/package.json
+!tracker/dist/extension.js

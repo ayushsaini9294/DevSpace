@@ -2,7 +2,12 @@ import { useId, useState } from 'react';
 import type { CopyView } from '@devspace/shared';
 import { FormAlert } from '../../components/AuthPageShell';
 import { Loading, SuccessNote, buttonStyles } from '../../components/ui';
-import { useCopyUpdatePreview, useMyCopy, useUpdateMyCopy } from '../../lib/copies';
+import {
+  useCopyUpdatePreview,
+  useDismissPackagesReminder,
+  useMyCopy,
+  useUpdateMyCopy,
+} from '../../lib/copies';
 import { useRepository } from '../../lib/repository';
 import { errorCode, errorMessage } from '../../lib/formErrors';
 import { formatWhen, fullDate } from '../../lib/time';
@@ -156,14 +161,38 @@ function Helpers({ copy }: { copy: CopyView }) {
   );
 }
 
+/** "Packages changed in main": an update brought new package.json or package-lock.json. */
+function PackagesReminder({ projectId }: { projectId: string }) {
+  const dismiss = useDismissPackagesReminder(projectId);
+  return (
+    <div className="space-y-2 rounded-md border border-blue-200 bg-blue-50 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p role="status" className="text-sm font-medium text-blue-950">
+          Packages changed in main: run <code>npm install</code> in the terminal
+        </p>
+        <button
+          type="button"
+          disabled={dismiss.isPending}
+          className={`${buttonStyles.secondary} py-1`}
+          onClick={() => dismiss.mutate()}
+        >
+          Dismiss
+        </button>
+      </div>
+      {dismiss.isError && <FormAlert>{copyUpdateErrorMessage(dismiss.error)}</FormAlert>}
+    </div>
+  );
+}
+
 /**
- * My copy compared with main: the Update my copy banner (with a live preview of clashes), files
+ * My copy compared with main: the npm reminder, the Update my copy banner (with a live preview of clashes), files
  * that still have conflict markers, and which leads opened my copy. Nothing when all is quiet.
  */
 export function CopyUpdates({ projectId, copy }: { projectId: string; copy: CopyView }) {
   const [result, setResult] = useState<string[] | null>(null);
 
   const quiet =
+    !copy.packagesChanged &&
     !copy.behind &&
     copy.unresolvedPaths.length === 0 &&
     copy.helpers.length === 0 &&
@@ -172,6 +201,7 @@ export function CopyUpdates({ projectId, copy }: { projectId: string; copy: Copy
 
   return (
     <div className="space-y-3">
+      {copy.packagesChanged && <PackagesReminder projectId={projectId} />}
       {copy.helpers.length > 0 && <Helpers copy={copy} />}
       {result !== null &&
         (result.length === 0 ? (

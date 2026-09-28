@@ -8,11 +8,14 @@ import http, {
 } from 'node:http';
 import net from 'node:net';
 import type { Duplex } from 'node:stream';
+import { PresenceReportSchema } from '@devspace/shared';
 import { env } from '../config/env.ts';
+import { recordIdeReport } from '../realtime/presence.ts';
 import {
   IDE_COOKIE_NAME,
   ideCookieHeader,
   ideSessionCopy,
+  ideSessionUser,
   redeemTicket,
   vscodeTokenCookieHeader,
 } from './access.ts';
@@ -71,9 +74,12 @@ const DROPPED_RESPONSE_HEADERS = new Set([
   'x-frame-options',
 ]);
 
-/** Only the app may frame the IDE. */
+/**
+ * Only the app may frame the IDE, plus the IDE site itself: VS Code runs its web extension host
+ * in a nested same-origin iframe, and frame-ancestors checks every ancestor (lead, Phase 9).
+ */
 function frameAncestors(): string {
-  return `frame-ancestors ${env.APP_ORIGIN}`;
+  return `frame-ancestors 'self' ${env.APP_ORIGIN}`;
 }
 
 /** `/ide/<copyId>` or `/ide/<copyId>/…` → the copy id and whether the slash is missing. */
@@ -178,6 +184,87 @@ async function launch(req: IncomingMessage, res: ServerResponse, url: URL): Prom
   res.end();
 }
 
+// ---------- DevSpace's own paths under /ide/<copyId>/__devspace/ (never forwarded) ----------
+
+/** Largest presence report body read. */
+const MAX_REPORT_BYTES = 4096;
+
+/** `/ide/<copyId>/__devspace/…`: handled here, never sent to the container. */
+function isDevspacePath(pathname: string, copyId: string): boolean {
+  return pathname.startsWith(`/ide/${copyId}/__devspace/`);
+}
+
+function noContent(res: ServerResponse): void {
+  res.writeHead(204, {
+    'cache-control': 'no-store',
+    'x-content-type-options': 'nosniff',
+    'content-security-policy': `default-src 'none'; ${frameAncestors()}`,
+  });
+  res.end();
+}
+
+/** The body as text, or null if it is larger than `limit` bytes. */
+async function readBody(req: IncomingMessage, limit: number): Promise<string | null> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    const buf = chunk as Buffer;
+    size += buf.length;
+    if (size > limit) return null;
+    chunks.push(buf);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+/**
+ * POST /ide/<copyId>/__devspace/presence — the tracker extension's report (Phase 9). It comes
+ * from VS Code's page on the IDE site with the `devspace_ide` cookie, so the user is whoever
+ * is using this IDE (the owner or a helping lead). Everything in it is untrusted: validated,
+ * rate limited (1 per 5 s per IDE session), and the answer is always 204 with no body.
+ */
+async function presenceReport(req: IncomingMessage, res: ServerResponse, copyId: string) {
+  try {
+    if (req.method !== 'POST') return;
+    if (req.headers.origin !== env.IDE_ORIGIN) return;
+    const type = String(req.headers['content-type'] ?? '')
+      .split(';', 1)[0]!
+      .trim()
+      .toLowerCase();
+    if (type !== 'application/json') return;
+    const text = await readBody(req, MAX_REPORT_BYTES);
+    if (text === null) return;
+    let json: unknown;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      return;
+    }
+    const report = PresenceReportSchema.safeParse(json);
+    if (!report.success) return;
+    let who = null;
+    for (const value of cookieValues(req.headers.cookie, IDE_COOKIE_NAME)) {
+      who = await ideSessionUser(value, copyId);
+      if (who) break;
+    }
+    if (!who) return;
+    const used = await recordIdeReport(who, report.data);
+    if (used && report.data.active) recordIdeActivity(copyId);
+  } catch (err) {
+    console.error('Presence report failed:', err instanceof Error ? err.message : err);
+  } finally {
+    if (!res.headersSent) noContent(res);
+    // Whatever wasn't read is dropped with the connection.
+    if (!req.readableEnded) req.resume();
+  }
+}
+
+async function devspacePath(req: IncomingMessage, res: ServerResponse, url: URL, copyId: string) {
+  if (url.pathname === `/ide/${copyId}/__devspace/presence`) {
+    return presenceReport(req, res, copyId);
+  }
+  plain(res, 404);
+}
+
 async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const raw = req.url ?? '/';
   // Only origin-form request targets ("/path?query"); nothing absolute, nothing else.
@@ -196,6 +283,9 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     });
     res.end();
     return;
+  }
+  if (isDevspacePath(url.pathname, parsed.copyId)) {
+    return devspacePath(req, res, url, parsed.copyId);
   }
   const copy = await cookieCopy(req, parsed.copyId);
   if (!copy) return plain(res, 404);
@@ -254,6 +344,8 @@ function upgradeRequest(req: IncomingMessage, target: IdeTarget): string {
 async function handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): Promise<void> {
   const parsed = parseIdePath(req.url ?? '');
   if (!parsed || parsed.bare) return refuse(socket, 404);
+  const path = (req.url ?? '').split('?', 1)[0]!;
+  if (isDevspacePath(path, parsed.copyId)) return refuse(socket, 404);
   // Only VS Code's own page on the IDE site may open its WebSockets.
   if (req.headers.origin !== env.IDE_ORIGIN) return refuse(socket, 403);
   const copy = await cookieCopy(req, parsed.copyId);

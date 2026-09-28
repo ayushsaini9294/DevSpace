@@ -153,3 +153,14 @@ export function useUpdateMyCopy(projectId: string) {
     },
   });
 }
+
+/** POST …/copy/packages-dismiss: hide the "Packages changed in main" reminder on my copy. */
+export function useDismissPackagesReminder(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<CopyView> =>
+      StartedCopyResponseSchema.parse(await apiPost(copyApi(projectId, null, '/packages-dismiss')))
+        .copy,
+    onSuccess: (copy) => queryClient.setQueryData(copyKeys.mine(projectId), copy),
+  });
+}

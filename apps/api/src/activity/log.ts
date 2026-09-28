@@ -1,11 +1,13 @@
 import {
   ActivityListResponseSchema,
   type ActivityEntry,
+  type InvalidateKey,
   type TaskActivityAction,
 } from '@devspace/shared';
 import type { Prisma } from '../generated/prisma/client.ts';
 import { prisma } from '../lib/prisma.ts';
 import type { Db } from '../projects/access.ts';
+import { invalidateAfterCommit } from '../realtime/emitter.ts';
 
 /** Every action written to the activity log. */
 export type ActivityAction =
@@ -61,6 +63,47 @@ export async function recordActivity(db: Db, input: ActivityInput): Promise<void
       data: input.data ?? {},
     },
   });
+  await invalidateAfterCommit(db, input.projectId, invalidationsFor(input));
+}
+
+/**
+ * What the web app should reload after an activity row (Phase 9): the activity list, plus the
+ * data the action changed. Sent after the transaction commits.
+ */
+export function invalidationsFor(input: ActivityInput): InvalidateKey[] {
+  const keys: InvalidateKey[] = ['activity'];
+  const target = input.target ?? null;
+  const [area] = input.action.split('.');
+  switch (area) {
+    case 'project':
+    case 'ownership':
+    case 'invitation':
+      keys.push('members');
+      break;
+    case 'member':
+      keys.push('members', 'presence');
+      if (input.action === 'member.removed' || input.action === 'member.left') keys.push('tasks');
+      break;
+    case 'repository':
+      keys.push('repository', 'copy');
+      break;
+    case 'copy':
+      if (target) keys.push(`copy:${target}`);
+      break;
+    case 'submission':
+      keys.push('submissions');
+      if (target) keys.push(`submission:${target}`);
+      if (input.action === 'submission.merged' || input.action === 'submission.reverted') {
+        keys.push('repository', 'copy');
+      }
+      break;
+    case 'task':
+      keys.push('tasks');
+      // Submissions show their linked task's title and status.
+      keys.push('submissions');
+      break;
+  }
+  return keys;
 }
 
 export const ACTIVITY_PAGE_SIZE = 50;

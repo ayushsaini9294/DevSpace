@@ -15,11 +15,13 @@ import {
   authUserSelect,
   createSession,
   deleteSession,
+  hashSessionToken,
   newSessionToken,
   readSessionToken,
   sessionCookie,
   type AuthUser,
 } from './session.ts';
+import { disconnectSession } from '../realtime/emitter.ts';
 
 export const authRouter = Router();
 
@@ -97,7 +99,11 @@ authRouter.post('/login', async (req, res) => {
 
 authRouter.post('/logout', async (req, res) => {
   const token = readSessionToken(req.cookies);
-  if (token) await deleteSession(token);
+  if (token) {
+    await deleteSession(token);
+    // Its live connections end too (Phase 9).
+    disconnectSession(hashSessionToken(token));
+  }
   res.clearCookie(sessionCookie.name, sessionCookie.clear);
   res.status(204).end();
 });

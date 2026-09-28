@@ -27,6 +27,12 @@ import type {
   TaskListResponse,
   TaskResponse,
   TaskView,
+  MarkNotificationsReadResponse,
+  NotificationListResponse,
+  NotificationView,
+  Preferences,
+  PresenceListResponse,
+  PresenceView,
   CreateInvitationResponseSchema,
   ErrorResponse,
   FileResponse,
@@ -88,7 +94,11 @@ export type StubBody =
   | SubmissionFileResponse
   | CommentResponse
   | TaskListResponse
-  | TaskResponse;
+  | TaskResponse
+  | NotificationListResponse
+  | MarkNotificationsReadResponse
+  | PresenceListResponse
+  | Preferences;
 
 export type StubReply =
   | { status: 200 | 201 | 202; body: StubBody }
@@ -109,6 +119,21 @@ export const loggedOut: StubReply = {
 export const healthOk: StubReply = { status: 200, body: { status: 'ok', database: 'ok' } };
 
 /**
+ * Answers for requests every logged-in page makes (the bell, the Team panel, my preferences),
+ * used when a test gives none: nothing to show.
+ */
+function defaultReply(key: string): StubReply | null {
+  if (key === 'GET /api/notifications') {
+    return { status: 200, body: { notifications: [], unreadCount: 0, nextCursor: null } };
+  }
+  if (key === 'GET /api/me/preferences') return { status: 200, body: { shareOpenFile: true } };
+  if (/^GET \/api\/projects\/[^/]+\/presence$/.test(key)) {
+    return { status: 200, body: { members: [] } };
+  }
+  return null;
+}
+
+/**
  * Replace fetch with a tiny router keyed by "METHOD /path". Unknown requests fail the test.
  * Returns the mock so tests can inspect the calls.
  */
@@ -116,7 +141,7 @@ export function stubApi(routes: StubRoutes) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     const key = `${(init?.method ?? 'GET').toUpperCase()} ${url}`;
-    const route = routes[key];
+    const route = routes[key] ?? defaultReply(key);
     if (!route) throw new Error(`Unexpected request in test: ${key}`);
     const reply = typeof route === 'function' ? route() : route;
     if (reply === 'pending') return new Promise<Response>(() => {});
@@ -232,6 +257,7 @@ export function testCopy(overrides: Partial<CopyView> = {}): CopyView {
     pendingConflictPaths: [],
     unresolvedPaths: [],
     helpers: [],
+    packagesChanged: false,
     ...overrides,
   };
 }
@@ -313,6 +339,40 @@ export function testTask(overrides: Partial<TaskView> = {}): TaskView {
     updatedAt: '2026-09-28T10:00:00.000Z',
     completedAt: null,
     viewerActions: [],
+    ...overrides,
+  };
+}
+
+// ---------- Presence and notifications (Phase 9) ----------
+
+/** A member's presence, by default Grace, active and editing src/app.ts. */
+export function testPresence(overrides: Partial<PresenceView> = {}): PresenceView {
+  return {
+    user: { id: 'user-2', name: 'Grace Hopper' },
+    state: 'active',
+    file: 'src/app.ts',
+    copyOwner: null,
+    lastSeenAt: '2026-09-28T10:00:00.000Z',
+    ...overrides,
+  };
+}
+
+/** An unread notification: Grace approved my submission. */
+export function testNotification(
+  overrides: Partial<Omit<NotificationView, 'type' | 'data'>> = {},
+): NotificationView {
+  return {
+    id: 'notification-1',
+    type: 'submission.reviewed',
+    project: { id: 'project-1', name: 'Website' },
+    data: {
+      submissionId: 'sub-1',
+      title: 'Add the login page',
+      actorName: 'Grace Hopper',
+      decision: 'approved',
+    },
+    readAt: null,
+    createdAt: '2026-09-28T10:00:00.000Z',
     ...overrides,
   };
 }

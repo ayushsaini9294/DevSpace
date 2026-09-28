@@ -1,4 +1,8 @@
+import { useId } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router';
+import { NotificationBell } from '../components/NotificationBell';
+import { ShareFileSwitch } from '../components/ShareFileSwitch';
+import { popoverPanel, usePopover } from '../components/usePopover';
 import { useCurrentUser, useLogOut } from '../lib/auth';
 
 const navLink =
@@ -30,13 +34,8 @@ function AccountMenu() {
 
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <span
-        data-testid="current-user"
-        className="truncate text-sm font-medium text-gray-800"
-        title={currentUser.data.email}
-      >
-        {currentUser.data.name}
-      </span>
+      <NotificationBell />
+      <UserMenu name={currentUser.data.name} email={currentUser.data.email} />
       <button
         type="button"
         disabled={logOut.isPending}
@@ -45,6 +44,41 @@ function AccountMenu() {
       >
         Log out
       </button>
+    </div>
+  );
+}
+
+/** My name in the top bar; it opens my personal settings (Share my open file). */
+function UserMenu({ name, email }: { name: string; email: string }) {
+  const { buttonRef, open, rootRef, toggle } = usePopover();
+  const panelId = useId();
+  return (
+    <div ref={rootRef} className="relative min-w-0">
+      <button
+        ref={buttonRef}
+        type="button"
+        data-testid="current-user"
+        aria-expanded={open}
+        aria-controls={panelId}
+        title={email}
+        onClick={toggle}
+        className="block max-w-full truncate rounded-md px-2 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:outline-none"
+      >
+        {name}
+      </button>
+      {open && (
+        <div
+          id={panelId}
+          role="region"
+          aria-label="Your settings"
+          className={`${popoverPanel} space-y-3 p-4`}
+        >
+          <p className="truncate text-xs text-gray-600" title={email}>
+            {email}
+          </p>
+          <ShareFileSwitch />
+        </div>
+      )}
     </div>
   );
 }

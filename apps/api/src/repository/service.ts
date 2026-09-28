@@ -31,6 +31,7 @@ import {
   removeDir,
   repoDir,
 } from './storage.ts';
+import { transaction } from '../lib/transaction.ts';
 
 export const repositoryExists = (message = 'This project already has a repository') =>
   new HttpError(409, 'repository_exists', message);
@@ -101,7 +102,7 @@ export async function setUpEmpty(
     const commit = await writeCommit(temp, tree, [], 'Add README.md\n', user);
     await updateRef(temp, MAIN_REF, commit);
 
-    await prisma.$transaction(async (tx) => {
+    await transaction(async (tx) => {
       const { count } = await tx.project.updateMany({
         where: { id: project.id, repoStatus: { in: ['none', 'failed'] } },
         data: {

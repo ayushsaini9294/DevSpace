@@ -12,6 +12,9 @@ import { createLaunchUrl } from '../ide/access.ts';
 import { openIde, startCopyIde } from '../ide/service.ts';
 import { HttpError } from '../lib/http-error.ts';
 import { prisma } from '../lib/prisma.ts';
+import { invalidateAfterCommit } from '../realtime/emitter.ts';
+import { nameOf, notify } from '../notifications/service.ts';
+import { transaction } from '../lib/transaction.ts';
 import { ensureCopy, findCopy } from './service.ts';
 import { previewMyUpdate, updateMyCopy } from './update.ts';
 
@@ -89,6 +92,26 @@ copyRouter.post('/copy/update', async (req, res) => {
   res.json(CopyUpdateResponseSchema.parse({ copy, conflictPaths }));
 });
 
+// ---------- The npm reminder (Phase 9) ----------
+
+/** Clears `packagesChanged` on the caller's copy. */
+copyRouter.post('/copy/packages-dismiss', async (req, res) => {
+  const access = await requireProjectAction(req);
+  const { count } = await prisma.copy.updateMany({
+    where: { projectId: access.project.id, userId: access.userId },
+    data: { packagesChangedAt: null },
+  });
+  if (count === 0) {
+    throw new HttpError(
+      409,
+      'no_copy',
+      "You don't have a copy of this project yet; open the IDE first",
+    );
+  }
+  await invalidateAfterCommit(prisma, access.project.id, [`copy:${access.userId}`]);
+  res.json(CopyResponseSchema.parse({ copy: await findCopy(access.project.id, access.userId) }));
+});
+
 // ---------- A lead opens a member's copy (Phase 7) ----------
 
 /**
@@ -128,12 +151,21 @@ copyRouter.post('/members/:userId/copy/ide/launch', async (req, res) => {
   if (copy.containerStatus !== 'running') throw ideNotRunning();
   const url = await createLaunchUrl(access.userId, copy.id);
   if (owner.id !== access.userId) {
-    await recordActivity(prisma, {
-      projectId: access.project.id,
-      actorId: access.userId,
-      action: 'copy.helped',
-      target: owner.id,
-      data: { ownerName: owner.name },
+    await transaction(async (tx) => {
+      await recordActivity(tx, {
+        projectId: access.project.id,
+        actorId: access.userId,
+        action: 'copy.helped',
+        target: owner.id,
+        data: { ownerName: owner.name },
+      });
+      await notify(tx, {
+        type: 'copy.helped',
+        projectId: access.project.id,
+        userIds: [owner.id],
+        actorId: access.userId,
+        data: { actorName: await nameOf(tx, access.userId) },
+      });
     });
   }
   res.json(IdeLaunchResponseSchema.parse({ url }));

@@ -1,0 +1,28 @@
+{
+  "name": "devspace-tracker",
+  "displayName": "DevSpace tracker",
+  "description": "Tells your teammates in DevSpace which file you have open and whether you are active.",
+  "publisher": "devspace",
+  "version": "1.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.105.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "browser": "./dist/extension.js",
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --format=cjs --platform=browser --target=es2022 --external:vscode --outfile=dist/extension.js",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/vscode": "1.105.0",
+    "esbuild": "0.28.2"
+  }
+}

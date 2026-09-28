@@ -1,5 +1,6 @@
 import type { RouteObject } from 'react-router';
 import { Layout } from './Layout';
+import { AppRoot } from '../components/LiveUpdates';
 import { RequireAuth } from '../components/RequireAuth';
 import { HomePage } from '../pages/HomePage';
 import { InvitePage } from '../pages/InvitePage';
@@ -20,7 +21,7 @@ import { SubmissionsPage } from '../pages/project/submissions/SubmissionsPage';
 import { NewSubmissionPage, UpdateSubmissionPage } from '../pages/project/submissions/SubmitPage';
 import { TasksPage } from '../pages/project/tasks/TasksPage';
 
-export const routes: RouteObject[] = [
+const pageRoutes: RouteObject[] = [
   // The IDE fills the whole window, so it sits outside the normal page layout.
   {
     element: <RequireAuth />,
@@ -64,3 +65,6 @@ export const routes: RouteObject[] = [
     ],
   },
 ];
+
+// Every page sits under the root, which keeps the tab's live connection (Phase 9) open.
+export const routes: RouteObject[] = [{ element: <AppRoot />, children: pageRoutes }];

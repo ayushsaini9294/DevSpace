@@ -12,12 +12,13 @@ import {
 } from '@devspace/shared';
 import { ApiError, apiDelete, apiFetch, apiPatch, apiPost } from './api';
 import { errorMessage } from './formErrors';
+import { usePollInterval } from './liveStore';
 import { queryKeys } from './projects';
 import { submissionKeys } from './submissions';
 
 const enc = encodeURIComponent;
 
-/** The board refetches this often (live updates come in Phase 9). */
+/** The board refetches this often without a live connection (60 s with one). */
 export const BOARD_REFRESH_MS = 10_000;
 
 export const taskKeys = {
@@ -41,13 +42,14 @@ function api(projectId: string, rest: string): string {
 
 // ---------- Queries ----------
 
-/** Every task in the project. `poll` refetches about every 10 s (the board). */
+/** Every task in the project. `poll` refetches about every 10 s (60 s while live). */
 export function useTasks(projectId: string, { poll = false }: { poll?: boolean } = {}) {
+  const interval = usePollInterval(BOARD_REFRESH_MS);
   return useQuery({
     queryKey: taskKeys.list(projectId),
     queryFn: async () =>
       TaskListResponseSchema.parse(await apiFetch(api(projectId, '/tasks'))).tasks,
-    refetchInterval: poll ? BOARD_REFRESH_MS : false,
+    refetchInterval: poll ? interval : false,
   });
 }
 

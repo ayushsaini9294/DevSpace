@@ -1,5 +1,5 @@
 import type { Prisma } from '../generated/prisma/client.ts';
-import { prisma } from '../lib/prisma.ts';
+import { transaction } from '../lib/transaction.ts';
 
 /**
  * Advisory locks (released when their transaction ends).
@@ -30,7 +30,7 @@ export async function withCopySubmissionLock<T>(
   copyId: string,
   fn: (tx: Tx) => Promise<T>,
 ): Promise<T> {
-  return prisma.$transaction(async (tx) => {
+  return transaction(async (tx) => {
     await lockCopySubmissions(tx, copyId);
     return fn(tx);
   }, TX_OPTIONS);
@@ -45,7 +45,7 @@ export async function withProjectLock<T>(
   fn: (tx: Tx) => Promise<T>,
   options: { copyId?: string } = {},
 ): Promise<T> {
-  return prisma.$transaction(async (tx) => {
+  return transaction(async (tx) => {
     if (options.copyId) await lockCopySubmissions(tx, options.copyId);
     await lockProject(tx, projectId);
     return fn(tx);

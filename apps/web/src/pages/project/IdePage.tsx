@@ -5,6 +5,7 @@ import { FormAlert } from '../../components/AuthPageShell';
 import { FocusHeading, buttonStyles, linkStyle } from '../../components/ui';
 import { useCopy, useLaunchIde, useStartIde, type CopyOwner } from '../../lib/copies';
 import { errorCode, errorMessage, isNotFound } from '../../lib/formErrors';
+import { usePollInterval, useProjectRoom } from '../../lib/liveStore';
 import { useMembers, useProject } from '../../lib/projects';
 import { newSubmissionUrl } from '../../lib/submissions';
 import { CopyUpdates } from './CopyUpdates';
@@ -15,7 +16,10 @@ const NO_MEMBER_COPY =
   'This member has no copy yet (they haven’t opened the project’s IDE), or isn’t in the project any more.';
 const NOT_A_LEAD = 'Only leaders and co-leaders can open a member’s copy.';
 
-/** While my own IDE is open, re-read my copy this often, so main's changes and fixed conflicts show. */
+/**
+ * While my own IDE is open, re-read my copy this often, so main's changes and fixed conflicts
+ * show (60 s while the live connection is up).
+ */
 const OWN_COPY_REFRESH_MS = 15_000;
 
 /** Words that differ between my own IDE and a member's copy opened by a lead. */
@@ -154,9 +158,11 @@ export function IdePage() {
   const words = own ? OWN_WORDS : MEMBER_WORDS;
 
   const project = useProject(projectId);
+  useProjectRoom(projectId);
   const members = useMembers(projectId, !own);
   const startIde = useStartIde(projectId, owner);
-  const copy = useCopy(projectId, owner, startIde.isSuccess, own ? OWN_COPY_REFRESH_MS : false);
+  const ownRefresh = usePollInterval(OWN_COPY_REFRESH_MS);
+  const copy = useCopy(projectId, owner, startIde.isSuccess, own ? ownRefresh : false);
   const { mutate } = startIde;
   // Changing this remounts the frame, which asks for a fresh launch URL.
   const [launchKey, setLaunchKey] = useState(0);

@@ -22,6 +22,8 @@ import { forbidden, readSettings, type ProjectAccess } from '../projects/access.
 import { reviewSelect, statusFromReviews } from '../submissions/status.ts';
 import { queueCopyUpdates } from '../jobs/copy-updates.ts';
 import { onSubmissionMerged, onSubmissionReverted } from '../tasks/automatic.ts';
+import { notify, nameOf, pathsData } from '../notifications/service.ts';
+import { invalidateAfterCommit } from '../realtime/emitter.ts';
 import { withProjectLock, type Tx } from './lock.ts';
 
 /**
@@ -67,6 +69,25 @@ function sameList(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
+/**
+ * A submission just became Needs update: its author is told (Phase 9). `actorId` is whoever
+ * caused it (a merge attempt), or null when a re-check found it.
+ */
+async function notifyNeedsUpdate(
+  tx: Tx,
+  sub: { id: string; projectId: string; authorId: string; title: string },
+  paths: string[],
+  actorId: string | null,
+): Promise<void> {
+  await notify(tx, {
+    type: 'submission.needs_update',
+    projectId: sub.projectId,
+    userIds: [sub.authorId],
+    actorId,
+    data: { submissionId: sub.id, title: sub.title, ...pathsData(paths) },
+  });
+}
+
 // ---------- Conflict re-check ----------
 
 /**
@@ -84,6 +105,9 @@ export async function recheckConflicts(
     where: { projectId, status: { in: ACTIVE } },
     select: {
       id: true,
+      projectId: true,
+      authorId: true,
+      title: true,
       status: true,
       baseSha: true,
       headSha: true,
@@ -92,23 +116,32 @@ export async function recheckConflicts(
       reviews: { select: reviewSelect },
     },
   });
+  // Status and conflict changes write no activity row: tell the web app directly (Phase 9).
+  const changed = (subId: string) =>
+    invalidateAfterCommit(tx, projectId, ['submissions', `submission:${subId}`]);
   for (const sub of subs) {
     const { conflicts } = await mergeTree(gitDir, sub.baseSha, main, sub.headSha);
     const stored = [...sub.conflictPaths].sort();
     if (conflicts.length > 0) {
       if (sub.status !== 'needs_update' || !sameList(stored, conflicts)) {
-        await tx.submission.updateMany({
+        const { count } = await tx.submission.updateMany({
           where: { id: sub.id, version: sub.version, status: { in: ACTIVE } },
           data: { status: 'needs_update', conflictPaths: conflicts },
         });
+        if (count === 1) {
+          await changed(sub.id);
+          if (sub.status !== 'needs_update') await notifyNeedsUpdate(tx, sub, conflicts, null);
+        }
       }
     } else if (sub.status === 'needs_update') {
       await tx.submission.updateMany({
         where: { id: sub.id, version: sub.version, status: 'needs_update' },
         data: { status: statusFromReviews(sub.reviews, sub.version), conflictPaths: [] },
       });
+      await changed(sub.id);
     } else if (stored.length > 0) {
       await tx.submission.updateMany({ where: { id: sub.id }, data: { conflictPaths: [] } });
+      await changed(sub.id);
     }
   }
 }
@@ -194,6 +227,10 @@ export async function mergeSubmission(
         where: { id: sub.id },
         data: { status: 'needs_update', conflictPaths: merged.conflicts },
       });
+      await invalidateAfterCommit(tx, sub.projectId, ['submissions', `submission:${sub.id}`]);
+      if (sub.status !== 'needs_update') {
+        await notifyNeedsUpdate(tx, sub, merged.conflicts, leader.id);
+      }
       return { kind: 'conflict', paths: merged.conflicts };
     }
 
@@ -236,8 +273,15 @@ export async function mergeSubmission(
       target: sub.id,
       data: { title: sub.title, sha: commit },
     });
+    await notify(tx, {
+      type: 'submission.merged',
+      projectId: sub.projectId,
+      userIds: [sub.authorId],
+      actorId: leader.id,
+      data: { submissionId: sub.id, title: sub.title, actorName: leader.name },
+    });
     // Phase 8: the linked task waits for a lead's "Mark this task done?".
-    if (sub.taskId) await onSubmissionMerged(tx, sub.taskId);
+    if (sub.taskId) await onSubmissionMerged(tx, sub.taskId, sub.id, leader.id);
     // Last: main moves only if nothing above failed, and only from the main we merged into.
     await moveMain(gitDir, commit, main);
     await recheckConflicts(tx, gitDir, sub.projectId, commit);
@@ -323,8 +367,15 @@ export async function revertSubmission(
       target: sub.id,
       data: { title: sub.title, sha: commit },
     });
+    await notify(tx, {
+      type: 'submission.reverted',
+      projectId: sub.projectId,
+      userIds: [sub.authorId],
+      actorId: leader.id,
+      data: { submissionId: sub.id, title: sub.title, actorName: await nameOf(tx, leader.id) },
+    });
     // Phase 8: a done (or waiting) linked task goes back to In progress with a note.
-    if (sub.taskId) await onSubmissionReverted(tx, sub.taskId, sub.title);
+    if (sub.taskId) await onSubmissionReverted(tx, sub.taskId, sub.title, sub.id, leader.id);
     await moveMain(gitDir, commit, main);
     await recheckConflicts(tx, gitDir, sub.projectId, commit);
     return null;

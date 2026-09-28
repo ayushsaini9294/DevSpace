@@ -17,6 +17,7 @@ const copy = {
   pendingConflictPaths: [],
   unresolvedPaths: [],
   helpers: [],
+  packagesChanged: false,
 };
 
 describe('Phase 7 copy schemas', () => {

@@ -40,7 +40,18 @@ export const CopyViewSchema = z.object({
   unresolvedPaths: z.array(z.string()),
   /** Leaders and co-leaders (not the owner) who opened this copy in the last 24 h, newest first. */
   helpers: z.array(CopyHelperSchema),
+  /**
+   * An update brought a change to a `package.json` or `package-lock.json` from main (Phase 9):
+   * show "Packages changed in main: run `npm install` in the terminal" until dismissed.
+   */
+  packagesChanged: z.boolean(),
 });
+
+/**
+ * POST /api/projects/:projectId/copy/packages-dismiss (no body) — the copy's owner; clears
+ * `packagesChanged` → CopyResponse (copy never null). 404 `not_found` for non-members;
+ * 409 `no_copy` when you have no copy yet.
+ */
 
 /**
  * GET /api/projects/:projectId/copy — any member; the caller's own copy, or null if they have

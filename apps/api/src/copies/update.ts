@@ -22,6 +22,8 @@ import {
   type IndexChange,
 } from '../git/repo.ts';
 import { HttpError } from '../lib/http-error.ts';
+import { notify, pathsData } from '../notifications/service.ts';
+import { invalidateAfterCommit } from '../realtime/emitter.ts';
 import { prisma } from '../lib/prisma.ts';
 import { withProjectLock, type Tx } from '../merge/lock.ts';
 import { readSettings } from '../projects/access.ts';
@@ -89,6 +91,8 @@ interface Write {
 
 export interface UpdatePlan {
   main: string;
+  /** `package.json` / `package-lock.json` files main changed since the copy's base (Phase 9). */
+  packagePaths?: string[];
   base: string;
   behind: boolean;
   /** Every file that conflicted (with markers, or kept as the member's version). Sorted. */
@@ -393,6 +397,7 @@ export async function updateCopy(
       if (!plan.behind) {
         if (row.pendingConflictPaths.length > 0) {
           await tx.copy.update({ where: { id: row.id }, data: { pendingConflictPaths: [] } });
+          await invalidateAfterCommit(tx, row.projectId, [`copy:${row.userId}`]);
         }
         return { kind: 'up_to_date' };
       }
@@ -401,8 +406,20 @@ export async function updateCopy(
           where: { id: row.id },
           data: { pendingConflictPaths: plan.conflictPaths },
         });
+        // Told once per new set of conflicts (housekeeping retries every minute).
+        if (!samePaths(row.pendingConflictPaths, plan.conflictPaths)) {
+          await notify(tx, {
+            type: 'copy.update_conflicts',
+            projectId: row.projectId,
+            userIds: [row.userId],
+            actorId: actorId,
+            data: pathsData(plan.conflictPaths),
+          });
+          await invalidateAfterCommit(tx, row.projectId, [`copy:${row.userId}`]);
+        }
         return { kind: 'pending', conflictPaths: plan.conflictPaths };
       }
+      plan.packagePaths = await packageChanges(gitDir, plan.base, plan.main);
       const markerPaths = [...new Set([...row.markerPaths, ...plan.markerPaths])].sort(byPath);
       // The row first: if writing the files fails, the transaction rolls it back.
       await recordUpdate(tx, row, plan, markerPaths, mode, actorId);
@@ -427,9 +444,24 @@ async function recordUpdate(
 ): Promise<void> {
   const { count } = await tx.copy.updateMany({
     where: { id: row.id, OR: [{ baseSha: plan.base }, { baseSha: null }] },
-    data: { baseSha: plan.main, markerPaths, pendingConflictPaths: [] },
+    data: {
+      baseSha: plan.main,
+      markerPaths,
+      pendingConflictPaths: [],
+      ...(plan.packagePaths?.length ? { packagesChangedAt: new Date() } : {}),
+    },
   });
   if (count !== 1) throw copyChanged();
+  if (plan.packagePaths?.length) {
+    // The owner updating by hand is the one who did it: the banner shows, no notification.
+    await notify(tx, {
+      type: 'copy.packages_changed',
+      projectId: row.projectId,
+      userIds: [row.userId],
+      actorId,
+      data: pathsData(plan.packagePaths),
+    });
+  }
   await recordActivity(tx, {
     projectId: row.projectId,
     actorId,
@@ -441,6 +473,21 @@ async function recordUpdate(
       automatic: mode === 'automatic',
     },
   });
+}
+
+function samePaths(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sorted = [...a].sort(byPath);
+  return [...b].sort(byPath).every((path, i) => path === sorted[i]);
+}
+
+const PACKAGE_FILES = new Set(['package.json', 'package-lock.json']);
+
+/** The `package.json` / `package-lock.json` files (at any depth) that differ between two commits. */
+export async function packageChanges(gitDir: string, from: string, to: string): Promise<string[]> {
+  if (from === to) return [];
+  const paths = await changedPaths(gitDir, from, to);
+  return paths.filter((path) => PACKAGE_FILES.has(path.slice(path.lastIndexOf('/') + 1)));
 }
 
 // ---------- The owner's routes ----------

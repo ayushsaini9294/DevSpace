@@ -1,3 +1,4 @@
+import { createServer } from 'node:http';
 import { env } from './config/env.ts';
 import { prisma } from './lib/prisma.ts';
 import { createApp } from './app.ts';
@@ -6,6 +7,9 @@ import { createIdeServer } from './ide/proxy.ts';
 import { recoverIdeContainers } from './ide/service.ts';
 import { backfillCopyBaseShas } from './copies/service.ts';
 import { closeCopyUpdateQueue } from './jobs/copy-updates.ts';
+import { closeEmitter } from './realtime/emitter.ts';
+import { attachRealtime } from './realtime/io.ts';
+import { sweepPresence } from './realtime/presence.ts';
 
 // Imports that were running when the API last stopped can't resume: mark them failed.
 try {
@@ -48,9 +52,21 @@ await new Promise<void>((resolve, reject) => {
 });
 console.log(`IDE site listening on ${env.IDE_HOST}:${env.IDE_PORT} (public: ${env.IDE_ORIGIN})`);
 
-const server = app.listen(env.PORT, () => {
+// The app's API and its live connection (Socket.io at /socket.io) share the main port.
+const server = createServer(app);
+const realtime = await attachRealtime(server);
+server.listen(env.PORT, () => {
   console.log(`API listening on http://localhost:${env.PORT} (${env.NODE_ENV})`);
 });
+
+// IDE reports that ran out (an IDE was closed): tell teammates the member is no longer active.
+const PRESENCE_SWEEP_MS = 15_000;
+const presenceSweep = setInterval(() => {
+  sweepPresence().catch((err: unknown) =>
+    console.error('Presence sweep failed:', err instanceof Error ? err.message : err),
+  );
+}, PRESENCE_SWEEP_MS);
+presenceSweep.unref();
 
 let shuttingDown = false;
 
@@ -63,10 +79,13 @@ async function shutdown(signal: string): Promise<void> {
     process.exit(1);
   }, 10_000);
   forceExit.unref();
+  clearInterval(presenceSweep);
+  await realtime.close().catch(() => undefined);
   ideServer.close();
   ideServer.closeAllConnections();
   server.close(async (err) => {
     await closeCopyUpdateQueue();
+    await closeEmitter();
     await prisma.$disconnect().catch(() => undefined);
     process.exit(err ? 1 : 0);
   });

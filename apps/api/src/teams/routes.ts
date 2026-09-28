@@ -15,6 +15,7 @@ import { HttpError } from '../lib/http-error.ts';
 import { parseBody } from '../lib/validate.ts';
 import { recordActivity } from '../activity/log.ts';
 import { projectResponse, toProjectSummary } from '../projects/views.ts';
+import { transaction } from '../lib/transaction.ts';
 
 /** Mounted at /api/teams behind requireAuth. */
 export const teamsRouter = Router();
@@ -90,7 +91,7 @@ teamsRouter.post('/:teamId/projects', async (req, res) => {
   const team = await findMemberTeam(req.params.teamId, user.id);
   const { name } = parseBody(CreateProjectRequestSchema, req.body);
 
-  const body = await prisma.$transaction(async (tx) => {
+  const body = await transaction(async (tx) => {
     const project = await tx.project.create({
       data: {
         teamId: team.id,

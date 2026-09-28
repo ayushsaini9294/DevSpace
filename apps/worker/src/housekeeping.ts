@@ -46,7 +46,12 @@ export async function startHousekeeping(options: {
     async (job: Job<HousekeepingJobData>) => {
       const started = Date.now();
       const result = await runHousekeeping({ copyIds: job.data?.copyIds });
-      const { idle, disk, updates } = result;
+      const { idle, disk, updates, notificationsDeleted } = result;
+      if (notificationsDeleted > 0) {
+        console.log(
+          `Housekeeping: deleted ${notificationsDeleted} notification(s) older than 30 days`,
+        );
+      }
       if (updates.updated.length || updates.pending.length || updates.failed.length) {
         console.log(
           `Housekeeping: updated ${updates.updated.length} cop(ies) behind main, ` +

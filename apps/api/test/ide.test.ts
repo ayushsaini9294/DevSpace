@@ -216,7 +216,7 @@ async function upgradeStatus(
   });
 }
 
-const frameAncestors = () => `frame-ancestors ${env.APP_ORIGIN}`;
+const frameAncestors = () => `frame-ancestors 'self' ${env.APP_ORIGIN}`;
 
 function expectFramePolicy(res: request.Response) {
   const csp = res.headers['content-security-policy'] as string | string[] | undefined;
@@ -603,7 +603,7 @@ describe.skipIf(!available.ide)(
         expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
         expect(row.containerId).toBe(info.Id);
         expect(info.Name).toBe(`/devspace-ide-${copy.id}`);
-        expect(info.Config.Image).toBe('devspace-ide:1');
+        expect(info.Config.Image).toBe('devspace-ide:2');
         expect(info.Config.Labels).toMatchObject({
           'devspace.copy': copy.id,
           'devspace.project': project.id,

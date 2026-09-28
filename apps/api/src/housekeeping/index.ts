@@ -5,6 +5,8 @@ import { retryBehindCopies, type ProjectUpdateResult } from '../copies/update.ts
 import { containerName, docker, isNotFound } from '../ide/docker.ts';
 import { withCopyDbLock } from '../ide/lock.ts';
 import { prisma } from '../lib/prisma.ts';
+import { deleteOldNotifications } from '../notifications/service.ts';
+import { sendInvalidate } from '../realtime/emitter.ts';
 
 /**
  * Housekeeping the worker runs every minute (apps/worker imports this module, so it shares the
@@ -55,10 +57,10 @@ export async function stopIdleIdes(options: HousekeepingOptions = {}): Promise<I
   const idFilter = options.copyIds ? { id: { in: options.copyIds } } : {};
   const candidates = await prisma.copy.findMany({
     where: { ...idFilter, ...idleWhere(cutoff) },
-    select: { id: true },
+    select: { id: true, projectId: true, userId: true },
   });
   const result: IdleResult = { stopped: [], failed: [] };
-  for (const { id } of candidates) {
+  for (const { id, projectId, userId } of candidates) {
     try {
       const stopped = await withCopyDbLock(id, async (tx) => {
         const still = await tx.copy.count({ where: { id, ...idleWhere(cutoff) } });
@@ -75,6 +77,7 @@ export async function stopIdleIdes(options: HousekeepingOptions = {}): Promise<I
       });
       if (stopped) {
         result.stopped.push(id);
+        sendInvalidate(projectId, [`copy:${userId}`]);
         console.log(`Stopped the idle IDE of copy ${id} (no activity for 30 minutes)`);
       }
     } catch (err) {
@@ -149,13 +152,20 @@ export async function checkCopySizes(options: HousekeepingOptions = {}): Promise
 
 /**
  * One housekeeping run: idle IDEs first, then disk use, then (Phase 7) copies of automatic-mode
- * projects that are still behind main.
+ * projects that are still behind main, then (Phase 9) notifications older than 30 days.
  */
-export async function runHousekeeping(
-  options: HousekeepingOptions = {},
-): Promise<{ idle: IdleResult; disk: DiskResult; updates: ProjectUpdateResult }> {
+export async function runHousekeeping(options: HousekeepingOptions = {}): Promise<{
+  idle: IdleResult;
+  disk: DiskResult;
+  updates: ProjectUpdateResult;
+  notificationsDeleted: number;
+}> {
   const idle = await stopIdleIdes(options);
   const disk = await checkCopySizes(options);
   const updates = await retryBehindCopies({ copyIds: options.copyIds });
-  return { idle, disk, updates };
+  const notificationsDeleted = await deleteOldNotifications(options.now).catch((err: unknown) => {
+    console.error('Could not delete old notifications:', err instanceof Error ? err.message : err);
+    return 0;
+  });
+  return { idle, disk, updates, notificationsDeleted };
 }

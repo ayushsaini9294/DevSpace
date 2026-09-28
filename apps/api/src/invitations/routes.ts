@@ -17,6 +17,8 @@ import { HttpError } from '../lib/http-error.ts';
 import { parseBody } from '../lib/validate.ts';
 import { recordActivity } from '../activity/log.ts';
 import { requireProjectAction } from '../projects/access.ts';
+import { transaction } from '../lib/transaction.ts';
+import { notify, projectLeads } from '../notifications/service.ts';
 
 const INVITATION_TTL_MS = INVITATION_TTL_DAYS * 24 * 60 * 60 * 1000;
 
@@ -72,7 +74,7 @@ projectInvitationsRouter.post('/', async (req, res) => {
   if (isMember > 0) throw alreadyMember();
 
   const token = randomBytes(32).toString('base64url');
-  const invitation = await prisma.$transaction(async (tx) => {
+  const invitation = await transaction(async (tx) => {
     // Re-inviting replaces the old link.
     await tx.invitation.updateMany({
       where: { projectId, email, status: 'pending' },
@@ -120,7 +122,7 @@ projectInvitationsRouter.get('/', async (req, res) => {
 projectInvitationsRouter.delete('/:invitationId', async (req, res) => {
   const access = await requireProjectAction(req, 'members.invite');
   const projectId = access.project.id;
-  await prisma.$transaction(async (tx) => {
+  await transaction(async (tx) => {
     const invitation = await tx.invitation.findFirst({
       where: { id: req.params.invitationId, projectId, status: 'pending' },
       select: { id: true, email: true },
@@ -198,7 +200,7 @@ invitationsRouter.post('/:token/accept', async (req, res) => {
   const { projectId } = invitation;
 
   try {
-    await prisma.$transaction(async (tx) => {
+    await transaction(async (tx) => {
       const existing = await tx.projectMember.count({ where: { projectId, userId: user.id } });
       if (existing > 0) throw alreadyMember();
       // Conditional on status and expiry, so two accepts of the same link can't both succeed.
@@ -225,6 +227,13 @@ invitationsRouter.post('/:token/accept', async (req, res) => {
         action: 'member.joined',
         target: user.id,
         data: { name: user.name, email: user.email, invitationId: invitation.id },
+      });
+      await notify(tx, {
+        type: 'invitation.accepted',
+        projectId,
+        userIds: await projectLeads(tx, projectId),
+        actorId: user.id,
+        data: { userId: user.id, userName: user.name },
       });
     });
   } catch (err) {

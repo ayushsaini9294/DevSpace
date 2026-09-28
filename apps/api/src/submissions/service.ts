@@ -50,6 +50,8 @@ import {
 } from '../tasks/automatic.ts';
 import { diffCopy, openCopyFileForWrite, readChosen, type CopyChange } from './scan.ts';
 import { approvalCount, mergeBlocker, reviewSelect, statusFromReviews } from './status.ts';
+import { transaction } from '../lib/transaction.ts';
+import { nameOf, notify, projectApprovers } from '../notifications/service.ts';
 
 export { statusFromReviews };
 
@@ -90,7 +92,7 @@ function isLead(access: ProjectAccess): boolean {
  */
 
 async function inTx<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
-  return prisma.$transaction(fn, { maxWait: 30_000, timeout: 180_000 });
+  return transaction(fn, { maxWait: 30_000, timeout: 180_000 });
 }
 
 /** Locks the submission's row for this transaction and reads it (404 if not in the project). */
@@ -256,6 +258,13 @@ export async function createSubmission(
       action: 'submission.created',
       target: id,
       data: { title: input.title, version: 1, files: chosen.length, taskId },
+    });
+    await notify(tx, {
+      type: 'submission.opened',
+      projectId: access.project.id,
+      userIds: await projectApprovers(tx, access.project.id),
+      actorId: author.id,
+      data: { submissionId: id, title: input.title, actorName: author.name },
     });
     if (taskId) await onSubmissionOpened(tx, taskId);
     await updateRef(gitDir, snapshotRef(id, 1), head);
@@ -610,6 +619,7 @@ export async function addComment(
     select: {
       id: true,
       authorId: true,
+      title: true,
       status: true,
       version: true,
       baseSha: true,
@@ -626,12 +636,14 @@ export async function addComment(
   }
 
   let parentId: string | null = null;
+  let parentAuthorId: string | null = null;
   if (input.parentId !== undefined) {
     const parent = await prisma.comment.findFirst({
       where: { id: input.parentId, submissionId: sub.id },
-      select: { id: true, parentId: true },
+      select: { id: true, parentId: true, authorId: true },
     });
     if (!parent) throw new HttpError(404, 'not_found', 'Comment not found');
+    parentAuthorId = parent.authorId;
     // Replies are one level deep: a reply to a reply joins the same thread.
     parentId = parent.parentId ?? parent.id;
   }
@@ -696,6 +708,30 @@ export async function addComment(
         suggestion: input.suggestion !== undefined,
       },
     });
+    const commented = {
+      submissionId: sub.id,
+      title: sub.title,
+      actorName: row.author.name,
+      commentId: row.id,
+      suggestion: input.suggestion !== undefined,
+    };
+    await notify(tx, {
+      type: 'submission.commented',
+      projectId: access.project.id,
+      userIds: [sub.authorId],
+      actorId: access.userId,
+      data: { ...commented, reply: false },
+    });
+    // A reply also tells the author of the comment it answers (once, if that's the author too).
+    if (parentAuthorId && parentAuthorId !== sub.authorId) {
+      await notify(tx, {
+        type: 'submission.commented',
+        projectId: access.project.id,
+        userIds: [parentAuthorId],
+        actorId: access.userId,
+        data: { ...commented, reply: true },
+      });
+    }
     return row;
   });
   return toCommentView(created, false);
@@ -869,6 +905,18 @@ export async function addReview(
       target: sub.id,
       data: { decision: input.decision, version: sub.version },
     });
+    await notify(tx, {
+      type: 'submission.reviewed',
+      projectId: sub.projectId,
+      userIds: [sub.authorId],
+      actorId: access.userId,
+      data: {
+        submissionId: sub.id,
+        title: sub.title,
+        actorName: await nameOf(tx, access.userId),
+        decision: input.decision,
+      },
+    });
   });
 }
 
@@ -893,6 +941,18 @@ export async function rejectSubmission(
       action: 'submission.rejected',
       target: sub.id,
       data: { reason },
+    });
+    await notify(tx, {
+      type: 'submission.rejected',
+      projectId: sub.projectId,
+      userIds: [sub.authorId],
+      actorId: access.userId,
+      data: {
+        submissionId: sub.id,
+        title: sub.title,
+        actorName: await nameOf(tx, access.userId),
+        reason,
+      },
     });
     if (sub.taskId) await onSubmissionEnded(tx, sub.taskId, sub.id);
   });

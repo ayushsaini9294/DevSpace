@@ -12,6 +12,7 @@ import { prisma } from '../lib/prisma.ts';
 import { projectNotFound } from '../projects/access.ts';
 import { moveIntoPlace, removeDir } from '../repository/storage.ts';
 import { readRegular } from './safe-fs.ts';
+import { transaction } from '../lib/transaction.ts';
 
 /**
  * Working copies: each member has exactly one per project, a real git clone of the project's
@@ -49,6 +50,7 @@ export const copySelect = {
   baseSha: true,
   markerPaths: true,
   pendingConflictPaths: true,
+  packagesChangedAt: true,
   project: { select: { repoPath: true, repoStatus: true } },
 } as const;
 
@@ -63,6 +65,7 @@ export interface CopyViewRow {
   baseSha: string | null;
   markerPaths: string[];
   pendingConflictPaths: string[];
+  packagesChangedAt: Date | null;
   project: { repoPath: string | null; repoStatus: string };
 }
 
@@ -141,6 +144,7 @@ export async function toView(row: CopyViewRow): Promise<CopyView> {
     pendingConflictPaths: [...row.pendingConflictPaths].sort(),
     unresolvedPaths,
     helpers,
+    packagesChanged: row.packagesChangedAt !== null,
   });
 }
 
@@ -217,7 +221,7 @@ export async function ensureCopy(
   await mkdir(projectCopiesDir(projectId), { recursive: true });
   try {
     const baseSha = await cloneCopy(project.repoPath, temp, branchName, user);
-    const row = await prisma.$transaction(async (tx) => {
+    const row = await transaction(async (tx) => {
       const created = await tx.copy.create({
         data: { id, projectId, userId: user.id, branchName, baseSha },
         select: copySelect,

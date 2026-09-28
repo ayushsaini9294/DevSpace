@@ -3,11 +3,11 @@
 # it (Phase 5 contract): random uid:gid, all capabilities dropped, no-new-privileges, 1 CPU,
 # 2 GB memory without extra swap, 512 pids, only a temp folder mounted, network devspace-ide.
 #
-# Needs: image devspace-ide:1 (npm run ide:build), scripts/ide-network.sh and, as root,
+# Needs: image devspace-ide:2 (npm run ide:build), scripts/ide-network.sh and, as root,
 # scripts/ide-firewall.sh. Exits non-zero on the first failed check. Used in CI.
 set -euo pipefail
 
-IMAGE=devspace-ide:1
+IMAGE=devspace-ide:2
 NETWORK=devspace-ide
 RUN_ID="check-$$"
 IDE="devspace-ide-$RUN_ID"
@@ -78,6 +78,9 @@ expect "npm install in the copy (cache in HOME)" installed "$(docker exec "$IDE"
 expect "npm install -g goes to HOME" installed "$(docker exec "$IDE" sh -c \
   'npm install -g --no-audit --no-fund is-number@7.0.0 >/dev/null 2>&1 \
    && [ -d "$HOME/.npm-global/lib/node_modules/is-number" ] && echo installed || echo failed')"
+
+expect "tracker extension installed outside HOME" yes "$(docker exec "$IDE" sh -c   '[ -f "$OPENVSCODE_SERVER_ROOT/extensions/devspace-tracker/dist/extension.js" ] && grep -q "\"name\": \"devspace-tracker\"" "$OPENVSCODE_SERVER_ROOT/extensions/devspace-tracker/package.json" && echo yes || echo no')"
+expect "the member cannot move or delete the tracker" kept "$(docker exec "$IDE" sh -c   'd="$OPENVSCODE_SERVER_ROOT/extensions"; mv "$d/devspace-tracker" "$d/moved" 2>/dev/null; rm -rf "$d/devspace-tracker" 2>/dev/null;    [ -f "$d/devspace-tracker/dist/extension.js" ] && echo kept || echo gone')"
 
 echo "Network isolation (from a second container on $NETWORK)"
 run_restricted "$PROBE" --entrypoint sleep "$IMAGE" 300

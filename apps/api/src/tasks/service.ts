@@ -16,6 +16,8 @@ import { prisma } from '../lib/prisma.ts';
 import type { Tx } from '../merge/lock.ts';
 import { forbidden, type ProjectAccess } from '../projects/access.ts';
 import { bottomPosition, hasActiveLinkedSubmission, lockTask } from './automatic.ts';
+import { transaction } from '../lib/transaction.ts';
+import { nameOf, notify } from '../notifications/service.ts';
 
 /** Tasks (Phase 8): the board, and the manual actions on it. Automatic rules: automatic.ts. */
 
@@ -26,7 +28,7 @@ function isLead(access: ProjectAccess): boolean {
 }
 
 async function inTx<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
-  return prisma.$transaction(fn, { maxWait: 30_000, timeout: 60_000 });
+  return transaction(fn, { maxWait: 30_000, timeout: 60_000 });
 }
 
 const taskInclude = {
@@ -180,6 +182,13 @@ export async function createTask(access: ProjectAccess, input: CreateTaskRequest
       target: task.id,
       data: { title: input.title, assigneeIds: input.assigneeIds },
     });
+    await notify(tx, {
+      type: 'task.assigned',
+      projectId,
+      userIds: input.assigneeIds,
+      actorId: access.userId,
+      data: { taskId: task.id, title: input.title, actorName: await nameOf(tx, access.userId) },
+    });
     return task.id;
   });
 }
@@ -230,6 +239,21 @@ export async function updateTask(
       target: id,
       data: { title: input.title ?? task.title, fields },
     });
+    // Only the newly added assignees are told (Phase 9).
+    const added = (input.assigneeIds ?? []).filter((u) => !task.assigneeIds.includes(u));
+    if (fields.includes('assigneeIds') && added.length > 0) {
+      await notify(tx, {
+        type: 'task.assigned',
+        projectId,
+        userIds: added,
+        actorId: access.userId,
+        data: {
+          taskId: id,
+          title: input.title ?? task.title,
+          actorName: await nameOf(tx, access.userId),
+        },
+      });
+    }
   });
 }
 

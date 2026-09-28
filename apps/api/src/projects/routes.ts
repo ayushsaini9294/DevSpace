@@ -7,6 +7,7 @@ import {
   DeleteProjectRequestSchema,
   MemberListResponseSchema,
   MemberResponseSchema,
+  PresenceListResponseSchema,
   ProjectListResponseSchema,
   RenameProjectRequestSchema,
   TransferOwnershipRequestSchema,
@@ -28,8 +29,12 @@ import { repositoryRouter } from '../repository/routes.ts';
 import { removeProjectRepository } from '../repository/service.ts';
 import { submissionsRouter } from '../submissions/routes.ts';
 import { tasksRouter } from '../tasks/routes.ts';
+import { nameOf, notify } from '../notifications/service.ts';
+import { closeProjectRoom, removeUserFromProject } from '../realtime/emitter.ts';
+import { forgetPresence, listPresence } from '../realtime/presence.ts';
 import { forbidden, readPermissions, requireProjectAction } from './access.ts';
 import { memberSelect, projectResponse, toMember, toProjectSummary } from './views.ts';
+import { transaction } from '../lib/transaction.ts';
 
 /** Mounted at /api/projects behind requireAuth. */
 export const projectsRouter = Router();
@@ -72,7 +77,7 @@ projectsRouter.patch('/:projectId', async (req, res) => {
   const { name } = parseBody(RenameProjectRequestSchema, req.body);
   const { project } = access;
   if (name !== project.name) {
-    await prisma.$transaction(async (tx) => {
+    await transaction(async (tx) => {
       await tx.project.update({ where: { id: project.id }, data: { name } });
       await recordActivity(tx, {
         projectId: project.id,
@@ -98,7 +103,7 @@ projectsRouter.patch('/:projectId/settings', async (req, res) => {
     }
   }
   if (Object.keys(changed).length > 0) {
-    await prisma.$transaction(async (tx) => {
+    await transaction(async (tx) => {
       await tx.project.update({ where: { id: project.id }, data: { settings: next } });
       await recordActivity(tx, {
         projectId: project.id,
@@ -121,6 +126,8 @@ projectsRouter.delete('/:projectId', async (req, res) => {
   }
   // Members, invitations and activity go with it (ON DELETE CASCADE).
   await prisma.project.delete({ where: { id: access.project.id } });
+  // Everyone's sockets leave its room at once (Phase 9).
+  closeProjectRoom(access.project.id);
   // Then its repository and copies on disk (after the DB delete, so a failure here can't leave
   // a project without its files; failures are logged, not returned).
   await removeProjectRepository(access.project.id, access.project.repoPath);
@@ -149,7 +156,7 @@ projectsRouter.patch('/:projectId/members/:userId', async (req, res) => {
   const projectId = access.project.id;
   const targetId = req.params.userId;
 
-  const member = await prisma.$transaction(async (tx) => {
+  const member = await transaction(async (tx) => {
     const target = await tx.projectMember.findUnique({
       where: { projectId_userId: { projectId, userId: targetId } },
       select: memberSelect,
@@ -185,7 +192,15 @@ projectsRouter.patch('/:projectId/members/:userId', async (req, res) => {
     if (count !== 1) throw new HttpError(409, 'conflict', 'The member changed; try again');
 
     const who = { name: target.user.name, email: target.user.email };
+    const actorName = await nameOf(tx, access.userId);
     if (roleChanged) {
+      await notify(tx, {
+        type: 'member.role_changed',
+        projectId,
+        userIds: [targetId],
+        actorId: access.userId,
+        data: { actorName, role: change.role ?? target.role },
+      });
       await recordActivity(tx, {
         projectId,
         actorId: access.userId,
@@ -195,6 +210,13 @@ projectsRouter.patch('/:projectId/members/:userId', async (req, res) => {
       });
     }
     if (permissionsChanged) {
+      await notify(tx, {
+        type: 'member.permissions_changed',
+        projectId,
+        userIds: [targetId],
+        actorId: access.userId,
+        data: { actorName },
+      });
       await recordActivity(tx, {
         projectId,
         actorId: access.userId,
@@ -221,7 +243,7 @@ projectsRouter.delete('/:projectId/members/:userId', async (req, res) => {
     throw forbidden('The leader must transfer ownership to another member before leaving');
   }
 
-  await prisma.$transaction(async (tx) => {
+  await transaction(async (tx) => {
     const target = await tx.projectMember.findUnique({
       where: { projectId_userId: { projectId, userId: targetId } },
       select: memberSelect,
@@ -241,6 +263,8 @@ projectsRouter.delete('/:projectId/members/:userId', async (req, res) => {
     if (count !== 1) throw new HttpError(409, 'conflict', 'The member changed; try again');
     // They are no longer assigned to any of the project's tasks (Phase 8).
     await tx.taskAssignee.deleteMany({ where: { userId: targetId, task: { projectId } } });
+    // Their notifications about this project go too (Phase 9).
+    await tx.notification.deleteMany({ where: { userId: targetId, projectId } });
     await recordActivity(tx, {
       projectId,
       actorId: access.userId,
@@ -252,6 +276,11 @@ projectsRouter.delete('/:projectId/members/:userId', async (req, res) => {
   // Their IDE stops (in the background; the copy's files are kept). The /ide proxy already
   // refuses them, since it checks membership on every request.
   void stopMemberIde(projectId, targetId);
+  // Their sockets leave the project's room at once, and their presence there is forgotten.
+  removeUserFromProject(projectId, targetId);
+  void forgetPresence(projectId, targetId).catch((err: unknown) =>
+    console.error('Could not forget presence:', err instanceof Error ? err.message : err),
+  );
   res.status(204).end();
 });
 
@@ -265,7 +294,7 @@ projectsRouter.post('/:projectId/transfer', async (req, res) => {
     });
   }
 
-  await prisma.$transaction(async (tx) => {
+  await transaction(async (tx) => {
     const target = await tx.projectMember.findUnique({
       where: { projectId_userId: { projectId, userId: targetId } },
       select: memberSelect,
@@ -293,6 +322,13 @@ projectsRouter.post('/:projectId/transfer', async (req, res) => {
     });
   });
   res.json(await projectResponse(projectId, access.userId));
+});
+
+// ---------- Presence (Phase 9) ----------
+
+projectsRouter.get('/:projectId/presence', async (req, res) => {
+  const access = await requireProjectAction(req);
+  res.json(PresenceListResponseSchema.parse({ members: await listPresence(access.project.id) }));
 });
 
 // ---------- Activity ----------

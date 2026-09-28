@@ -79,3 +79,14 @@ The local PostgreSQL already has a `devspace` role and database from the old pro
 - The board supports drag and drop, plus a status menu on each card for keyboard and phone use (owner).
 - A submission links at most one task; a task can have many submissions. Done tasks can't be linked to new submissions.
 - Leaders answer "Mark this task done?" after a linked merge; "Not yet" returns the task to In progress unless other linked work is still open.
+
+## 2026-09-28: Presence and notifications (Phase 9)
+
+- DevSpace's own tracker extension comes pre-installed in every IDE and reports the open file and whether the member is active. Reports go through the IDE's logged-in connection, so they are tied to the person actually using the IDE; the server treats them as untrusted and only shows plain text.
+- Teammates see each member as Active (with the open file), Online, or Offline with "last seen". Each member can switch off sharing their open file and then just shows as Active (owner).
+- Live updates use Socket.io with Redis. Only members of a project receive its events, and events only say what changed; the page then reloads that data through the normal permission checks.
+- In-app notifications, never sent to the person who did the action. New submissions notify leaders, co-leaders and members with the Approve permission (owner).
+- When main's package.json or package-lock.json changes, members get a reminder to run npm install (owner).
+- Notifications are kept for 30 days, then deleted automatically (owner).
+- The IDE site allows framing by itself as well as by the app (`frame-ancestors 'self' <app>`), because VS Code runs its extensions in a nested iframe from the IDE's own address.
+- Known risk, accepted for now (owner): every copy's IDE shares one address, so code planted in a member's container could reach another IDE that a leader opening that copy is also logged into. Before anyone else uses DevSpace, Phase 12 gives each copy's IDE its own address, so browsers keep copies fully apart.

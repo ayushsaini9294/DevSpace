@@ -4,7 +4,8 @@
   "type": "module",
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "docker/ide/tracker"
   ],
   "scripts": {
     "dev": "concurrently -n api,web,worker -c blue,magenta,green \"npm run dev -w @devspace/api\" \"npm run dev -w @devspace/web\" \"npm run dev -w @devspace/worker\"",
@@ -19,7 +20,7 @@
     "db:migrate": "npm run db:migrate -w @devspace/api",
     "test:e2e": "playwright test",
     "db:generate": "npm run db:generate -w @devspace/api",
-    "ide:build": "docker build -t devspace-ide:1 docker/ide",
+    "ide:build": "npm run build -w devspace-tracker && docker build -t devspace-ide:2 docker/ide",
     "ide:network": "bash scripts/ide-network.sh",
     "ports:check": "bash scripts/check-ports.sh"
   },

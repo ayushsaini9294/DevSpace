@@ -8,3 +8,6 @@ export * from './projects.ts';
 export * from './repository.ts';
 export * from './submissions.ts';
 export * from './tasks.ts';
+export * from './notifications.ts';
+export * from './presence.ts';
+export * from './realtime.ts';

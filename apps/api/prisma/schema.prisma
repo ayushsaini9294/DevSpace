@@ -39,6 +39,9 @@ model User {
   revertedSubmissions Submission[]    @relation("RevertedBy")
   createdTasks        Task[]          @relation("TaskCreatedBy")
   taskAssignments     TaskAssignee[]
+  notifications       Notification[]
+  /// Share which file I have open with teammates (Phase 9 presence). Off → file is always null.
+  shareOpenFile       Boolean         @default(true) @map("share_open_file")
 
   @@map("users")
 }
@@ -105,6 +108,7 @@ model Project {
   copies      Copy[]
   submissions Submission[]
   tasks       Task[]
+  notifications Notification[]
 
   @@index([teamId])
   @@map("projects")
@@ -143,6 +147,8 @@ model ProjectMember {
   /// MemberPermissions from packages/shared; validated with MemberPermissionsSchema when read.
   permissions Json
   joinedAt    DateTime    @default(now()) @map("joined_at")
+  /// Last time this member was seen in the project (app socket or IDE), written at most once a minute.
+  lastSeenAt  DateTime?   @map("last_seen_at")
 
   @@id([projectId, userId])
   @@index([userId])
@@ -228,6 +234,8 @@ model Copy {
   markerPaths          String[]            @default([]) @map("marker_paths")
   /// Automatic mode found these conflicts and left the copy untouched (cleared by an update).
   pendingConflictPaths String[]            @default([]) @map("pending_conflict_paths")
+  /// An update brought a package.json / package-lock.json change from main (Phase 9); cleared on dismiss.
+  packagesChangedAt    DateTime?           @map("packages_changed_at")
   createdAt            DateTime            @default(now()) @map("created_at")
   ideTickets           IdeTicket[]
   ideSessions          IdeSession[]
@@ -484,4 +492,26 @@ model TaskAssignee {
   @@id([taskId, userId])
   @@index([userId])
   @@map("task_assignees")
+}
+
+// ---------- Phase 9: notifications ----------
+
+/// An in-app notification for one user (never the person who caused it). `type` and `data`
+/// follow NotificationDataSchemas in packages/shared. Deleted after 30 days by the worker, and
+/// when the user is removed from the project.
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId String?   @map("project_id")
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type      String
+  data      Json      @default("{}")
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@index([projectId, userId])
+  @@index([createdAt])
+  @@map("notifications")
 }
