@@ -28,6 +28,7 @@ import { projectInvitationsRouter } from '../invitations/routes.ts';
 import { repositoryRouter } from '../repository/routes.ts';
 import { removeProjectRepository } from '../repository/service.ts';
 import { submissionsRouter } from '../submissions/routes.ts';
+import { aiSubmissionRouter } from '../ai/routes.ts';
 import { tasksRouter } from '../tasks/routes.ts';
 import { nameOf, notify } from '../notifications/service.ts';
 import { closeProjectRoom, removeUserFromProject } from '../realtime/emitter.ts';
@@ -46,6 +47,7 @@ projectsRouter.use('/:projectId/invitations', projectInvitationsRouter);
 projectsRouter.use('/:projectId', repositoryRouter);
 projectsRouter.use('/:projectId', copyRouter);
 projectsRouter.use('/:projectId', submissionsRouter);
+projectsRouter.use('/:projectId', aiSubmissionRouter);
 projectsRouter.use('/:projectId', tasksRouter);
 
 projectsRouter.get('/', async (req, res) => {

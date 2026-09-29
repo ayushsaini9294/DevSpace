@@ -8,7 +8,9 @@ import http, {
 } from 'node:http';
 import net from 'node:net';
 import type { Duplex } from 'node:stream';
-import { PresenceReportSchema } from '@devspace/shared';
+import { MAX_IDE_FINDINGS_BYTES, PresenceReportSchema } from '@devspace/shared';
+import { receiveIdeFindings } from '../ai/ide-review.ts';
+import { getRedis } from '../realtime/redis.ts';
 import { env } from '../config/env.ts';
 import { recordIdeReport } from '../realtime/presence.ts';
 import {
@@ -258,9 +260,90 @@ async function presenceReport(req: IncomingMessage, res: ServerResponse, copyId:
   }
 }
 
+function json(res: ServerResponse, status: number, body: unknown): void {
+  const text = JSON.stringify(body);
+  res.writeHead(status, {
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': Buffer.byteLength(text),
+    'cache-control': 'no-store',
+    'x-content-type-options': 'nosniff',
+    'content-security-policy': `default-src 'none'; ${frameAncestors()}`,
+  });
+  res.end(text);
+}
+
+const errorBody = (error: string, message: string) => ({ error, message });
+
+/** Largest findings request body read (the findings text is at most 50 KB, JSON-escaped). */
+const MAX_FINDINGS_REQUEST_BYTES = MAX_IDE_FINDINGS_BYTES * 2 + 1024;
+/** Fewest milliseconds between two findings from one IDE session. */
+const FINDINGS_INTERVAL_MS = 5_000;
+
+/**
+ * POST /ide/<copyId>/__devspace/review-findings — the tracker's "DevSpace: Send review findings"
+ * command (Phase 10). Checked like presence reports (Origin = IDE_ORIGIN, JSON, the IDE
+ * session), and the IDE session's user must own the copy. Answers JSON: 201
+ * IdeFindingsResponse, or { error, message }.
+ */
+async function reviewFindings(req: IncomingMessage, res: ServerResponse, copyId: string) {
+  try {
+    if (req.method !== 'POST') return json(res, 404, errorBody('not_found', 'Not found'));
+    if (req.headers.origin !== env.IDE_ORIGIN) {
+      return json(res, 403, errorBody('forbidden', 'Requests must come from the IDE'));
+    }
+    const type = String(req.headers['content-type'] ?? '')
+      .split(';', 1)[0]!
+      .trim()
+      .toLowerCase();
+    if (type !== 'application/json') {
+      return json(
+        res,
+        415,
+        errorBody('unsupported_media_type', 'Content-Type must be application/json'),
+      );
+    }
+    let who = null;
+    for (const value of cookieValues(req.headers.cookie, IDE_COOKIE_NAME)) {
+      who = await ideSessionUser(value, copyId);
+      if (who) break;
+    }
+    if (!who) return json(res, 404, errorBody('not_found', 'Open the IDE again from DevSpace'));
+    const text = await readBody(req, MAX_FINDINGS_REQUEST_BYTES);
+    if (text === null) {
+      return json(res, 413, errorBody('payload_too_large', 'Findings are larger than 50 KB'));
+    }
+    let body: unknown;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      return json(res, 400, errorBody('bad_request', 'The request is not valid JSON'));
+    }
+    const allowed = await getRedis().set(
+      `devspace:ai:findings-rate:${who.sessionId}`,
+      '1',
+      'PX',
+      FINDINGS_INTERVAL_MS,
+      'NX',
+    );
+    if (allowed !== 'OK') {
+      return json(res, 429, errorBody('rate_limited', 'Wait a few seconds before sending again'));
+    }
+    const answer = await receiveIdeFindings(who, body);
+    return json(res, answer.status, answer.body);
+  } catch (err) {
+    console.error('Review findings failed:', err instanceof Error ? err.message : err);
+    if (!res.headersSent) json(res, 500, errorBody('internal_error', 'Internal server error'));
+  } finally {
+    if (!req.readableEnded) req.resume();
+  }
+}
+
 async function devspacePath(req: IncomingMessage, res: ServerResponse, url: URL, copyId: string) {
   if (url.pathname === `/ide/${copyId}/__devspace/presence`) {
     return presenceReport(req, res, copyId);
+  }
+  if (url.pathname === `/ide/${copyId}/__devspace/review-findings`) {
+    return reviewFindings(req, res, copyId);
   }
   plain(res, 404);
 }

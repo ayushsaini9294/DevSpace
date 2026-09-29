@@ -3,6 +3,8 @@ import { Link, Outlet, useNavigate } from 'react-router';
 import { NotificationBell } from '../components/NotificationBell';
 import { ShareFileSwitch } from '../components/ShareFileSwitch';
 import { popoverPanel, usePopover } from '../components/usePopover';
+import { linkStyle } from '../components/ui';
+import { AI_SETTINGS_URL } from '../lib/ai';
 import { useCurrentUser, useLogOut } from '../lib/auth';
 
 const navLink =
@@ -77,6 +79,9 @@ function UserMenu({ name, email }: { name: string; email: string }) {
             {email}
           </p>
           <ShareFileSwitch />
+          <Link to={AI_SETTINGS_URL} onClick={toggle} className={`${linkStyle} block text-sm`}>
+            AI review settings
+          </Link>
         </div>
       )}
     </div>

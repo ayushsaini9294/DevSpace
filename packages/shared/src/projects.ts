@@ -29,6 +29,8 @@ export const ProjectSettingsSchema = z.object({
   membersCanBrowseCopies: z.boolean(),
   copyUpdateMode: z.enum(['automatic', 'manual']),
   githubMode: z.enum(['publish_once', 'keep_updated']),
+  /** "Allow AI review (sends code to AI providers)" (Phase 10). Off by default; leaders switch it. */
+  aiReviewEnabled: z.boolean(),
 });
 export type ProjectSettings = z.infer<typeof ProjectSettingsSchema>;
 
@@ -37,6 +39,7 @@ export const DEFAULT_PROJECT_SETTINGS: ProjectSettings = {
   membersCanBrowseCopies: false,
   copyUpdateMode: 'automatic',
   githubMode: 'publish_once',
+  aiReviewEnabled: false,
 };
 
 /** A project as it appears in lists. Only projects you are a member of are ever returned. */

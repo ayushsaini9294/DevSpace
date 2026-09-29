@@ -90,3 +90,12 @@ The local PostgreSQL already has a `devspace` role and database from the old pro
 - Notifications are kept for 30 days, then deleted automatically (owner).
 - The IDE site allows framing by itself as well as by the app (`frame-ancestors 'self' <app>`), because VS Code runs its extensions in a nested iframe from the IDE's own address.
 - Known risk, accepted for now (owner): every copy's IDE shares one address, so code planted in a member's container could reach another IDE that a leader opening that copy is also logged into. Before anyone else uses DevSpace, Phase 12 gives each copy's IDE its own address, so browsers keep copies fully apart.
+
+## 2026-09-28: AI review (Phase 10)
+
+- Members connect their own OpenRouter account with OpenRouter's login flow (OAuth with PKCE). DevSpace stores the key encrypted and never sends it to the browser; Disconnect deletes it.
+- Default free models: qwen/qwen3.8-27b, nvidia/nemotron-3-ultra-550b-a55b and google/gemma-4-31b-it; fallbacks in order: poolside/laguna-s-2.1, nvidia/nemotron-3-super-120b-a12b, openrouter/free. They live in one config setting so they can be swapped as OpenRouter's free list changes (owner). A 3-model review uses about 3 of the 50 free daily requests, so about 15 reviews a day per member.
+- AI review sends code to outside AI providers, so each project has a switch for it, off by default; leaders turn it on. Members see a one-time notice before their first review (owner).
+- Paid models are opt-in: free by default, and an Advanced picker with a clear "uses your credits" confirmation (owner).
+- "Review with my IDE AI" puts the changes and a review instruction into the reviewer's own copy (in a `.devspace/` folder that is never submitted). A VS Code command, "DevSpace: Send review findings", sends the findings back to the submission (owner).
+- AI output is shown as plain text only. Tests and CI use a stand-in OpenRouter server; the real check uses the owner's account and real free models.

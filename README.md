@@ -42,7 +42,11 @@ You need Linux (on Windows, WSL 2 Ubuntu), Node.js 24 and Docker Engine. From Ph
    npm run db:up
    ```
 
-3. Copy `apps/api/.env.example` to `apps/api/.env`.
+3. Copy `apps/api/.env.example` to `apps/api/.env`, then give it your own `AI_SECRETS_KEY` (32 random bytes, base64). It encrypts members' OpenRouter keys; the API and the worker refuse to start without it. Make one per machine, never commit it, and keep it: if it changes, members must connect OpenRouter again.
+
+   ```sh
+   echo "AI_SECRETS_KEY=$(openssl rand -base64 32)" >> apps/api/.env
+   ```
 
 4. Create the tables:
 
@@ -72,8 +76,9 @@ You need Linux (on Windows, WSL 2 Ubuntu), Node.js 24 and Docker Engine. From Ph
 | `http://localhost:5173` | The web app (`APP_ORIGIN`); Vite forwards `/api` to the API                      |
 | `http://localhost:3000` | The API (`PORT`)                                                                 |
 | `http://127.0.0.1:3100` | The IDE listener (`IDE_PORT`, `IDE_HOST`, `IDE_ORIGIN`), bound to 127.0.0.1 only |
+| `http://127.0.0.1:4010` | e2e tests only: the stand-in OpenRouter (`OPENROUTER_STUB_PORT`), a test double  |
 
-The IDE is served from `127.0.0.1` on purpose. The browser treats it as a different site from `localhost`, so code running in a member's IDE can never act as the app. Open the app at `localhost` and never at `127.0.0.1`. The IDE listener binds IPv4 `127.0.0.1` because WSL forwards Windows' `127.0.0.1` only to IPv4 listeners. Run `npm run ports:check` to see whether something else already holds 3000, 3100 or 5173.
+The IDE is served from `127.0.0.1` on purpose. The browser treats it as a different site from `localhost`, so code running in a member's IDE can never act as the app. Open the app at `localhost` and never at `127.0.0.1`. The IDE listener binds IPv4 `127.0.0.1` because WSL forwards Windows' `127.0.0.1` only to IPv4 listeners. Run `npm run ports:check` to see whether something else already holds 3000, 3100, 5173 or 4010.
 
 ## Commands
 
@@ -85,6 +90,8 @@ The IDE is served from `127.0.0.1` on purpose. The browser treats it as a differ
 | `npm test`            | Runs unit and API tests (the API tests need the database)       |
 | `npm run test:e2e`    | Runs the Playwright browser tests                               |
 | `npm run format`      | Formats the code with Prettier                                  |
-| `npm run ide:build`   | Builds the tracker extension and the IDE image `devspace-ide:2` |
+| `npm run ide:build`   | Builds the tracker extension and the IDE image `devspace-ide:3` |
 | `npm run ide:network` | Creates the Docker network IDE containers join                  |
-| `npm run ports:check` | Checks that ports 3000, 3100 and 5173 are free                  |
+| `npm run ports:check` | Checks that ports 3000, 3100, 5173 and 4010 are free            |
+
+The e2e tests never call OpenRouter. Playwright starts a stand-in OpenRouter (`e2e/stubs/openrouter.ts`, a test double that hands out fake keys and canned findings), points the API and the worker at it with `OPENROUTER_BASE_URL`, and gives them a throwaway `AI_SECRETS_KEY`. Outside CI Playwright reuses a dev server that is already running, which keeps its own settings, so stop `npm run dev` first (or run `CI=1 npx playwright test`).

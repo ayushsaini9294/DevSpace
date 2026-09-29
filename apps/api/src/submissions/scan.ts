@@ -4,6 +4,7 @@ import { lstat, open, readdir, readlink, realpath } from 'node:fs/promises';
 import { dirname, join, resolve, sep } from 'node:path';
 import ignore, { type Ignore } from 'ignore';
 import {
+  DEVSPACE_FOLDER,
   MAX_SCANNED_FILES,
   MAX_SUBMISSION_BYTES,
   MAX_SUBMISSION_FILE_BYTES,
@@ -42,6 +43,15 @@ export const tooLarge = (message: string, details?: Record<string, unknown>) =>
 function skipName(name: string): boolean {
   if (name.toLowerCase() === '.git') return true;
   return [...name].some((ch) => ch === '\\' || ch.charCodeAt(0) < 0x20 || ch === '\u007f');
+}
+
+/**
+ * DevSpace's own folder in a copy (Phase 10: "Review with my IDE AI" writes there). Like `.git`,
+ * it is never scanned, submitted or touched by copy updates, even if main tracks such paths.
+ */
+export function isDevspacePath(rel: string): boolean {
+  const first = rel.split('/', 1)[0]!.toLowerCase();
+  return first === DEVSPACE_FOLDER;
 }
 
 /** The absolute path of `rel` inside `root`, or throws if it would leave the root. */
@@ -127,6 +137,7 @@ export async function scanCopy(
     for (const name of names.sort()) {
       if (skipName(name)) continue;
       const rel = dir === '' ? name : `${dir}/${name}`;
+      if (isDevspacePath(rel)) continue;
       if (options.skip.has(rel)) continue;
       let st: Stats;
       try {
@@ -221,6 +232,7 @@ export async function diffCopy(
   const skip = new Set<string>();
   const trackedDirs = new Set<string>();
   for (const entry of baseEntries) {
+    if (isDevspacePath(entry.path)) continue; // never compared: the copy's .devspace is its own
     if (entry.mode === '160000') skip.add(entry.path);
     else base.set(entry.path, entry);
     for (const parent of parentsOf(entry.path)) trackedDirs.add(parent);

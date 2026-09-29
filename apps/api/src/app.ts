@@ -11,6 +11,7 @@ import { projectsRouter } from './projects/routes.ts';
 import { invitationsRouter } from './invitations/routes.ts';
 import { requireAppOrigin } from './lib/require-origin.ts';
 import { meRouter, notificationsRouter } from './notifications/routes.ts';
+import { aiRouter } from './ai/routes.ts';
 
 export function createApp(): Express {
   const app = express();
@@ -29,6 +30,7 @@ export function createApp(): Express {
   app.use('/api/invitations', requireAuth, invitationsRouter);
   app.use('/api/notifications', requireAuth, notificationsRouter);
   app.use('/api/me', requireAuth, meRouter);
+  app.use('/api/ai', requireAuth, aiRouter);
 
   app.use((_req, res) => {
     const body: ErrorResponse = { error: 'not_found', message: 'Route not found' };

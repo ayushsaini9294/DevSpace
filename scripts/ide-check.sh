@@ -3,11 +3,11 @@
 # it (Phase 5 contract): random uid:gid, all capabilities dropped, no-new-privileges, 1 CPU,
 # 2 GB memory without extra swap, 512 pids, only a temp folder mounted, network devspace-ide.
 #
-# Needs: image devspace-ide:2 (npm run ide:build), scripts/ide-network.sh and, as root,
+# Needs: image devspace-ide:3 (npm run ide:build), scripts/ide-network.sh and, as root,
 # scripts/ide-firewall.sh. Exits non-zero on the first failed check. Used in CI.
 set -euo pipefail
 
-IMAGE=devspace-ide:2
+IMAGE=devspace-ide:3
 NETWORK=devspace-ide
 RUN_ID="check-$$"
 IDE="devspace-ide-$RUN_ID"

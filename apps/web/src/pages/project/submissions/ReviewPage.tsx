@@ -39,6 +39,7 @@ import {
 import { formatWhen, fullDate } from '../../../lib/time';
 import { useProjectContext } from '../ProjectLayout';
 import { LinkedTaskPanel } from '../tasks/LinkedTaskPanel';
+import { AiReviewSection } from './AiReviewSection';
 import {
   MergeBlockerNote,
   MergeDialog,
@@ -832,6 +833,7 @@ function Review({
   isLead: boolean;
 }) {
   const ctx: Ctx = { projectId, submission };
+  const { project } = useProjectContext();
 
   const { general, byPath, orphaned, replies } = useMemo(() => {
     const replies = new Map<string, Comment[]>();
@@ -895,6 +897,8 @@ function Review({
         </h3>
         <Reviews submission={submission} />
       </section>
+
+      <AiReviewSection project={project} submission={submission} />
 
       <section aria-labelledby="files-heading" className="space-y-3">
         <h3 id="files-heading" className="text-lg font-semibold">

@@ -282,7 +282,7 @@ export async function addMember(leaderPage: Page, browser: Browser, lp: LeaderPr
 export async function grantPermission(
   leaderPage: Page,
   member: User,
-  permission: 'Comment' | 'Approve submissions' | 'Create tasks',
+  permission: 'Comment' | 'Approve submissions' | 'Create tasks' | 'AI cross-review',
 ) {
   const row = leaderPage.getByRole('listitem').filter({ hasText: member.email });
   const box = row.getByRole('checkbox', { name: permission, exact: true });

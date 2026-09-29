@@ -42,17 +42,23 @@ model User {
   notifications       Notification[]
   /// Share which file I have open with teammates (Phase 9 presence). Off → file is always null.
   shareOpenFile       Boolean         @default(true) @map("share_open_file")
+  /// When the member accepted the one-time AI review notice (Phase 10); null = not yet.
+  aiNoticeAcceptedAt  DateTime?       @map("ai_notice_accepted_at")
+  aiConnection        AiConnection?
+  aiOAuthStates       AiOAuthState[]
+  aiReviews           AiReview[]
 
   @@map("users")
 }
 
 model Session {
   /// SHA-256 hex hash of the session token; the token itself is only in the cookie.
-  id        String   @id
-  userId    String   @map("user_id")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt DateTime @map("expires_at")
-  createdAt DateTime @default(now()) @map("created_at")
+  id            String         @id
+  userId        String         @map("user_id")
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt     DateTime       @map("expires_at")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  aiOAuthStates AiOAuthState[]
 
   @@index([userId])
   @@map("sessions")
@@ -86,28 +92,28 @@ model TeamMember {
 }
 
 model Project {
-  id          String          @id @default(uuid())
-  teamId      String          @map("team_id")
-  team        Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  name        String
+  id            String          @id @default(uuid())
+  teamId        String          @map("team_id")
+  team          Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  name          String
   /// Absolute path of the project's bare git repo on disk (set when the repository is set up).
-  repoPath    String?         @map("repo_path")
-  repoStatus  RepoStatus      @default(none) @map("repo_status")
-  repoSource  RepoSource?     @map("repo_source")
+  repoPath      String?         @map("repo_path")
+  repoStatus    RepoStatus      @default(none) @map("repo_status")
+  repoSource    RepoSource?     @map("repo_source")
   /// Normalized https link the repository was imported from (ImportUrlSchema).
-  importUrl   String?         @map("import_url")
+  importUrl     String?         @map("import_url")
   /// Why the last import failed, in plain words.
-  repoError   String?         @map("repo_error")
+  repoError     String?         @map("repo_error")
   /// ProjectSettings from packages/shared; validated with ProjectSettingsSchema when read.
-  settings    Json
-  createdAt   DateTime        @default(now()) @map("created_at")
-  updatedAt   DateTime        @updatedAt @map("updated_at")
-  members     ProjectMember[]
-  invitations Invitation[]
-  activity    ActivityLog[]
-  copies      Copy[]
-  submissions Submission[]
-  tasks       Task[]
+  settings      Json
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  members       ProjectMember[]
+  invitations   Invitation[]
+  activity      ActivityLog[]
+  copies        Copy[]
+  submissions   Submission[]
+  tasks         Task[]
   notifications Notification[]
 
   @@index([teamId])
@@ -373,6 +379,7 @@ model Submission {
   files         SubmissionFile[]
   reviews       Review[]
   comments      Comment[]
+  aiReviews     AiReview[]
 
   @@index([projectId, createdAt])
   @@index([copyId, status])
@@ -514,4 +521,88 @@ model Notification {
   @@index([projectId, userId])
   @@index([createdAt])
   @@map("notifications")
+}
+
+// ---------- Phase 10: AI review ----------
+
+/// A member's OpenRouter connection. The key is encrypted with AES-256-GCM (AI_SECRETS_KEY,
+/// random IV per value: see ai/crypto.ts) and never leaves the server.
+model AiConnection {
+  id           String   @id @default(uuid())
+  userId       String   @unique @map("user_id")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider     String   @default("openrouter")
+  encryptedKey String   @map("encrypted_key")
+  /// The key's last 4 characters.
+  keyHint      String   @map("key_hint")
+  connectedAt  DateTime @default(now()) @map("connected_at")
+
+  @@map("ai_connections")
+}
+
+/// A pending OpenRouter login (PKCE): single use, 10 minutes, bound to one app session. Stored
+/// by the SHA-256 hex hash of the state; the verifier is encrypted like keys.
+model AiOAuthState {
+  id                String   @id
+  userId            String   @map("user_id")
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId         String   @map("session_id")
+  session           Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  encryptedVerifier String   @map("encrypted_verifier")
+  expiresAt         DateTime @map("expires_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([expiresAt])
+  @@map("ai_oauth_states")
+}
+
+enum AiReviewSource {
+  auto
+  ide
+
+  @@map("ai_review_source")
+}
+
+enum AiReviewStatus {
+  queued
+  running
+  done
+  failed
+
+  @@map("ai_review_status")
+}
+
+/// One model's review of one submission version (a cross-review makes one per model; the IDE
+/// command makes one with source ide). findings follows AiFindingSchema[] in packages/shared.
+model AiReview {
+  id             String         @id @default(uuid())
+  submissionId   String         @map("submission_id")
+  submission     Submission     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  version        Int
+  requestedById  String         @map("requested_by_id")
+  requestedBy    User           @relation(fields: [requestedById], references: [id], onDelete: Cascade)
+  /// The reviews made by one cross-review request share it (one notification when all finish).
+  batchId        String?        @map("batch_id")
+  source         AiReviewSource
+  /// The model that answered (a fallback if needed); for ide: "IDE AI (reported by <name>)".
+  model          String
+  requestedModel String         @map("requested_model")
+  isFree         Boolean?       @map("is_free")
+  status         AiReviewStatus @default(queued)
+  findings       Json           @default("[]")
+  parseError     Boolean        @default(false) @map("parse_error")
+  /// The model's answer (at most 100 KB). Untrusted: shown as plain text only.
+  raw            String?
+  error          String?
+  errorCode      String?        @map("error_code")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  startedAt      DateTime?      @map("started_at")
+  finishedAt     DateTime?      @map("finished_at")
+
+  @@index([submissionId, createdAt])
+  @@index([requestedById, status])
+  @@index([batchId])
+  @@map("ai_reviews")
 }

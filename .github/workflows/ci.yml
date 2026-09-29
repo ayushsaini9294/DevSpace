@@ -50,9 +50,21 @@ jobs:
       IDE_PORT: 3100
       IDE_HOST: 127.0.0.1
       IDE_ORIGIN: http://127.0.0.1:3100
+      # AI (Phase 10): in the e2e tests the API and worker call the stand-in OpenRouter (a test
+      # double, e2e/stubs/openrouter.ts) on this port, never the real one: playwright.config.ts
+      # starts it and sets OPENROUTER_BASE_URL for `npm run dev`.
+      OPENROUTER_STUB_PORT: 4010
 
     steps:
       - uses: actions/checkout@v5
+
+      # The key that encrypts members' OpenRouter keys: a throwaway one per run, never a stored
+      # secret (CI only ever holds the stand-in's fake keys). Masked in the logs.
+      - name: Make a throwaway AI_SECRETS_KEY
+        run: |
+          key="$(openssl rand -base64 32)"
+          echo "::add-mask::$key"
+          echo "AI_SECRETS_KEY=$key" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@v5
         with:
@@ -77,7 +89,7 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      # IDE containers (Phase 5): the image (devspace-ide:2 with the tracker extension, Phase 9; built
+      # IDE containers (Phase 5): the image (devspace-ide:3 with the tracker extension, Phases 9 and 10; built
       # after npm ci because the tracker is a workspace), its network and firewall, then a check on a real
       # container that the image works when locked down and that the network is isolated. Before
       # the unit tests, so the API's real-container tests run instead of skipping.
@@ -118,6 +130,8 @@ jobs:
           # `npm run dev` passes both variables to the API and to the worker, which updates copies
           # after a merge or undo (Phase 7, automatic mode), so both see the same folders.
           COPIES_DIR: ${{ runner.temp }}/devspace-copies
+          # e2e/ai.spec.ts (Phase 10) also uses both: it writes the IDE AI's findings.md into the
+          # reviewer's copy, as the IDE AI would.
 
       - name: Upload Playwright report
         if: failure()

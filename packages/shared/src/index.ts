@@ -11,3 +11,4 @@ export * from './tasks.ts';
 export * from './notifications.ts';
 export * from './presence.ts';
 export * from './realtime.ts';
+export * from './ai.ts';

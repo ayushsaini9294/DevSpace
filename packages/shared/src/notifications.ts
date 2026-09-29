@@ -20,6 +20,8 @@ import { ProjectRoleSchema } from './permissions.ts';
  * - `copy.helped`, `copy.update_conflicts`, `copy.packages_changed` → the copy's owner
  * - `member.role_changed`, `member.permissions_changed` → that member
  * - `invitation.accepted` → leaders and co-leaders
+ * - `ai_review.finished` → whoever asked for the cross-review, once all its models finished
+ *   (Phase 10; link: the submission)
  *
  * Links (web): submission types → /projects/:projectId/submissions/:submissionId; task types →
  * /projects/:projectId/tasks; copy types → /projects/:projectId/ide (or the overview); member
@@ -49,6 +51,7 @@ export const NOTIFICATION_TYPES = [
   'member.role_changed',
   'member.permissions_changed',
   'invitation.accepted',
+  'ai_review.finished',
 ] as const;
 
 export const NotificationTypeSchema = z.enum(NOTIFICATION_TYPES);
@@ -89,6 +92,14 @@ export const NotificationDataSchemas = {
   'member.role_changed': z.object({ actorName: ActorName, role: ProjectRoleSchema }),
   'member.permissions_changed': z.object({ actorName: ActorName }),
   'invitation.accepted': z.object({ userId: z.string(), userName: z.string() }),
+  'ai_review.finished': z.object({
+    ...SubmissionRef,
+    /** Reviews of this request that finished with findings, and that failed. */
+    done: z.number().int().nonnegative(),
+    failed: z.number().int().nonnegative(),
+    /** Findings across the done reviews. */
+    findingCount: z.number().int().nonnegative(),
+  }),
 } as const satisfies Record<NotificationType, z.ZodType>;
 
 const Base = {
@@ -121,6 +132,7 @@ export const NotificationViewSchema = z.discriminatedUnion('type', [
   variant('member.role_changed'),
   variant('member.permissions_changed'),
   variant('invitation.accepted'),
+  variant('ai_review.finished'),
 ]);
 
 /** GET /api/notifications?cursor= — query. `cursor` is the previous page's `nextCursor`. */

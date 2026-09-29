@@ -2,6 +2,7 @@ import type { RouteObject } from 'react-router';
 import { Layout } from './Layout';
 import { AppRoot } from '../components/LiveUpdates';
 import { RequireAuth } from '../components/RequireAuth';
+import { AiCallbackPage, AiSettingsPage } from '../pages/AiSettingsPage';
 import { HomePage } from '../pages/HomePage';
 import { InvitePage } from '../pages/InvitePage';
 import { LogInPage } from '../pages/LogInPage';
@@ -41,6 +42,8 @@ const pageRoutes: RouteObject[] = [
         element: <RequireAuth />,
         children: [
           { path: 'teams/:teamId', element: <TeamPage /> },
+          { path: 'settings/ai', element: <AiSettingsPage /> },
+          { path: 'settings/ai/callback', element: <AiCallbackPage /> },
           {
             path: 'projects/:projectId',
             element: <ProjectLayout />,

@@ -31,6 +31,26 @@ const origin = (fallback: string) =>
       }
     }, 'must be an origin like https://example.com (no path or trailing slash)');
 
+/** A comma-separated list of OpenRouter model ids (empty items dropped). */
+const modelList = (fallback: string) =>
+  z
+    .string()
+    .trim()
+    .default(fallback)
+    .transform((value) =>
+      value
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean),
+    )
+    .refine(
+      (list) => list.length > 0 && list.every((id) => /^[A-Za-z0-9._~:/-]{1,200}$/.test(id)),
+      'must be a comma-separated list of model ids',
+    );
+
+/** A fixed key for NODE_ENV=test only (never used anywhere else). */
+const TEST_AI_SECRETS_KEY = Buffer.alloc(32, 7).toString('base64');
+
 const EnvSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -49,7 +69,7 @@ const EnvSchema = z
       .default('/var/run/docker.sock')
       .refine((value) => isAbsolute(value), 'DOCKER_SOCKET must be an absolute socket path'),
     /** The IDE image (built by `npm run ide:build`). */
-    IDE_IMAGE: z.string().trim().min(1).default('devspace-ide:2'),
+    IDE_IMAGE: z.string().trim().min(1).default('devspace-ide:3'),
     /** The Docker network IDE containers join (made by `npm run ide:network`). */
     IDE_NETWORK: z.string().trim().min(1).default('devspace-ide'),
     /** The second listener, which serves only the IDE (its own site: never the app's cookies). */
@@ -63,6 +83,36 @@ const EnvSchema = z
      * `127.0.0.1` vs `localhost`; in production its own registrable domain).
      */
     IDE_ORIGIN: origin('http://127.0.0.1:3100'),
+    /**
+     * Encrypts stored AI keys (AES-256-GCM): 32 random bytes, base64 (`openssl rand -base64 32`).
+     * Required outside tests; the API and the worker refuse to start without it.
+     */
+    AI_SECRETS_KEY: z.string().trim().optional(),
+    /** Every OpenRouter call goes here (tests point it at a stand-in server). */
+    OPENROUTER_BASE_URL: origin('https://openrouter.ai'),
+    /** Models a cross-review uses when none are picked (Phase 10, owner decision). */
+    AI_DEFAULT_MODELS: modelList(
+      'qwen/qwen3.8-27b:free,nvidia/nemotron-3-ultra-550b-a55b:free,google/gemma-4-31b-it:free',
+    ),
+    /** Tried in order when a model fails (429, 5xx, timeout, empty answer). */
+    AI_FALLBACK_MODELS: modelList(
+      'poolside/laguna-s-2.1:free,nvidia/nemotron-3-super-120b-a12b:free,openrouter/free',
+    ),
+  })
+  .transform((e, ctx) => {
+    const raw = e.AI_SECRETS_KEY || (e.NODE_ENV === 'test' ? TEST_AI_SECRETS_KEY : '');
+    const key = /^[A-Za-z0-9+/]+={0,2}$/.test(raw) ? Buffer.from(raw, 'base64') : Buffer.alloc(0);
+    if (key.length !== 32) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['AI_SECRETS_KEY'],
+        message: raw
+          ? 'must be 32 bytes, base64-encoded (openssl rand -base64 32)'
+          : 'is required (32 bytes, base64: openssl rand -base64 32)',
+      });
+      return z.NEVER;
+    }
+    return { ...e, AI_SECRETS_KEY: key };
   })
   .refine(
     (e) => {

@@ -162,6 +162,19 @@ export function describeNotification(n: NotificationView): string {
       return `${n.data.actorName ?? 'Someone'} changed your permissions`;
     case 'invitation.accepted':
       return `${n.data.userName} accepted an invitation and joined`;
+    case 'ai_review.finished': {
+      const { done, failed, findingCount } = n.data;
+      if (done === 0) return `The AI review of ${quoted(n.data.title)} failed`;
+      const found =
+        findingCount === 0
+          ? 'no findings'
+          : findingCount === 1
+            ? '1 finding'
+            : `${findingCount} findings`;
+      const failures =
+        failed === 0 ? '' : failed === 1 ? ' (1 model failed)' : ` (${failed} models failed)`;
+      return `The AI review of ${quoted(n.data.title)} finished: ${found}${failures}`;
+    }
   }
 }
 
@@ -177,6 +190,7 @@ export function notificationUrl(n: NotificationView): string | null {
     case 'submission.rejected':
     case 'submission.reverted':
     case 'submission.needs_update':
+    case 'ai_review.finished':
       return `${base}/submissions/${enc(n.data.submissionId)}`;
     case 'task.assigned':
     case 'task.confirm_done':

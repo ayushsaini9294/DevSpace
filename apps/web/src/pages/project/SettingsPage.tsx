@@ -82,6 +82,7 @@ function readSettings(form: HTMLFormElement): ProjectSettings {
     membersCanBrowseCopies: data.get('membersCanBrowseCopies') === 'on',
     copyUpdateMode: data.get('copyUpdateMode') === 'manual' ? 'manual' : 'automatic',
     githubMode: data.get('githubMode') === 'keep_updated' ? 'keep_updated' : 'publish_once',
+    aiReviewEnabled: data.get('aiReviewEnabled') === 'on',
   };
 }
 
@@ -136,6 +137,14 @@ function SettingsSection({ projectId, saved }: { projectId: string; saved: Proje
             hint="Members can look at (not change) other members’ copies."
           >
             Members can browse others’ copies
+          </Choice>
+          <Choice
+            type="checkbox"
+            name="aiReviewEnabled"
+            defaultChecked={saved.aiReviewEnabled}
+            hint="Warning: when this is on, members can send a submission’s changes (code and file names) to outside AI providers through their own OpenRouter account. Free models may keep or learn from what they receive. Leave it off for code that mustn’t leave DevSpace."
+          >
+            Allow AI review (sends code to AI providers)
           </Choice>
         </div>
         <fieldset className="space-y-1">

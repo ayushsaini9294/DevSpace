@@ -1,4 +1,4 @@
-# DevSpace IDE image (devspace-ide:2): OpenVSCode Server for one member's copy.
+# DevSpace IDE image (devspace-ide:3): OpenVSCode Server for one member's copy.
 # Build with `npm run ide:build`. Started by the API through dockerode (Phase 5 contract in CLAUDE.md).
 #
 # Runtime contract:
@@ -8,7 +8,8 @@
 # - runs as any uid:gid; HOME is /tmp/devspace-home, created on start, so it is always writable.
 # - works with all capabilities dropped and no-new-privileges.
 # - includes Node.js 24 LTS and npm (cache and global installs under HOME).
-# - includes DevSpace's tracker extension (Phase 9), built by `npm run ide:build` first.
+# - includes DevSpace's tracker extension (Phase 9; Phase 10 adds "DevSpace: Send review findings"),
+#   built by `npm run ide:build` first.
 
 # Node.js 24.21.0 LTS with npm 11.19.0, pinned by digest; only its files are copied below.
 FROM node:24.21.0-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS node

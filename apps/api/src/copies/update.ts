@@ -28,7 +28,7 @@ import { prisma } from '../lib/prisma.ts';
 import { withProjectLock, type Tx } from '../merge/lock.ts';
 import { readSettings } from '../projects/access.ts';
 import { removeDir } from '../repository/storage.ts';
-import { diffCopy, readChosen } from '../submissions/scan.ts';
+import { diffCopy, isDevspacePath, readChosen } from '../submissions/scan.ts';
 import {
   CopyChangedError,
   diskEntry,
@@ -295,6 +295,7 @@ export async function planUpdate(gitDir: string, copy: CopyRow): Promise<UpdateP
     if (sameEntry(from, to)) continue;
     if (from?.mode === '160000' || to?.mode === '160000') continue; // never submodules
     if (!safeParts(path)) continue; // never `.git`, `.` or `..`
+    if (isDevspacePath(path)) continue; // never DevSpace's own folder (Phase 10)
     if (from === null) {
       // Something ignored may already sit there: the member's file wins.
       const onDisk = await diskEntry(root, path, algorithm).catch(() => 'other' as const);

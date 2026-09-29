@@ -1,7 +1,7 @@
 {
   "name": "devspace-tracker",
   "displayName": "DevSpace tracker",
-  "description": "Tells your teammates in DevSpace which file you have open and whether you are active.",
+  "description": "Tells your teammates in DevSpace which file you have open and whether you are active, and sends review findings from your IDE AI to DevSpace.",
   "publisher": "devspace",
   "version": "1.0.0",
   "private": true,
@@ -16,6 +16,15 @@
     "onStartupFinished"
   ],
   "browser": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "devspace.sendReviewFindings",
+        "title": "Send review findings",
+        "category": "DevSpace"
+      }
+    ]
+  },
   "scripts": {
     "build": "esbuild src/extension.ts --bundle --format=cjs --platform=browser --target=es2022 --external:vscode --outfile=dist/extension.js",
     "typecheck": "tsc -p tsconfig.json",

@@ -12,6 +12,7 @@ import {
   type PresenceView,
   type ServerToClientEvents,
 } from '@devspace/shared';
+import { aiKeys } from './ai';
 import { copyKeys } from './copies';
 import { setLiveConnected, useLiveStore, wantedRooms } from './liveStore';
 import { addNotification, notificationKeys } from './notifications';
@@ -29,6 +30,13 @@ type Target = { queryKey: QueryKey; exact?: boolean };
 export function targetsFor(projectId: string, key: InvalidateKey, myId: string): Target[] {
   if (key.startsWith('submission:')) {
     return [{ queryKey: submissionKeys.detail(projectId, key.slice('submission:'.length)) }];
+  }
+  if (key.startsWith('ai-reviews:')) {
+    // That submission's AI reviews; a finished review also used some of my free requests.
+    return [
+      { queryKey: aiKeys.reviews(projectId, key.slice('ai-reviews:'.length)) },
+      { queryKey: aiKeys.connection },
+    ];
   }
   if (key.startsWith('copy:')) {
     const userId = key.slice('copy:'.length);

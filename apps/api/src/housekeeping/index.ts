@@ -6,6 +6,7 @@ import { containerName, docker, isNotFound } from '../ide/docker.ts';
 import { withCopyDbLock } from '../ide/lock.ts';
 import { prisma } from '../lib/prisma.ts';
 import { deleteOldNotifications } from '../notifications/service.ts';
+import { failStuckAiReviews } from '../ai/run.ts';
 import { sendInvalidate } from '../realtime/emitter.ts';
 
 /**
@@ -152,13 +153,15 @@ export async function checkCopySizes(options: HousekeepingOptions = {}): Promise
 
 /**
  * One housekeeping run: idle IDEs first, then disk use, then (Phase 7) copies of automatic-mode
- * projects that are still behind main, then (Phase 9) notifications older than 30 days.
+ * projects that are still behind main, then (Phase 9) notifications older than 30 days, then
+ * (Phase 10) AI reviews stuck in queued or running.
  */
 export async function runHousekeeping(options: HousekeepingOptions = {}): Promise<{
   idle: IdleResult;
   disk: DiskResult;
   updates: ProjectUpdateResult;
   notificationsDeleted: number;
+  aiReviewsFailed: number;
 }> {
   const idle = await stopIdleIdes(options);
   const disk = await checkCopySizes(options);
@@ -167,5 +170,9 @@ export async function runHousekeeping(options: HousekeepingOptions = {}): Promis
     console.error('Could not delete old notifications:', err instanceof Error ? err.message : err);
     return 0;
   });
-  return { idle, disk, updates, notificationsDeleted };
+  const aiReviewsFailed = await failStuckAiReviews(options.now).catch((err: unknown) => {
+    console.error('Could not check stuck AI reviews:', err instanceof Error ? err.message : err);
+    return 0;
+  });
+  return { idle, disk, updates, notificationsDeleted, aiReviewsFailed };
 }

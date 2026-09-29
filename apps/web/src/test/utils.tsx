@@ -9,6 +9,13 @@ import {
   allowedActions,
 } from '@devspace/shared';
 import type {
+  AiConnectionView,
+  AiConnectStartResponse,
+  AiModelListResponse,
+  AiNoticeAcceptResponse,
+  AiReviewListResponse,
+  AiReviewView,
+  IdeReviewResponse,
   AcceptInvitationResponseSchema,
   ActivityListResponseSchema,
   AuthResponse,
@@ -98,7 +105,13 @@ export type StubBody =
   | NotificationListResponse
   | MarkNotificationsReadResponse
   | PresenceListResponse
-  | Preferences;
+  | Preferences
+  | AiConnectionView
+  | AiConnectStartResponse
+  | AiNoticeAcceptResponse
+  | AiModelListResponse
+  | AiReviewListResponse
+  | IdeReviewResponse;
 
 export type StubReply =
   | { status: 200 | 201 | 202; body: StubBody }
@@ -373,6 +386,44 @@ export function testNotification(
     },
     readAt: null,
     createdAt: '2026-09-28T10:00:00.000Z',
+    ...overrides,
+  };
+}
+
+// ---------- AI review (Phase 10) ----------
+
+/** My OpenRouter connection: connected, notice already accepted, 47 of 50 free requests left. */
+export function testAiConnection(overrides: Partial<AiConnectionView> = {}): AiConnectionView {
+  return {
+    connected: true,
+    provider: 'openrouter',
+    keyHint: 'a1b2',
+    connectedAt: '2026-09-28T09:00:00.000Z',
+    freeRequestsToday: { used: 3, limit: 50, remaining: 47 },
+    noticeAcceptedAt: '2026-09-28T09:00:00.000Z',
+    ...overrides,
+  };
+}
+
+/** One model's review of sub-1 version 1, asked by the test user: done, with no findings. */
+export function testAiReview(overrides: Partial<AiReviewView> = {}): AiReviewView {
+  return {
+    id: 'ai-review-1',
+    submissionId: 'sub-1',
+    version: 1,
+    requestedBy: { id: testUser.id, name: testUser.name },
+    source: 'auto',
+    model: 'qwen/qwen3.8-27b:free',
+    requestedModel: 'qwen/qwen3.8-27b:free',
+    isFree: true,
+    status: 'done',
+    findings: [],
+    parseError: false,
+    raw: null,
+    error: null,
+    errorCode: null,
+    createdAt: '2026-09-28T10:00:00.000Z',
+    finishedAt: '2026-09-28T10:01:00.000Z',
     ...overrides,
   };
 }

@@ -13,7 +13,7 @@ import {
 import { execFileSync } from 'node:child_process';
 
 // Phase 9 Done-when: teammates see "editing src/app.txt" live. The member's IDE runs DevSpace's
-// tracker extension (image devspace-ide:2), which reports the open file through the IDE's own
+// tracker extension (image devspace-ide:3), which reports the open file through the IDE's own
 // origin; the leader's project page updates over Socket.io without reloading. Also: the
 // "Share my open file" switch, and the bell going up live when a reviewer approves.
 // Needs Docker, the image (`npm run ide:build`), the IDE network and firewall, and Redis.
