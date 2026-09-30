@@ -6,9 +6,12 @@ import type { z } from 'zod';
 import {
   DEFAULT_MEMBER_PERMISSIONS,
   DEFAULT_PROJECT_SETTINGS,
+  TEMPLATES,
   allowedActions,
 } from '@devspace/shared';
 import type {
+  GettingStartedView,
+  TemplateList,
   AiConnectionView,
   AiConnectStartResponse,
   AiModelListResponse,
@@ -111,7 +114,9 @@ export type StubBody =
   | AiNoticeAcceptResponse
   | AiModelListResponse
   | AiReviewListResponse
-  | IdeReviewResponse;
+  | IdeReviewResponse
+  | TemplateList
+  | GettingStartedView;
 
 export type StubReply =
   | { status: 200 | 201 | 202; body: StubBody }
@@ -143,6 +148,9 @@ function defaultReply(key: string): StubReply | null {
   if (/^GET \/api\/projects\/[^/]+\/presence$/.test(key)) {
     return { status: 200, body: { members: [] } };
   }
+  if (key === 'GET /api/templates') return { status: 200, body: [...TEMPLATES] };
+  // The getting-started card stays out of the way unless a test gives an answer.
+  if (/^GET \/api\/projects\/[^/]+\/getting-started$/.test(key)) return 'pending';
   return null;
 }
 
@@ -249,6 +257,7 @@ export function testRepository(overrides: Partial<RepositoryStatus> = {}): Repos
   return {
     status: 'none',
     source: null,
+    template: null,
     importUrl: null,
     error: null,
     lastCommit: null,

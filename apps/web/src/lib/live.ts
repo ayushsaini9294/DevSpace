@@ -14,6 +14,7 @@ import {
 } from '@devspace/shared';
 import { aiKeys } from './ai';
 import { copyKeys } from './copies';
+import { gettingStartedKeys, touchesGettingStarted } from './gettingStarted';
 import { setLiveConnected, useLiveStore, wantedRooms } from './liveStore';
 import { addNotification, notificationKeys } from './notifications';
 import { presenceKeys, replacePresence } from './presence';
@@ -135,6 +136,10 @@ export function connectLive(queryClient: QueryClient, myId: string): () => void 
     if (!parsed.success) return;
     const { projectId, keys } = parsed.data;
     for (const key of keys) invalidate(queryClient, targetsFor(projectId, key, myId));
+    // My getting-started steps are computed from these, so re-read the checklist too.
+    if (keys.some((key) => touchesGettingStarted(key, myId))) {
+      void queryClient.invalidateQueries({ queryKey: gettingStartedKeys.view(projectId) });
+    }
   });
 
   socket.on(SOCKET_EVENTS.presence, (payload: unknown) => {

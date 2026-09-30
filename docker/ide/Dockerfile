@@ -1,4 +1,4 @@
-# DevSpace IDE image (devspace-ide:3): OpenVSCode Server for one member's copy.
+# DevSpace IDE image (devspace-ide:4): OpenVSCode Server for one member's copy.
 # Build with `npm run ide:build`. Started by the API through dockerode (Phase 5 contract in CLAUDE.md).
 #
 # Runtime contract:
@@ -10,6 +10,10 @@
 # - includes Node.js 24 LTS and npm (cache and global installs under HOME).
 # - includes DevSpace's tracker extension (Phase 9; Phase 10 adds "DevSpace: Send review findings"),
 #   built by `npm run ide:build` first.
+# - includes Python 3 with pip and venv (Phase 11); `pip install` goes to HOME (~/.local) or to a
+#   venv inside the copy.
+# - sets DEVSPACE_PREVIEW_BASE_5173, DEVSPACE_PREVIEW_BASE_8080 and DEVSPACE_PREVIEW_BASE (the 5173
+#   one) to <DEVSPACE_BASE_PATH>/__preview/<port>/, the path Preview serves an app under (Phase 11).
 
 # Node.js 24.21.0 LTS with npm 11.19.0, pinned by digest; only its files are copied below.
 FROM node:24.21.0-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS node
@@ -26,6 +30,13 @@ RUN rm -f /etc/sudoers.d/openvscode-server \
     && apt-get update \
     && apt-get install -y --no-install-recommends tini \
     && rm -rf /var/lib/apt/lists/*
+
+# Python 3 for the Python template (owner, Phase 11), from the base image's distribution
+# (Ubuntu 22.04). As a non-root uid, `pip install` falls back to a user install in HOME.
+RUN apt-get -o Acquire::Retries=5 update \
+    && apt-get -o Acquire::Retries=5 install -y --no-install-recommends python3 python3-pip python3-venv \
+    && rm -rf /var/lib/apt/lists/* \
+    && python3 --version && python3 -m pip --version
 
 # Node.js and npm for the member's terminal (owner's choice: Node 24 LTS).
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
@@ -53,10 +64,10 @@ RUN chmod -R u=rwX,go=rX $OPENVSCODE_SERVER_ROOT/extensions/devspace-tracker \
 # HOME must not be the workspace (VS Code would write its data into the member's copy) and must be
 # writable for whatever uid the API runs us as, so it lives under /tmp and is created on start.
 # npm keeps its cache in HOME (~/.npm) and installs global packages there too, since /usr/local
-# is root's.
+# is root's. pip's user installs put their commands in ~/.local/bin.
 ENV HOME=/tmp/devspace-home \
     NPM_CONFIG_PREFIX=/tmp/devspace-home/.npm-global \
-    PATH=/tmp/devspace-home/.npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    PATH=/tmp/devspace-home/.npm-global/bin:/tmp/devspace-home/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 WORKDIR /home/workspace
 EXPOSE 3000

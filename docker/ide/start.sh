@@ -33,6 +33,14 @@ umask 022
 # Keep the token out of the environment of terminals and extensions.
 unset DEVSPACE_CONNECTION_TOKEN token
 
+# Preview (Phase 11): the path DevSpace serves an app on port N under, for the member's terminals.
+# The templates read these so their pages and assets work behind that path; Vite uses
+# DEVSPACE_PREVIEW_BASE (port 5173).
+DEVSPACE_PREVIEW_BASE_5173="$base_path/__preview/5173/"
+DEVSPACE_PREVIEW_BASE_8080="$base_path/__preview/8080/"
+DEVSPACE_PREVIEW_BASE="$DEVSPACE_PREVIEW_BASE_5173"
+export DEVSPACE_PREVIEW_BASE_5173 DEVSPACE_PREVIEW_BASE_8080 DEVSPACE_PREVIEW_BASE
+
 exec "$OPENVSCODE_SERVER_ROOT/bin/openvscode-server" \
   --host 0.0.0.0 \
   --port 3000 \

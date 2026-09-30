@@ -1,14 +1,18 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import type { CopyView } from '@devspace/shared';
 import { FormAlert } from '../../components/AuthPageShell';
 import { FocusHeading, buttonStyles, linkStyle } from '../../components/ui';
-import { useCopy, useLaunchIde, useStartIde, type CopyOwner } from '../../lib/copies';
+import { HelpTip } from '../../components/HelpTip';
+import { httpOrigin, useCopy, useLaunchIde, useStartIde, type CopyOwner } from '../../lib/copies';
 import { errorCode, errorMessage, isNotFound } from '../../lib/formErrors';
 import { usePollInterval, useProjectRoom } from '../../lib/liveStore';
 import { useMembers, useProject } from '../../lib/projects';
+import { useRepository } from '../../lib/repository';
 import { newSubmissionUrl } from '../../lib/submissions';
+import { findTemplate, useTemplates } from '../../lib/templates';
 import { CopyUpdates } from './CopyUpdates';
+import { PreviewControl } from './PreviewControl';
 import { Spinner } from './repository/parts';
 
 const NO_PROJECT = 'There is no project you can open at this address.';
@@ -89,6 +93,7 @@ function IdeFrame({
   title,
   onRelaunch,
   onRestart,
+  onLaunched,
 }: {
   projectId: string;
   owner: CopyOwner;
@@ -98,6 +103,8 @@ function IdeFrame({
   onRelaunch: () => void;
   /** Start the container again (it stopped before the IDE opened). */
   onRestart: () => void;
+  /** The IDE's launch URL arrived (its origin is the IDE's site, for Preview). */
+  onLaunched: (url: string) => void;
 }) {
   const { mutate, data, error, isError, isSuccess } = useLaunchIde(projectId, owner);
 
@@ -108,6 +115,10 @@ function IdeFrame({
     launched.current = true;
     mutate();
   }, [mutate]);
+
+  useEffect(() => {
+    if (data) onLaunched(data);
+  }, [data, onLaunched]);
 
   if (isError) {
     if (errorCode(error) === 'ide_not_running') {
@@ -161,6 +172,13 @@ export function IdePage() {
   useProjectRoom(projectId);
   const members = useMembers(projectId, !own);
   const startIde = useStartIde(projectId, owner);
+  const repository = useRepository(projectId);
+  const templates = useTemplates(Boolean(repository.data?.template));
+  const previewPort =
+    findTemplate(templates.data, repository.data?.template ?? null)?.previewPort ?? null;
+  // The IDE's site, taken from its launch URL: Preview URLs must be on it.
+  const [ideOrigin, setIdeOrigin] = useState<string | null>(null);
+  const onLaunched = useCallback((url: string) => setIdeOrigin(httpOrigin(url)), []);
   const ownRefresh = usePollInterval(OWN_COPY_REFRESH_MS);
   const copy = useCopy(projectId, owner, startIde.isSuccess, own ? ownRefresh : false);
   const { mutate } = startIde;
@@ -215,6 +233,7 @@ export function IdePage() {
           title={target ? `VS Code for ${target}` : 'VS Code'}
           onRelaunch={relaunch}
           onRestart={start}
+          onLaunched={onLaunched}
         />
       );
     } else {
@@ -235,13 +254,24 @@ export function IdePage() {
 
   return (
     <div className="flex h-dvh flex-col bg-gray-50 text-gray-900">
-      <header className="flex shrink-0 items-center gap-3 border-b border-gray-200 bg-white px-4 py-2">
+      <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-gray-200 bg-white px-4 py-2">
         <Link to={back} className={`${linkStyle} shrink-0 text-sm`}>
           {own ? '← Back to the project' : '← Back to members'}
         </Link>
-        <FocusHeading className="min-w-0 flex-1 truncate text-sm font-semibold">
-          {heading}
-        </FocusHeading>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <FocusHeading className="min-w-0 truncate text-sm font-semibold">{heading}</FocusHeading>
+          {own && <HelpTip term="copy" />}
+        </div>
+        {running && (
+          <PreviewControl
+            // A template with a different port (after the repository loads) starts afresh.
+            key={previewPort ?? 'none'}
+            projectId={projectId}
+            owner={owner}
+            defaultPort={previewPort}
+            ideOrigin={ideOrigin}
+          />
+        )}
         {own && (
           <Link
             to={newSubmissionUrl(projectId)}
@@ -262,8 +292,8 @@ export function IdePage() {
       </header>
       {!own && (
         <p className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-950">
-          You’re working in {memberName ?? 'this member'}’s copy to help them. Changes you make here
-          are theirs; they are told you opened it.
+          You’re working in {memberName ?? 'this member'}’s copy (their own space to work in) to
+          help them. Changes you make here are theirs, and they are told you opened it.
         </p>
       )}
       {own && copy.data && <OwnCopyStrip projectId={projectId} copy={copy.data} />}

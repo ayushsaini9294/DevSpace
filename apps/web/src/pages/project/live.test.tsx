@@ -407,7 +407,7 @@ describe('the notification bell', () => {
           type: 'submission.needs_update',
           data: { ...sub, paths: ['a', 'b'], morePaths: 1 },
         },
-        'Your submission “Login” needs an update: it now conflicts with main in 3 files',
+        'Your submission “Login” needs an update: it now clashes with main in 3 files',
         '/projects/project-1/submissions/sub-1',
       ],
       [

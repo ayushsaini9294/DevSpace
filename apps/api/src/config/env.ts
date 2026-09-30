@@ -69,7 +69,7 @@ const EnvSchema = z
       .default('/var/run/docker.sock')
       .refine((value) => isAbsolute(value), 'DOCKER_SOCKET must be an absolute socket path'),
     /** The IDE image (built by `npm run ide:build`). */
-    IDE_IMAGE: z.string().trim().min(1).default('devspace-ide:3'),
+    IDE_IMAGE: z.string().trim().min(1).default('devspace-ide:4'),
     /** The Docker network IDE containers join (made by `npm run ide:network`). */
     IDE_NETWORK: z.string().trim().min(1).default('devspace-ide'),
     /** The second listener, which serves only the IDE (its own site: never the app's cookies). */

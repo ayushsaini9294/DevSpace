@@ -140,6 +140,7 @@ describe('repository setup', () => {
     expect(
       await screen.findByRole('heading', { level: 2, name: 'Set up the repository' }),
     ).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('radio', { name: 'Start empty' }));
     expect(screen.getByRole('radio', { name: 'Start empty' })).toBeChecked();
     expect(screen.queryByLabelText('Git link')).not.toBeInTheDocument();
 
@@ -149,6 +150,65 @@ describe('repository setup', () => {
     expect(
       SetUpRepositoryRequestSchema.parse(requestBody(fetchMock, `POST ${P}/repository`)),
     ).toEqual({ source: 'empty' });
+  });
+
+  it('offers template cards with how to run them, and sets up from the picked one', async () => {
+    const fetchMock = stubApi(
+      routes(testProject('leader'), repo(testRepository()), {
+        [`POST ${P}/repository`]: {
+          status: 202,
+          body: { repository: { ...ready, source: 'template', template: 'react' } },
+        },
+        ...tree('', [entry('README.md', 'file', 9)]),
+        ...file('README.md', { content: '# Website', size: 9 }),
+      }),
+    );
+    renderApp('/projects/project-1/files');
+
+    const html = await screen.findByRole('radio', { name: 'HTML/CSS/JS website' });
+    // The beginner-friendly website template is picked to start with.
+    expect(html).toBeChecked();
+    expect(html).toHaveAccessibleDescription(/^A simple web page with a style sheet/);
+    expect(html).toHaveAccessibleDescription(/How to run: Run npm start, then click Preview/);
+    const cards = screen.getAllByTestId('template-card');
+    expect(cards.map((card) => card.dataset.template)).toEqual([
+      'html',
+      'express',
+      'react',
+      'fullstack',
+      'python',
+      'empty',
+      'import',
+    ]);
+    expect(screen.getAllByRole('radio')).toHaveLength(7);
+
+    await userEvent.click(screen.getByRole('radio', { name: 'React + Vite' }));
+    expect(screen.getByRole('radio', { name: 'React + Vite' })).toBeChecked();
+    await userEvent.click(screen.getByRole('button', { name: 'Set up repository' }));
+
+    expect(await screen.findByRole('link', { name: 'README.md' })).toBeInTheDocument();
+    expect(
+      SetUpRepositoryRequestSchema.parse(requestBody(fetchMock, `POST ${P}/repository`)),
+    ).toEqual({ source: 'template', template: 'react' });
+  });
+
+  it('still offers Empty and Import when the templates can’t be loaded', async () => {
+    const fetchMock = stubApi(
+      routes(testProject('leader'), repo(testRepository()), {
+        'GET /api/templates': { status: 500, body: { error: 'internal', message: 'Oops.' } },
+        [`POST ${P}/repository`]: { status: 202, body: { repository: ready } },
+        ...tree('', []),
+      }),
+    );
+    renderApp('/projects/project-1/files');
+
+    expect(await screen.findByText(/The starter templates couldn’t be loaded/)).toBeInTheDocument();
+    expect(screen.getAllByRole('radio')).toHaveLength(2);
+    expect(screen.getByRole('radio', { name: 'Start empty' })).toBeChecked();
+    await userEvent.click(screen.getByRole('button', { name: 'Set up repository' }));
+    await waitFor(() =>
+      expect(requestBody(fetchMock, `POST ${P}/repository`)).toEqual({ source: 'empty' }),
+    );
   });
 
   it('tells a member that a leader sets it up', async () => {
@@ -430,10 +490,10 @@ describe('files browser', () => {
     expect(await screen.findByText("This folder doesn't exist on main")).toBeInTheDocument();
 
     await act(() => router.navigate('/projects/project-1/files/a/%2E%2E/b'));
-    expect(await screen.findByText('Invalid path')).toBeInTheDocument();
+    expect(await screen.findByText(/doesn’t point to a file or folder/)).toBeInTheDocument();
 
     await act(() => router.navigate('/projects/project-1/files/%E0%A4%A'));
-    expect(await screen.findByText('Invalid path')).toBeInTheDocument();
+    expect(await screen.findByText(/doesn’t point to a file or folder/)).toBeInTheDocument();
   });
 });
 
@@ -575,6 +635,9 @@ describe('repository helpers', () => {
     expect(describeActivity(activity('repository.created', {}))).toBe(
       'Ada Lovelace started the repository empty',
     );
+    expect(
+      describeActivity(activity('repository.created', { source: 'template', template: 'react' })),
+    ).toBe('Ada Lovelace started the project from the React + Vite template');
     expect(describeActivity(activity('repository.imported', { url }))).toBe(
       `Ada Lovelace imported the repository from ${url}`,
     );

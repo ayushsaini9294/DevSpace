@@ -1,0 +1,16 @@
+{
+  "name": "my-fullstack-app",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently --names server,client --prefix-colors blue,green \"npm run dev --workspace server\" \"npm run dev --workspace client\"",
+    "start": "npm run dev"
+  },
+  "devDependencies": {
+    "concurrently": "10.0.5"
+  }
+}

@@ -15,6 +15,12 @@ export default defineConfig(
       '**/playwright-report/**',
       '**/test-results/**',
       '**/src/generated/**',
+      // Starter templates (Phase 11): beginners' project files, copied as they are into new
+      // repositories; checked by running them (scripts/template-smoke.sh), not by our lint rules.
+      'apps/api/templates/**',
+      // Local data (gitignored): projects' repositories and members' copies, which now hold
+      // template files from dev and e2e runs.
+      '.data/**',
     ],
   },
 

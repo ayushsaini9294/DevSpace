@@ -8,6 +8,7 @@ import {
   type UpdateSubmissionRequest,
 } from '@devspace/shared';
 import { FormAlert } from '../../../components/AuthPageShell';
+import { HelpTip } from '../../../components/HelpTip';
 import { TextField } from '../../../components/TextField';
 import {
   FocusHeading,
@@ -172,8 +173,9 @@ function PickerForm({
       <fieldset className="space-y-2">
         <legend className="font-medium text-gray-900">Files to submit</legend>
         <p className="text-sm text-gray-600">
-          Files in your copy that differ from main. Only the ticked ones are submitted; the rest
-          stay in your copy.
+          The files you changed in your copy (your own space to work in), compared with main (the
+          team’s shared version). Only the ticked ones are sent for review; the rest stay in your
+          copy.
         </p>
         {pickable.length > 1 && (
           <div className="flex gap-2">
@@ -301,7 +303,8 @@ function ChangesLoader({
     return (
       <div className={`${cardStyle} space-y-2`}>
         <p className="text-gray-700">
-          Nothing to submit: no file in your copy differs from main. Change files in the IDE first.
+          Nothing to submit yet: every file in your copy is the same as in main. Open the IDE,
+          change a file and save it, then come back here.
         </p>
         <Link to={idePageUrl(projectId)} className={linkStyle}>
           Open IDE
@@ -350,9 +353,16 @@ export function NewSubmissionPage() {
   const [params] = useSearchParams();
   return (
     <section aria-labelledby="new-submission-heading" className="space-y-4">
-      <FocusHeading level={2}>
-        <span id="new-submission-heading">Submit work</span>
-      </FocusHeading>
+      <div className="flex items-center gap-2">
+        <FocusHeading level={2}>
+          <span id="new-submission-heading">Submit work</span>
+        </FocusHeading>
+        <HelpTip term="submit" />
+      </div>
+      <p className="text-gray-700">
+        Send your changes for review. After a teammate approves them, a leader merges them (adds
+        them to main).
+      </p>
       <ChangesLoader
         projectId={project.id}
         existing={null}

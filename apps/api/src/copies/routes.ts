@@ -4,8 +4,10 @@ import {
   CopyUpdatePreviewSchema,
   CopyUpdateResponseSchema,
   IdeLaunchResponseSchema,
+  PreviewLaunchRequestSchema,
 } from '@devspace/shared';
 import { recordActivity } from '../activity/log.ts';
+import { parseBody } from '../lib/validate.ts';
 import type { AuthUser } from '../auth/session.ts';
 import { requireProjectAction, type ProjectAccess } from '../projects/access.ts';
 import { createLaunchUrl } from '../ide/access.ts';
@@ -74,6 +76,27 @@ copyRouter.post('/copy/ide/launch', async (req, res) => {
   if (!copy) throw new HttpError(404, 'not_found', 'You have no copy of this project yet');
   if (copy.containerStatus !== 'running') throw ideNotRunning();
   const url = await createLaunchUrl(access.userId, copy.id);
+  res.json(IdeLaunchResponseSchema.parse({ url }));
+});
+
+/**
+ * Phase 11: a one-time link (for a new tab) to a Preview of the app running on `port` in the
+ * caller's IDE. Same rules as the IDE launch; also records that the member previewed.
+ */
+copyRouter.post('/copy/preview/launch', async (req, res) => {
+  const access = await requireProjectAction(req);
+  const { port } = parseBody(PreviewLaunchRequestSchema, req.body);
+  const copy = await prisma.copy.findUnique({
+    where: { projectId_userId: { projectId: access.project.id, userId: access.userId } },
+    select: { id: true, containerStatus: true },
+  });
+  if (!copy) throw new HttpError(404, 'not_found', 'You have no copy of this project yet');
+  if (copy.containerStatus !== 'running') throw ideNotRunning();
+  const url = await createLaunchUrl(access.userId, copy.id, port);
+  await prisma.projectMember.updateMany({
+    where: { projectId: access.project.id, userId: access.userId },
+    data: { previewedAt: new Date() },
+  });
   res.json(IdeLaunchResponseSchema.parse({ url }));
 });
 
@@ -150,6 +173,25 @@ copyRouter.post('/members/:userId/copy/ide/launch', async (req, res) => {
   const { access, owner, copy } = await memberCopy(req);
   if (copy.containerStatus !== 'running') throw ideNotRunning();
   const url = await createLaunchUrl(access.userId, copy.id);
+  await logHelp(access, owner);
+  res.json(IdeLaunchResponseSchema.parse({ url }));
+});
+
+/**
+ * Phase 11: a one-time link for the calling lead into a Preview of the member's app, which
+ * opens the same copy's IDE session, so it is logged as `copy.helped` too.
+ */
+copyRouter.post('/members/:userId/copy/preview/launch', async (req, res) => {
+  const { access, owner, copy } = await memberCopy(req);
+  const { port } = parseBody(PreviewLaunchRequestSchema, req.body);
+  if (copy.containerStatus !== 'running') throw ideNotRunning();
+  const url = await createLaunchUrl(access.userId, copy.id, port);
+  await logHelp(access, owner);
+  res.json(IdeLaunchResponseSchema.parse({ url }));
+});
+
+/** Logs a lead opening a member's copy (`copy.helped`) and tells the member. */
+async function logHelp(access: ProjectAccess, owner: { id: string; name: string }) {
   if (owner.id !== access.userId) {
     await transaction(async (tx) => {
       await recordActivity(tx, {
@@ -168,5 +210,4 @@ copyRouter.post('/members/:userId/copy/ide/launch', async (req, res) => {
       });
     });
   }
-  res.json(IdeLaunchResponseSchema.parse({ url }));
-});
+}

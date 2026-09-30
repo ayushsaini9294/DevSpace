@@ -89,7 +89,7 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      # IDE containers (Phase 5): the image (devspace-ide:3 with the tracker extension, Phases 9 and 10; built
+      # IDE containers (Phase 5): the image (devspace-ide:4 with the tracker extension, Phases 9 and 10; built
       # after npm ci because the tracker is a workspace), its network and firewall, then a check on a real
       # container that the image works when locked down and that the network is isolated. Before
       # the unit tests, so the API's real-container tests run instead of skipping.
@@ -104,6 +104,12 @@ jobs:
 
       - name: Check IDE container and isolation
         run: bash scripts/ide-check.sh
+
+      # Starter templates (Phase 11): each one runs inside the IDE image as a random uid, the way
+      # a member runs it in the IDE terminal (install, build or start, then its pages under the
+      # Preview path; Python with input).
+      - name: Template smoke tests
+        run: bash scripts/template-smoke.sh
 
       - name: Unit tests
         run: npm test

@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import type { CopyView } from '@devspace/shared';
 import { FormAlert } from '../../components/AuthPageShell';
+import { HelpTip } from '../../components/HelpTip';
 import { Loading, SuccessNote, buttonStyles } from '../../components/ui';
 import {
   useCopyUpdatePreview,
@@ -91,11 +92,15 @@ function BehindPanel({
       aria-labelledby={headingId}
       className="space-y-2 rounded-md border border-blue-200 bg-blue-50 p-3"
     >
-      <h3 id={headingId} className="font-medium text-blue-950">
-        Main has changed
-      </h3>
+      <div className="flex items-center gap-2">
+        <h3 id={headingId} className="font-medium text-blue-950">
+          Main has changed
+        </h3>
+        <HelpTip term="main" />
+      </div>
       <p className="text-sm text-gray-800">
-        Work was merged into main (or undone) since your copy was last updated.
+        Someone’s work was merged into main (the team’s shared version), or a merge was undone,
+        since your copy was last updated. Update your copy to get those changes.
       </p>
       {copy.pendingConflictPaths.length > 0 && (
         <p className="text-sm text-gray-800">
@@ -116,9 +121,9 @@ function BehindPanel({
         Update my copy
       </button>
       <p className="text-xs text-gray-600">
-        Updating writes main’s changes into your files but leaves your copy’s own Git history alone,
-        so VS Code’s Source Control panel may list main’s changes as your own edits. That’s
-        expected: DevSpace always compares your copy with main for you.
+        Updating writes main’s changes into your files. VS Code’s Source Control panel may then list
+        them as your own edits. That’s expected and harmless: DevSpace always compares your copy
+        with main for you, so only your real changes are offered in Submit work.
       </p>
     </section>
   );
@@ -132,13 +137,18 @@ function Unresolved({ paths }: { paths: string[] }) {
       aria-labelledby={headingId}
       className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3"
     >
-      <h3 id={headingId} className="font-medium text-amber-950">
-        Conflicts to fix
-      </h3>
+      <div className="flex items-center gap-2">
+        <h3 id={headingId} className="font-medium text-amber-950">
+          Clashes to fix
+        </h3>
+        <HelpTip term="clash" />
+      </div>
       <p className="text-sm text-gray-800">
-        These files still have conflict markers. In the IDE, keep the lines that should stay between{' '}
-        <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt; your copy</code> and{' '}
-        <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt; main</code>, and delete the marker lines.
+        These files still have clash markers, where your changes and main’s changed the same lines.
+        In the IDE, look between <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt; your copy</code> and{' '}
+        <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt; main</code>, keep the lines you want, and delete the
+        marker lines (the ones starting with <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code>,{' '}
+        <code>=======</code> and <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code>).
       </p>
       <PathList paths={paths} label="Files with conflict markers" />
     </section>
@@ -208,8 +218,8 @@ export function CopyUpdates({ projectId, copy }: { projectId: string; copy: Copy
           <SuccessNote>Your copy is up to date with main.</SuccessNote>
         ) : (
           <p role="status" className="text-sm font-medium text-amber-900">
-            Your copy is updated. {plural(result.length, 'file has', 'files have')} conflict markers
-            to fix.
+            Your copy is updated. {plural(result.length, 'file has', 'files have')} clash markers to
+            fix.
           </p>
         ))}
       {copy.behind && (

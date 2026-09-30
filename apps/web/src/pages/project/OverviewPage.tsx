@@ -1,6 +1,7 @@
 import { FocusHeading, cardStyle } from '../../components/ui';
 import { PERMISSION_KEYS, PERMISSION_LABELS, ROLE_LABELS } from '../../lib/labels';
 import { OverviewCopyUpdates } from './CopyUpdates';
+import { GettingStarted } from './GettingStarted';
 import { OverviewRepository } from './OverviewRepository';
 import { useProjectContext } from './ProjectLayout';
 
@@ -14,6 +15,7 @@ export function OverviewPage() {
       <FocusHeading level={2}>
         <span id="overview-heading">Overview</span>
       </FocusHeading>
+      <GettingStarted projectId={project.id} />
       <div className={`${cardStyle} space-y-3`}>
         <p className="font-medium">Your role: {ROLE_LABELS[project.myRole]}</p>
         <p className="text-gray-700">
@@ -24,7 +26,8 @@ export function OverviewPage() {
             <h3 className="font-medium">Your extra permissions</h3>
             {switchedOn.length === 0 ? (
               <p className="text-gray-700">
-                None switched on yet. A leader can switch them on for you.
+                None switched on yet. You can still work in your copy and submit work. A leader can
+                switch on more for you, such as approving other people’s work.
               </p>
             ) : (
               <ul className="list-inside list-disc text-gray-700">
@@ -36,7 +39,8 @@ export function OverviewPage() {
           </div>
         ) : (
           <p className="text-gray-700">
-            As a {ROLE_LABELS[project.myRole].toLowerCase()} you have every member permission.
+            As a {ROLE_LABELS[project.myRole].toLowerCase()} you can do everything a member can, and
+            you also merge work into main and manage the team.
           </p>
         )}
       </div>

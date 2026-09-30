@@ -2,9 +2,13 @@ import {
   FileResponseSchema,
   MAX_FILE_VIEW_BYTES,
   RepositoryResponseSchema,
+  TemplateIdSchema,
+  templateById,
   TreeResponseSchema,
+  type TemplateId,
   type TreeEntry,
 } from '@devspace/shared';
+import { templateDir, writeFolderTree } from './templates.ts';
 import { recordActivity } from '../activity/log.ts';
 import {
   initBare,
@@ -42,6 +46,7 @@ const notReady = () =>
 const repoSelect = {
   repoStatus: true,
   repoSource: true,
+  template: true,
   importUrl: true,
   repoError: true,
   repoPath: true,
@@ -59,6 +64,10 @@ export async function repositoryResponse(projectId: string) {
     repository: {
       status: row.repoStatus,
       source: row.repoSource,
+      template:
+        row.repoSource === 'template'
+          ? (TemplateIdSchema.safeParse(row.template).data ?? null)
+          : null,
       importUrl: row.importUrl,
       error: row.repoStatus === 'failed' ? row.repoError : null,
       lastCommit: commit && {
@@ -89,25 +98,62 @@ export async function setUpEmpty(
   project: { id: string; name: string },
   user: Identity & { id: string },
 ): Promise<void> {
-  await assertCanSetUp(project.id);
-  await ensureReposDir();
-  const temp = newTempDir(project.id);
-  const target = repoDir(project.id);
-  try {
-    await initBare(temp);
-    const blob = await writeBlob(temp, `# ${project.name}\n`);
-    const tree = await writeTree(temp, [
+  const origin = { source: 'empty', template: null } as const;
+  await setUpWithFirstCommit(project.id, user, origin, async (dir) => {
+    const blob = await writeBlob(dir, `# ${project.name}\n`);
+    const tree = await writeTree(dir, [
       { mode: '100644', type: 'blob', sha: blob, name: 'README.md' },
     ]);
-    const commit = await writeCommit(temp, tree, [], 'Add README.md\n', user);
+    return { tree, message: 'Add README.md\n' };
+  });
+}
+
+/**
+ * Phase 11: main starts with one commit holding exactly the template's files (executable
+ * modes kept), credited to `user`, with the message `Start from the <Name> template`.
+ */
+export async function setUpFromTemplate(
+  projectId: string,
+  user: Identity & { id: string },
+  templateId: TemplateId,
+): Promise<void> {
+  const { name } = templateById(templateId);
+  const origin = { source: 'template', template: templateId } as const;
+  await setUpWithFirstCommit(projectId, user, origin, async (dir) => {
+    const tree = await writeFolderTree(dir, templateDir(templateId));
+    if (!tree) throw new Error(`Template ${templateId} has no files`);
+    return { tree, message: `Start from the ${name} template\n` };
+  });
+}
+
+/**
+ * Creates the bare repository with one root commit on main (tree and message from `build`),
+ * credited to `user`. Built in a temporary folder and moved into place inside the transaction
+ * that marks it ready.
+ */
+async function setUpWithFirstCommit(
+  projectId: string,
+  user: Identity & { id: string },
+  origin: { source: 'empty' | 'template'; template: TemplateId | null },
+  build: (gitDir: string) => Promise<{ tree: string; message: string }>,
+): Promise<void> {
+  await assertCanSetUp(projectId);
+  await ensureReposDir();
+  const temp = newTempDir(projectId);
+  const target = repoDir(projectId);
+  try {
+    await initBare(temp);
+    const { tree, message } = await build(temp);
+    const commit = await writeCommit(temp, tree, [], message, user);
     await updateRef(temp, MAIN_REF, commit);
 
     await transaction(async (tx) => {
       const { count } = await tx.project.updateMany({
-        where: { id: project.id, repoStatus: { in: ['none', 'failed'] } },
+        where: { id: projectId, repoStatus: { in: ['none', 'failed'] } },
         data: {
           repoStatus: 'ready',
-          repoSource: 'empty',
+          repoSource: origin.source,
+          template: origin.template,
           importUrl: null,
           repoError: null,
           repoPath: target,
@@ -115,10 +161,12 @@ export async function setUpEmpty(
       });
       if (count !== 1) throw repositoryExists();
       await recordActivity(tx, {
-        projectId: project.id,
+        projectId,
         actorId: user.id,
         action: 'repository.created',
-        data: { source: 'empty' },
+        data: origin.template
+          ? { source: origin.source, template: origin.template }
+          : { source: origin.source },
       });
       await moveIntoPlace(temp, target);
     });
@@ -134,6 +182,7 @@ export async function claimImport(projectId: string, url: string): Promise<void>
     data: {
       repoStatus: 'importing',
       repoSource: 'import',
+      template: null,
       importUrl: url,
       repoError: null,
       repoPath: null,

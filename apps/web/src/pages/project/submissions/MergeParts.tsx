@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import type { MergeBlocker, SubmissionDetail } from '@devspace/shared';
+import { HelpTip } from '../../../components/HelpTip';
 import { buttonStyles, linkStyle } from '../../../components/ui';
 import { idePageUrl, useMyCopy } from '../../../lib/copies';
 import { errorCode } from '../../../lib/formErrors';
@@ -68,9 +69,9 @@ export function MergeDialog({
       onSubmit={() => merge.mutate(undefined, { onSuccess: onClose })}
     >
       <p className="text-sm text-gray-700">
-        Version {submission.version} becomes one new commit on main, credited to{' '}
-        {submission.author.name}. Everyone’s copies then get the change, either automatically or
-        when they click Update my copy. You can undo it later.
+        Version {submission.version} is added to main (the team’s shared version) as one change,
+        credited to {submission.author.name}. Everyone’s copies then get it, either automatically or
+        when they click Update my copy. You can undo it later with Undo merge.
       </p>
     </Dialog>
   );
@@ -99,8 +100,8 @@ export function RevertDialog({
       onSubmit={() => revert.mutate(undefined, { onSuccess: onClose })}
     >
       <p className="text-sm text-gray-700">
-        This adds a new commit to main that takes this merge back out. {submission.author.name}’s
-        files stay as they are in their copy, so they can fix the work and submit it again.
+        This takes this merge’s changes back out of main. {submission.author.name}’s files stay as
+        they are in their copy, so they can fix the work and submit it again.
       </p>
       {conflict && (
         <div
@@ -144,7 +145,9 @@ export function MergeInfo({ submission }: { submission: SubmissionDetail }) {
         {mergedSha && (
           <>
             {' '}
-            as commit <code className="font-mono">{shortSha(mergedSha)}</code>
+            <span className="text-xs text-gray-500">
+              (id <code className="font-mono">{shortSha(mergedSha)}</code>)
+            </span>
           </>
         )}
       </p>
@@ -161,7 +164,9 @@ export function MergeInfo({ submission }: { submission: SubmissionDetail }) {
             {revertedSha && (
               <>
                 {' '}
-                in commit <code className="font-mono">{shortSha(revertedSha)}</code>
+                <span className="text-xs text-gray-500">
+                  (id <code className="font-mono">{shortSha(revertedSha)}</code>)
+                </span>
               </>
             )}
           </p>
@@ -197,11 +202,15 @@ export function NeedsUpdatePanel({
       aria-labelledby="needs-update-heading"
       className="space-y-3 rounded-md border border-amber-300 bg-amber-50 p-3"
     >
-      <h3 id="needs-update-heading" className="font-semibold text-amber-950">
-        Needs update
-      </h3>
+      <div className="flex items-center gap-2">
+        <h3 id="needs-update-heading" className="font-semibold text-amber-950">
+          Needs update
+        </h3>
+        <HelpTip term="clash" />
+      </div>
       <p className="text-sm text-gray-800">
-        Main has changed since this was submitted, and these files now clash with it:
+        Main (the team’s shared version) has changed since this was submitted, and these files now
+        clash with it (a “conflict”): the same lines were changed in both.
       </p>
       <ul aria-label="Files that clash with main" className="list-inside list-disc text-sm">
         {submission.conflictPaths.map((path) => (

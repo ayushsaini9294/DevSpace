@@ -24,7 +24,7 @@ import {
 // and qwen and nemotron-ultra report the same place, so their findings form an agreed group.
 // The second test covers "Review with my IDE AI" and the tracker's "DevSpace: Send review
 // findings" command, run from VS Code's command palette in the reviewer's real IDE container
-// (image devspace-ide:3; needs Docker, the IDE network and firewall, and Redis).
+// (image devspace-ide:4; needs Docker, the IDE network and firewall, and Redis).
 
 const STUB = `http://127.0.0.1:${process.env.OPENROUTER_STUB_PORT || '4010'}`;
 

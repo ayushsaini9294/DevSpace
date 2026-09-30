@@ -79,6 +79,53 @@ export function useLaunchIde(projectId: string, owner: CopyOwner = null) {
 }
 
 /**
+ * POST …/copy/preview/launch `{ port }`: a one-time URL that opens the app running on that port
+ * of the copy's container, on the IDE's own site (Phase 11). Single-use like the IDE launch.
+ */
+export function useLaunchPreview(projectId: string, owner: CopyOwner = null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (port: number): Promise<string> =>
+      IdeLaunchResponseSchema.parse(
+        await apiPost(copyApi(projectId, owner, '/preview/launch'), { port }),
+      ).url,
+    gcTime: 0,
+    // The "Preview your app" step may now be done.
+    onSuccess: () =>
+      queryClient.invalidateQueries({
+        queryKey: [...queryKeys.project(projectId), 'getting-started'],
+      }),
+  });
+}
+
+/**
+ * The preview URL if it's safe to open: an absolute http(s) URL on the IDE's site (the origin
+ * the IDE itself was launched from), never the app's own origin. Null otherwise.
+ */
+export function safePreviewUrl(url: string, ideOrigin: string | null): string | null {
+  if (ideOrigin === null) return null;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+  if (parsed.origin !== ideOrigin || parsed.origin === window.location.origin) return null;
+  return parsed.href;
+}
+
+/** The origin of an absolute http(s) URL, or null. */
+export function httpOrigin(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.origin : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * POST …/copy/ide: start (or reuse) the copy's IDE container. For my own copy it also makes
  * the copy if needed; a member's copy must already exist (404 otherwise).
  */

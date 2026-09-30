@@ -82,16 +82,17 @@ The IDE is served from `127.0.0.1` on purpose. The browser treats it as a differ
 
 ## Commands
 
-| Command               | What it does                                                    |
-| --------------------- | --------------------------------------------------------------- |
-| `npm run dev`         | Starts the web app, the API and the worker                      |
-| `npm run lint`        | Runs ESLint                                                     |
-| `npm run typecheck`   | Type-checks every workspace                                     |
-| `npm test`            | Runs unit and API tests (the API tests need the database)       |
-| `npm run test:e2e`    | Runs the Playwright browser tests                               |
-| `npm run format`      | Formats the code with Prettier                                  |
-| `npm run ide:build`   | Builds the tracker extension and the IDE image `devspace-ide:3` |
-| `npm run ide:network` | Creates the Docker network IDE containers join                  |
-| `npm run ports:check` | Checks that ports 3000, 3100, 5173 and 4010 are free            |
+| Command                   | What it does                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------ |
+| `npm run dev`             | Starts the web app, the API and the worker                                     |
+| `npm run lint`            | Runs ESLint                                                                    |
+| `npm run typecheck`       | Type-checks every workspace                                                    |
+| `npm test`                | Runs unit and API tests (the API tests need the database)                      |
+| `npm run test:e2e`        | Runs the Playwright browser tests                                              |
+| `npm run format`          | Formats the code with Prettier                                                 |
+| `npm run ide:build`       | Builds the tracker extension and the IDE image `devspace-ide:4`                |
+| `npm run ide:network`     | Creates the Docker network IDE containers join                                 |
+| `npm run ports:check`     | Checks that ports 3000, 3100, 5173 and 4010 are free                           |
+| `npm run templates:smoke` | Runs every starter template inside the IDE image (needs the image and network) |
 
 The e2e tests never call OpenRouter. Playwright starts a stand-in OpenRouter (`e2e/stubs/openrouter.ts`, a test double that hands out fake keys and canned findings), points the API and the worker at it with `OPENROUTER_BASE_URL`, and gives them a throwaway `AI_SECRETS_KEY`. Outside CI Playwright reuses a dev server that is already running, which keeps its own settings, so stop `npm run dev` first (or run `CI=1 npx playwright test`).

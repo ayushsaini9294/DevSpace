@@ -58,9 +58,15 @@ export async function accessibleCopy(copyId: string, userId: string) {
 
 /**
  * Makes a launch ticket bound to (user, copy) and returns the URL that carries it. The user is
- * the copy's owner, or a lead opening a member's copy (the caller checks which).
+ * the copy's owner, or a lead opening a member's copy (the caller checks which). With
+ * `previewPort` (Phase 11) the URL lands on that port's Preview instead of the IDE:
+ * `…/ide-launch?ticket=…&next=__preview/<port>/`.
  */
-export async function createLaunchUrl(userId: string, copyId: string): Promise<string> {
+export async function createLaunchUrl(
+  userId: string,
+  copyId: string,
+  previewPort?: number,
+): Promise<string> {
   const now = new Date();
   // Housekeeping: nothing expired is ever used, so it can go.
   await prisma.ideTicket.deleteMany({ where: { expiresAt: { lt: now } } });
@@ -75,7 +81,9 @@ export async function createLaunchUrl(userId: string, copyId: string): Promise<s
   });
   const url = new URL('/ide-launch', env.IDE_ORIGIN);
   url.searchParams.set('ticket', ticket);
-  return url.toString();
+  // Slashes are fine in a query; written as-is so the link reads like the contract says.
+  const next = previewPort === undefined ? '' : `&next=__preview/${previewPort}/`;
+  return `${url.toString()}${next}`;
 }
 
 /**

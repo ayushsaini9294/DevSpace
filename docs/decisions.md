@@ -99,3 +99,33 @@ The local PostgreSQL already has a `devspace` role and database from the old pro
 - Paid models are opt-in: free by default, and an Advanced picker with a clear "uses your credits" confirmation (owner).
 - "Review with my IDE AI" puts the changes and a review instruction into the reviewer's own copy (in a `.devspace/` folder that is never submitted). A VS Code command, "DevSpace: Send review findings", sends the findings back to the submission (owner).
 - AI output is shown as plain text only. Tests and CI use a stand-in OpenRouter server; the real check uses the owner's account and real free models.
+
+## 2026-09-29: DevSpace is the team hub for any AI coding tool (owner)
+
+- DevSpace does not try to compete with AI coding tools such as Antigravity, Claude Code or Cursor. Members write code with whatever AI tool they like; DevSpace is where a team's work is reviewed (by people and by several AI models), merged safely by leaders, undone if needed, and tracked, without anyone having to learn Git.
+- A new phase is added after Phase 10: **Phase 11, Connect your own IDE**. A member connects a desktop tool (Antigravity, Claude Code, Cursor, VS Code) to their own DevSpace copy through Git with a personal token, and their pushes land in that copy; from there the normal flow applies (Submit work, review, merge). Access is limited to the member's own copy, and main still changes only through a merge. The browser IDE stays for quick edits and for members without their own tool.
+- The later phases move up by one: GitHub becomes Phase 12 and Deploy becomes Phase 13. The required per-copy IDE address fix moves with Deploy (Phase 13) and still must be done before anyone else uses DevSpace.
+- A built-in AI agent in the browser IDE (for example Cline pre-installed and connected to the member's AI account) stays an idea for after launch.
+
+## 2026-09-29: Talk to users before building more (owner)
+
+- Open question: who DevSpace is for. (A) teams that aren't Git experts, where DevSpace hides Git and connects any AI tool to a member's copy; (B) an add-on for teams already on GitHub, adding AI cross-review, tasks and presence on top of pull requests; or (C) classrooms, where a teacher sees and reviews every student's work in zero-setup IDEs.
+- Decision: finish the Phase 10 check, then pause new phases while the owner talks to 3–5 real teams. The Phase 11 "Connect your own IDE" plan stays on hold until the direction is chosen from their answers.
+
+## 2026-09-29: DevSpace is for people new to programming who don't know GitHub (owner)
+
+- Target users: beginners and teams of beginners who don't know Git or GitHub. DevSpace hides Git, needs no setup, keeps main safe through review and leader merges, and makes mistakes easy to undo. This replaces the earlier "talk to teams first" pause (the owner chose to plan now).
+- The remaining phases, in order:
+  - **Phase 11, Beginner start:** starter templates when setting up a repository (Empty, Node.js, React + Vite, Python, plain HTML/CSS/JS), each with a correct `.gitignore`; a guided first-time tour; simple wording and short help on every page.
+  - **Phase 12, Built-in AI helper:** an AI coding assistant ready in every browser IDE, connected to the member's own AI account without copying keys. How the key is kept away from others who can open the copy (such as helping leaders) is decided when the phase starts.
+  - **Phase 13, GitHub** (was Phase 12): publish once or keep updated, so beginners' projects end up on GitHub for their portfolio.
+  - **Phase 14, Deploy** (was Phase 13): hosting, HTTPS, backups, rate limits, and the required separate address for each copy's IDE before anyone else uses DevSpace.
+- "Connect your own IDE" (desktop Antigravity, Claude Code, Cursor, VS Code through Git) moves to after launch, since beginners mostly won't use it.
+
+## 2026-09-29: Beginner start (Phase 11)
+
+- Starter templates (owner): Empty, HTML/CSS/JS website, Node.js (Express), React + Vite, Full-stack (React + Express), and Python. Each comes with a simple README on how to run, preview and submit, and a correct `.gitignore`.
+- Python 3 is added to the IDE image so the Python template runs (owner).
+- A Preview button opens the app running in the member's IDE in a new tab, through DevSpace's IDE site with the same login rules as the IDE (owner). Templates are set up to work under the preview path; apps that use absolute paths may not load in Preview.
+- The first-time guide is a "Getting started" checklist on the project page whose steps tick themselves when the member really does them (owner).
+- The app stays in English for now, written in plain words for beginners with short help tips and no Git jargon (owner).

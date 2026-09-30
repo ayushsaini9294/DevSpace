@@ -8,7 +8,7 @@ import http, {
 } from 'node:http';
 import net from 'node:net';
 import type { Duplex } from 'node:stream';
-import { MAX_IDE_FINDINGS_BYTES, PresenceReportSchema } from '@devspace/shared';
+import { isPreviewPort, MAX_IDE_FINDINGS_BYTES, PresenceReportSchema } from '@devspace/shared';
 import { receiveIdeFindings } from '../ai/ide-review.ts';
 import { getRedis } from '../realtime/redis.ts';
 import { env } from '../config/env.ts';
@@ -22,7 +22,7 @@ import {
   vscodeTokenCookieHeader,
 } from './access.ts';
 import { CONTAINER_PORT } from './docker.ts';
-import { forgetIdeTarget, getIdeTarget, recordIdeActivity, type IdeTarget } from './service.ts';
+import { forgetIdeTarget, getIdeTarget, recordIdeActivity } from './service.ts';
 
 /**
  * The IDE site: a separate listener (IDE_PORT, public address IDE_ORIGIN, a different site from
@@ -74,6 +74,8 @@ const DROPPED_RESPONSE_HEADERS = new Set([
   'upgrade',
   'set-cookie',
   'x-frame-options',
+  // A member's app must not wipe the IDE site's cookies or storage either (Phase 11 Preview).
+  'clear-site-data',
 ]);
 
 /**
@@ -101,16 +103,46 @@ function connectionListed(headers: IncomingHttpHeaders): Set<string> {
   );
 }
 
-/** What the container receives: the request's headers minus credentials, plus the token. */
-export function forwardHeaders(headers: IncomingHttpHeaders, token: string): OutgoingHttpHeaders {
+/**
+ * What the container receives: the request's headers minus credentials, plus VS Code's token
+ * (null for a Preview request: the member's own app never gets any cookie or token).
+ */
+export function forwardHeaders(
+  headers: IncomingHttpHeaders,
+  token: string | null,
+): OutgoingHttpHeaders {
   const listed = connectionListed(headers);
   const out: OutgoingHttpHeaders = {};
   for (const [name, value] of Object.entries(headers)) {
     if (value === undefined || DROPPED_REQUEST_HEADERS.has(name) || listed.has(name)) continue;
     out[name] = value;
   }
-  out.cookie = `vscode-tkn=${token}`;
+  if (token !== null) out.cookie = `vscode-tkn=${token}`;
   return out;
+}
+
+/**
+ * `/ide/<copyId>/__preview/<port>` (bare: no slash after the port) or `…/<port>/…`, for a port
+ * a member's app may use (1024–65535 except 3000, written without leading zeros). Null when
+ * the path isn't a preview path; `port: null` when it is one but the port isn't allowed.
+ */
+export function parsePreviewPath(
+  pathname: string,
+  copyId: string,
+): { port: number | null; bare: boolean } | null {
+  const prefix = `/ide/${copyId}/__preview/`;
+  if (!pathname.startsWith(prefix)) return null;
+  const rest = pathname.slice(prefix.length);
+  const slash = rest.indexOf('/');
+  const text = slash === -1 ? rest : rest.slice(0, slash);
+  const port = /^[1-9][0-9]{0,4}$/.test(text) ? Number(text) : NaN;
+  return { port: isPreviewPort(port) ? port : null, bare: slash === -1 };
+}
+
+/** The allow-list for /ide-launch's `next`: only `__preview/<allowed port>/`. */
+export function previewNext(next: string): string | null {
+  const match = /^__preview\/([1-9][0-9]{0,4})\/$/.exec(next);
+  return match && isPreviewPort(Number(match[1])) ? next : null;
 }
 
 function responseHeaders(headers: IncomingHttpHeaders): OutgoingHttpHeaders {
@@ -154,8 +186,13 @@ const PLAIN_MESSAGES: Record<number, string> = {
   503: "The IDE isn't running. Open it again from the project.",
 };
 
-function plain(res: ServerResponse, status: number): void {
-  const body = `${PLAIN_MESSAGES[status] ?? STATUS_CODES[status] ?? ''}\n`;
+/** The Preview page when nothing answers on the port (Phase 11). */
+function nothingRunning(port: number): string {
+  return `Nothing is running on port ${port} yet. Start your app in the IDE terminal (see README).`;
+}
+
+function plain(res: ServerResponse, status: number, message?: string): void {
+  const body = `${message ?? PLAIN_MESSAGES[status] ?? STATUS_CODES[status] ?? ''}\n`;
   res.writeHead(status, {
     'content-type': 'text/plain; charset=utf-8',
     'content-length': Buffer.byteLength(body),
@@ -168,6 +205,11 @@ function plain(res: ServerResponse, status: number): void {
 
 async function launch(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
   if (req.method !== 'GET') return plain(res, 404);
+  // Where to land inside the copy's path: the IDE, or (Phase 11) one preview port. Anything
+  // else is refused before the ticket is used up.
+  const rawNext = url.searchParams.get('next');
+  const next = rawNext === null ? '' : previewNext(rawNext);
+  if (next === null) return plain(res, 404);
   const ticket = url.searchParams.get('ticket');
   const session = ticket ? await redeemTicket(ticket) : null;
   if (!session) return plain(res, 404);
@@ -175,7 +217,7 @@ async function launch(req: IncomingMessage, res: ServerResponse, url: URL): Prom
   const target = await getIdeTarget(session.copyId);
   if (target) cookies.push(vscodeTokenCookieHeader(target.token, session.copyId));
   res.writeHead(303, {
-    location: `/ide/${session.copyId}/`,
+    location: `/ide/${session.copyId}/${next}`,
     'set-cookie': cookies,
     'cache-control': 'no-store',
     // The ticket is in this URL: never pass it on.
@@ -370,25 +412,54 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   if (isDevspacePath(url.pathname, parsed.copyId)) {
     return devspacePath(req, res, url, parsed.copyId);
   }
+  const preview = parsePreviewPath(url.pathname, parsed.copyId);
+  // A port nobody may preview (3000 is VS Code itself, or out of range): the same plain 404.
+  if (preview && preview.port === null) return plain(res, 404);
   const copy = await cookieCopy(req, parsed.copyId);
   if (!copy) return plain(res, 404);
+  if (preview?.bare) {
+    res.writeHead(308, {
+      location: `${url.pathname}/${url.search}`,
+      'content-length': 0,
+      'content-security-policy': frameAncestors(),
+    });
+    res.end();
+    return;
+  }
   if (copy.containerStatus !== 'running') return plain(res, 503);
   const target = await getIdeTarget(copy.id);
   if (!target) return plain(res, 503);
   recordIdeActivity(copy.id);
+  const port = preview?.port ?? CONTAINER_PORT;
 
   const upstream = http.request({
     host: target.ip,
-    port: CONTAINER_PORT,
+    port,
     method: req.method,
+    // The full path: the templates are built to be served under their preview path.
     path: raw,
-    headers: forwardHeaders(req.headers, target.token),
+    headers: forwardHeaders(req.headers, preview ? null : target.token),
   });
+  let connectTimer: NodeJS.Timeout | undefined;
+  if (preview) {
+    // A port nobody listens on is usually refused at once; this covers a silent drop too.
+    connectTimer = setTimeout(() => upstream.destroy(new Error('connect timeout')), 10_000);
+    upstream.on('socket', (socket) => {
+      socket.once('connect', () => clearTimeout(connectTimer));
+    });
+  }
   upstream.on('response', (answer) => {
+    clearTimeout(connectTimer);
     res.writeHead(answer.statusCode ?? 502, responseHeaders(answer.headers));
     answer.pipe(res);
   });
   upstream.on('error', () => {
+    clearTimeout(connectTimer);
+    if (preview) {
+      if (!res.headersSent) plain(res, 502, nothingRunning(port));
+      else res.destroy();
+      return;
+    }
     forgetIdeTarget(copy.id);
     if (!res.headersSent) plain(res, 502);
     else res.destroy();
@@ -411,9 +482,12 @@ function refuse(socket: Duplex, status: number): void {
   );
 }
 
-/** The upgrade request as the container sees it: same line, filtered headers, the token. */
-function upgradeRequest(req: IncomingMessage, target: IdeTarget): string {
-  const headers = forwardHeaders(req.headers, target.token);
+/**
+ * The upgrade request as the container sees it: same line, filtered headers, and VS Code's
+ * token (never for a Preview, whose app gets no credentials).
+ */
+function upgradeRequest(req: IncomingMessage, token: string | null): string {
+  const headers = forwardHeaders(req.headers, token);
   headers.connection = 'Upgrade';
   headers.upgrade = req.headers.upgrade ?? 'websocket';
   let text = `${req.method ?? 'GET'} ${req.url ?? '/'} HTTP/1.1\r\n`;
@@ -429,7 +503,10 @@ async function handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer)
   if (!parsed || parsed.bare) return refuse(socket, 404);
   const path = (req.url ?? '').split('?', 1)[0]!;
   if (isDevspacePath(path, parsed.copyId)) return refuse(socket, 404);
-  // Only VS Code's own page on the IDE site may open its WebSockets.
+  const preview = parsePreviewPath(path, parsed.copyId);
+  if (preview && (preview.port === null || preview.bare)) return refuse(socket, 404);
+  // Only pages on the IDE site (VS Code, or a Preview of the member's app, e.g. Vite's live
+  // reload) may open these WebSockets.
   if (req.headers.origin !== env.IDE_ORIGIN) return refuse(socket, 403);
   const copy = await cookieCopy(req, parsed.copyId);
   if (!copy) return refuse(socket, 404);
@@ -439,15 +516,23 @@ async function handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer)
   if (socket.destroyed) return;
   recordIdeActivity(copy.id);
 
-  const upstream = net.connect(CONTAINER_PORT, target.ip);
+  const upstream = net.connect(preview?.port ?? CONTAINER_PORT, target.ip);
+  let connected = false;
   upstream.once('connect', () => {
-    upstream.write(upgradeRequest(req, target));
+    connected = true;
+    upstream.write(upgradeRequest(req, preview ? null : target.token));
     if (head.length > 0) upstream.write(head);
     upstream.pipe(socket);
     socket.pipe(upstream);
     socket.on('data', () => recordIdeActivity(copy.id));
   });
   upstream.on('error', () => {
+    if (preview) {
+      // Nothing listening on that port: say so plainly instead of dropping the connection.
+      if (!connected) refuse(socket, 502);
+      else socket.destroy();
+      return;
+    }
     forgetIdeTarget(copy.id);
     socket.destroy();
   });

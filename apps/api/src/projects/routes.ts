@@ -34,6 +34,7 @@ import { nameOf, notify } from '../notifications/service.ts';
 import { closeProjectRoom, removeUserFromProject } from '../realtime/emitter.ts';
 import { forgetPresence, listPresence } from '../realtime/presence.ts';
 import { forbidden, readPermissions, requireProjectAction } from './access.ts';
+import { gettingStartedRouter } from './getting-started.ts';
 import { memberSelect, projectResponse, toMember, toProjectSummary } from './views.ts';
 import { transaction } from '../lib/transaction.ts';
 
@@ -49,6 +50,7 @@ projectsRouter.use('/:projectId', copyRouter);
 projectsRouter.use('/:projectId', submissionsRouter);
 projectsRouter.use('/:projectId', aiSubmissionRouter);
 projectsRouter.use('/:projectId', tasksRouter);
+projectsRouter.use('/:projectId', gettingStartedRouter);
 
 projectsRouter.get('/', async (req, res) => {
   const user = req.user as AuthUser;

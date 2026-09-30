@@ -8,3 +8,6 @@ package-lock.json
 **/src/generated
 docs/*.pdf
 docs/build-plan.html
+# Starter templates (Phase 11): copied as they are into beginners' repositories; checked by
+# running them (scripts/template-smoke.sh) instead.
+apps/api/templates

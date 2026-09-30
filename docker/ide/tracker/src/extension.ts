@@ -1,4 +1,4 @@
-// devspace-tracker: DevSpace's own web extension, pre-installed in the IDE image (devspace-ide:3).
+// devspace-tracker: DevSpace's own web extension, pre-installed in the IDE image (devspace-ide:4).
 // It runs in VS Code's extension host worker in the member's browser, on the IDE origin. It posts
 // `{ file, active }` to this IDE's presence endpoint (Phase 9) and, when the member runs
 // "DevSpace: Send review findings" (Phase 10), a review folder's findings to the review-findings

@@ -77,6 +77,42 @@ export const CopyResponseSchema = z.object({ copy: CopyViewSchema.nullable() });
  */
 export const IdeLaunchResponseSchema = z.object({ url: z.url({ protocol: /^https?$/ }) });
 
+// ---------- Preview (Phase 11) ----------
+
+/** VS Code itself listens on this port inside the IDE container, so it can never be previewed. */
+export const PREVIEW_RESERVED_PORT = 3000;
+export const PREVIEW_MIN_PORT = 1024;
+export const PREVIEW_MAX_PORT = 65535;
+
+export function isPreviewPort(port: number): boolean {
+  return (
+    Number.isInteger(port) &&
+    port >= PREVIEW_MIN_PORT &&
+    port <= PREVIEW_MAX_PORT &&
+    port !== PREVIEW_RESERVED_PORT
+  );
+}
+
+/** A port a member's app may be previewed on: 1024–65535, except 3000. */
+export const PreviewPortSchema = z
+  .number()
+  .int()
+  .refine(isPreviewPort, 'Pick a port from 1024 to 65535 (3000 is used by the IDE)');
+
+/**
+ * POST /api/projects/:projectId/copy/preview/launch — the copy's owner, while its IDE is
+ * `running` (else 409 `ide_not_running`; 404 `not_found` with no copy or for non-members).
+ * → IdeLaunchResponse whose `url` is `<IDE_ORIGIN>/ide-launch?ticket=…&next=__preview/<port>/`.
+ * Open it in a new tab (the ticket works once, within 60 s). It lands on
+ * `<IDE_ORIGIN>/ide/<copyId>/__preview/<port>/`, which shows the app running on that port in
+ * the container, or a plain "Nothing is running on port N yet" page. Also records that you
+ * previewed (getting-started step `preview`).
+ *
+ * POST /api/projects/:projectId/members/:userId/copy/preview/launch — the same for a lead
+ * (`copy.helpFixConflict`) on a member's copy; logged as `copy.helped` like an IDE launch.
+ */
+export const PreviewLaunchRequestSchema = z.object({ port: PreviewPortSchema });
+
 // ---------- Updating a copy to the new main (Phase 7) ----------
 
 /**
@@ -137,6 +173,7 @@ export type CopyHelper = z.infer<typeof CopyHelperSchema>;
 export type CopyUpdatePreview = z.infer<typeof CopyUpdatePreviewSchema>;
 export type CopyUpdateResponse = z.infer<typeof CopyUpdateResponseSchema>;
 export type IdeLaunchResponse = z.infer<typeof IdeLaunchResponseSchema>;
+export type PreviewLaunchRequest = z.infer<typeof PreviewLaunchRequestSchema>;
 export type CopyContainerStatus = z.infer<typeof CopyContainerStatusSchema>;
 export type CopyView = z.infer<typeof CopyViewSchema>;
 export type CopyResponse = z.infer<typeof CopyResponseSchema>;

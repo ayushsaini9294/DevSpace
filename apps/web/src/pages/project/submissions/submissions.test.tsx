@@ -144,7 +144,7 @@ describe('Submissions list', () => {
     );
     const { router } = renderApp('/projects/project-1/submissions');
 
-    expect(await screen.findByText(/No open submissions/)).toBeInTheDocument();
+    expect(await screen.findByText(/Nothing is waiting for review/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Active' })).toHaveAttribute('aria-pressed', 'true');
     await user.click(screen.getByRole('button', { name: 'All' }));
     expect(await screen.findByText('Closed')).toBeInTheDocument();
@@ -669,8 +669,8 @@ describe('Review page', () => {
     expect(thread).toHaveTextContent('Outdated');
     expect(thread).toHaveTextContent('Blurry');
     expect(thread).toHaveTextContent('Fixed now');
-    expect(screen.getByText(/Stale: given before the latest update/)).toBeInTheDocument();
-    expect(await screen.findByText(/This file is binary/)).toBeInTheDocument();
+    expect(screen.getByText(/Out of date: given before the latest update/)).toBeInTheDocument();
+    expect(await screen.findByText(/This file isn’t text/)).toBeInTheDocument();
     expect(screen.queryByTestId('diff-mock')).not.toBeInTheDocument();
   });
 

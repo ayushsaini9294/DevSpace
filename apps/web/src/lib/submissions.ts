@@ -124,6 +124,10 @@ function submissionChanged(
     queryClient.invalidateQueries({ queryKey: submissionKeys.changes(projectId) }),
     queryClient.invalidateQueries({ queryKey: submissionKeys.tasks(projectId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.activity(projectId) }),
+    // The getting-started "Submit work" step may now be done.
+    queryClient.invalidateQueries({
+      queryKey: [...queryKeys.project(projectId), 'getting-started'],
+    }),
   ]);
 }
 
@@ -311,8 +315,8 @@ export function submissionErrorMessage(error: unknown): string {
     case 'merge_conflict': {
       const { paths } = errorDetails(error);
       return paths.length
-        ? `This submission now conflicts with main in: ${paths.join(', ')}. Its author needs to update it before it can be merged.`
-        : 'This submission now conflicts with main. Its author needs to update it before it can be merged.';
+        ? `This submission now clashes with main in: ${paths.join(', ')}. Its author needs to update it before it can be merged.`
+        : 'This submission now clashes with main. Its author needs to update it before it can be merged.';
     }
     case 'already_in_main':
       return 'Main already has these changes, so merging would change nothing.';

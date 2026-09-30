@@ -12,3 +12,5 @@ export * from './notifications.ts';
 export * from './presence.ts';
 export * from './realtime.ts';
 export * from './ai.ts';
+export * from './templates.ts';
+export * from './getting-started.ts';

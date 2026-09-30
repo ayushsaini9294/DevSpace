@@ -603,7 +603,7 @@ describe.skipIf(!available.ide)(
         expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
         expect(row.containerId).toBe(info.Id);
         expect(info.Name).toBe(`/devspace-ide-${copy.id}`);
-        expect(info.Config.Image).toBe('devspace-ide:3');
+        expect(info.Config.Image).toBe('devspace-ide:4');
         expect(info.Config.Labels).toMatchObject({
           'devspace.copy': copy.id,
           'devspace.project': project.id,

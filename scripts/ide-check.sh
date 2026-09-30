@@ -3,11 +3,11 @@
 # it (Phase 5 contract): random uid:gid, all capabilities dropped, no-new-privileges, 1 CPU,
 # 2 GB memory without extra swap, 512 pids, only a temp folder mounted, network devspace-ide.
 #
-# Needs: image devspace-ide:3 (npm run ide:build), scripts/ide-network.sh and, as root,
+# Needs: image devspace-ide:4 (npm run ide:build), scripts/ide-network.sh and, as root,
 # scripts/ide-firewall.sh. Exits non-zero on the first failed check. Used in CI.
 set -euo pipefail
 
-IMAGE=devspace-ide:3
+IMAGE=devspace-ide:4
 NETWORK=devspace-ide
 RUN_ID="check-$$"
 IDE="devspace-ide-$RUN_ID"
@@ -78,6 +78,31 @@ expect "npm install in the copy (cache in HOME)" installed "$(docker exec "$IDE"
 expect "npm install -g goes to HOME" installed "$(docker exec "$IDE" sh -c \
   'npm install -g --no-audit --no-fund is-number@7.0.0 >/dev/null 2>&1 \
    && [ -d "$HOME/.npm-global/lib/node_modules/is-number" ] && echo installed || echo failed')"
+
+# Python (Phase 11): python3, pip to HOME, and a venv inside the copy, all as the random uid.
+expect "Python 3" "Python 3" "$(docker exec "$IDE" sh -c 'python3 --version | cut -d. -f1')"
+expect "pip install goes to HOME (~/.local)" installed "$(docker exec "$IDE" sh -c \
+  'python3 -m pip install --no-cache-dir --disable-pip-version-check six==1.17.0 >/dev/null 2>&1 \
+   && python3 -c "import six, os; assert six.__file__.startswith(os.environ[\"HOME\"] + \"/.local/\")" \
+   && echo installed || echo failed')"
+expect "a venv in the copy, with pip" installed "$(docker exec "$IDE" sh -c \
+  'cd /home/workspace && python3 -m venv .venv >/dev/null 2>&1 \
+   && .venv/bin/pip install --no-cache-dir --disable-pip-version-check six==1.17.0 >/dev/null 2>&1 \
+   && .venv/bin/python -c "import six; assert six.__file__.startswith(\"/home/workspace/.venv/\")" \
+   && echo installed || echo failed')"
+
+# Preview (Phase 11): the server (the first process after tini), and so every terminal, has the
+# preview paths; the connection token stays out of its environment.
+server_env() {
+  docker exec "$IDE" sh -c 'pid="$(ls /proc | grep -E "^[0-9]+$" | sort -n | sed -n 2p)"; tr "\0" "\n" <"/proc/$pid/environ"'
+}
+expect "DEVSPACE_PREVIEW_BASE_8080 in the server's env" "DEVSPACE_PREVIEW_BASE_8080=$BASE_PATH/__preview/8080/" \
+  "$(server_env | grep '^DEVSPACE_PREVIEW_BASE_8080=' || true)"
+expect "DEVSPACE_PREVIEW_BASE_5173 in the server's env" "DEVSPACE_PREVIEW_BASE_5173=$BASE_PATH/__preview/5173/" \
+  "$(server_env | grep '^DEVSPACE_PREVIEW_BASE_5173=' || true)"
+expect "DEVSPACE_PREVIEW_BASE is the 5173 one" "DEVSPACE_PREVIEW_BASE=$BASE_PATH/__preview/5173/" \
+  "$(server_env | grep '^DEVSPACE_PREVIEW_BASE=' || true)"
+expect "no connection token in the server's env" 0 "$(server_env | grep -c '^DEVSPACE_CONNECTION_TOKEN=' || true)"
 
 expect "tracker extension installed outside HOME" yes "$(docker exec "$IDE" sh -c   '[ -f "$OPENVSCODE_SERVER_ROOT/extensions/devspace-tracker/dist/extension.js" ] && grep -q "\"name\": \"devspace-tracker\"" "$OPENVSCODE_SERVER_ROOT/extensions/devspace-tracker/package.json" && echo yes || echo no')"
 expect "the member cannot move or delete the tracker" kept "$(docker exec "$IDE" sh -c   'd="$OPENVSCODE_SERVER_ROOT/extensions"; mv "$d/devspace-tracker" "$d/moved" 2>/dev/null; rm -rf "$d/devspace-tracker" 2>/dev/null;    [ -f "$d/devspace-tracker/dist/extension.js" ] && echo kept || echo gone')"

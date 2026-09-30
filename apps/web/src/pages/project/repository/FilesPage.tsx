@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import type { RepositoryStatus, TreeEntry } from '@devspace/shared';
 import { FormAlert } from '../../../components/AuthPageShell';
+import { HelpTip } from '../../../components/HelpTip';
 import { FocusHeading, LoadError, Loading, cardStyle, linkStyle } from '../../../components/ui';
 import { ApiError } from '../../../lib/api';
 import { errorCode } from '../../../lib/formErrors';
@@ -165,6 +166,10 @@ export function FilesPage() {
           <FocusHeading level={2}>
             <span id="files-heading">Files</span>
           </FocusHeading>
+          <p className="text-sm text-gray-700">
+            These are the files in main (the team’s shared version) <HelpTip term="main" />. You can
+            read them here. To change them, open your copy in the IDE from the Overview.
+          </p>
           {path === null ? (
             <InvalidPath />
           ) : (

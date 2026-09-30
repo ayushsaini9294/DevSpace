@@ -1,6 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { RepoPathSchema, SetUpRepositoryRequestSchema } from '@devspace/shared';
+import {
+  RepoPathSchema,
+  SetUpRepositoryRequestSchema,
+  TemplateListSchema,
+  TEMPLATES,
+} from '@devspace/shared';
 import type { AuthUser } from '../auth/session.ts';
 import { parseBody } from '../lib/validate.ts';
 import { requireProjectAction } from '../projects/access.ts';
@@ -10,8 +15,16 @@ import {
   fileResponse,
   repositoryResponse,
   setUpEmpty,
+  setUpFromTemplate,
   treeResponse,
 } from './service.ts';
+
+/** GET /api/templates (mounted after requireAuth): the starter templates, in order. */
+export const templatesRouter = Router();
+
+templatesRouter.get('/', (_req, res) => {
+  res.json(TemplateListSchema.parse(TEMPLATES));
+});
 
 /** Mounted at /api/projects/:projectId (after requireAuth). */
 export const repositoryRouter = Router({ mergeParams: true });
@@ -26,6 +39,8 @@ repositoryRouter.post('/repository', async (req, res) => {
   const projectId = access.project.id;
   if (request.source === 'empty') {
     await setUpEmpty(access.project, user);
+  } else if (request.source === 'template') {
+    await setUpFromTemplate(projectId, user, request.template);
   } else {
     await claimImport(projectId, request.url);
     startImport(projectId, request.url, user.id);

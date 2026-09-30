@@ -11,7 +11,7 @@ export function LazyDiffViewer(props: DiffViewerProps) {
       <Suspense
         fallback={
           <p role="status" className="p-3 text-sm text-gray-600">
-            Loading diff…
+            Loading the changes…
           </p>
         }
       >

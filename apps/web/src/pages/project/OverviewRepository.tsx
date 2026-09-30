@@ -1,4 +1,5 @@
 import { Link } from 'react-router';
+import { HelpTip } from '../../components/HelpTip';
 import { LoadError, Loading, buttonStyles, cardStyle, linkStyle } from '../../components/ui';
 import { canOpenIde, idePageUrl } from '../../lib/copies';
 import { filesUrl, useRepository } from '../../lib/repository';
@@ -40,6 +41,12 @@ export function OverviewRepository() {
               Browse files
             </Link>
           </div>
+          {canOpenIde(project, repository.data) && (
+            <p className="text-sm text-gray-600">
+              Open IDE opens your copy (your own space to work in) in VS Code, right in the browser.{' '}
+              <HelpTip term="copy" />
+            </p>
+          )}
         </>
       );
     } else if (status === 'importing') {

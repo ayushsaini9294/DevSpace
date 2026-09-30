@@ -1,4 +1,9 @@
-import type { ActivityEntry, PermissionKey, ProjectRole } from '@devspace/shared';
+import {
+  TEMPLATES,
+  type ActivityEntry,
+  type PermissionKey,
+  type ProjectRole,
+} from '@devspace/shared';
 
 export const ROLE_LABELS: Record<ProjectRole, string> = {
   leader: 'Leader',
@@ -82,8 +87,12 @@ export function describeActivity(entry: ActivityEntry): string {
       return `${actor} changed ${who}’s permissions`;
     case 'ownership.transferred':
       return `${actor} made ${who} the leader`;
-    case 'repository.created':
-      return `${actor} started the repository empty`;
+    case 'repository.created': {
+      const template = TEMPLATES.find((t) => t.id === dataString(data, 'template'));
+      return template && template.id !== 'empty'
+        ? `${actor} started the project from the ${template.name} template`
+        : `${actor} started the repository empty`;
+    }
     case 'repository.imported': {
       const url = dataString(data, 'url', 'importUrl') ?? entry.target;
       return url

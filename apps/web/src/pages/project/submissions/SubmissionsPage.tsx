@@ -1,4 +1,5 @@
 import { Link, useSearchParams } from 'react-router';
+import { HelpTip } from '../../../components/HelpTip';
 import {
   FocusHeading,
   LoadError,
@@ -59,8 +60,8 @@ export function SubmissionsPage() {
     body = (
       <p className={`${cardStyle} text-gray-700`}>
         {filter === 'active'
-          ? 'No open submissions. Change files in your copy with Open IDE, then submit them for review.'
-          : 'No submissions yet.'}
+          ? 'Nothing is waiting for review. To send your own work: open the IDE from the Overview, change some files in your copy, then click Submit work.'
+          : 'No submissions yet. When someone clicks Submit work, their changes show up here for review.'}
       </p>
     );
   } else {
@@ -100,9 +101,12 @@ export function SubmissionsPage() {
   return (
     <section aria-labelledby="submissions-heading" className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <FocusHeading level={2}>
-          <span id="submissions-heading">Submissions</span>
-        </FocusHeading>
+        <div className="flex items-center gap-2">
+          <FocusHeading level={2}>
+            <span id="submissions-heading">Submissions</span>
+          </FocusHeading>
+          <HelpTip term="submit" />
+        </div>
         <Link to={newSubmissionUrl(project.id)} className={buttonStyles.primary}>
           Submit work
         </Link>

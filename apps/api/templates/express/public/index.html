@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Express app</title>
+    <style>
+      body {
+        max-width: 40rem;
+        margin: 4rem auto;
+        padding: 0 1rem;
+        font-family: system-ui, sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Hello from my Express app!</h1>
+    <p>This page is in <code>public/index.html</code>. The server is in <code>src/index.js</code>.</p>
+    <p>The server says: <strong id="message">loading…</strong></p>
+    <script>
+      // "api/hello" has no "/" at the start, so it also works inside Preview.
+      fetch('api/hello')
+        .then((res) => res.json())
+        .then((data) => {
+          document.getElementById('message').textContent = data.message;
+        })
+        .catch(() => {
+          document.getElementById('message').textContent = 'Could not reach the server.';
+        });
+    </script>
+  </body>
+</html>

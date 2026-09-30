@@ -302,6 +302,15 @@ export function forgetIdeTarget(copyId: string): void {
   targets.delete(copyId);
 }
 
+/**
+ * Tests only: point a copy's IDE traffic at a stand-in address (a local test server), so the
+ * proxy's rules can be checked without Docker.
+ */
+export function setIdeTargetForTests(copyId: string, target: IdeTarget): void {
+  if (env.NODE_ENV !== 'test') throw new Error('setIdeTargetForTests is for tests only');
+  targets.set(copyId, target);
+}
+
 /** Tests only: forget when activity was last written, so the next use writes again. */
 export function forgetIdeActivityWrite(copyId: string): void {
   lastActivityWrite.delete(copyId);

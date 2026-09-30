@@ -165,7 +165,7 @@ describe('Merge on the review page', () => {
     await user.click(await screen.findByRole('button', { name: 'Merge' }));
     await user.click(screen.getByRole('button', { name: 'Merge into main' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'This submission now conflicts with main in: src/app.ts.',
+      'This submission now clashes with main in: src/app.ts.',
     );
   });
 
@@ -346,7 +346,7 @@ describe('Update my copy on the overview', () => {
     const region = await screen.findByRole('region', { name: 'Main has changed' });
     expect(await within(region).findByText(/1 file clashes with main/)).toBeInTheDocument();
     expect(region).toHaveTextContent('wasn’t updated automatically');
-    expect(region).toHaveTextContent('Source Control panel may list main’s changes');
+    expect(region).toHaveTextContent('Source Control panel may then list them');
 
     await user.click(within(region).getByRole('button', { name: 'Update my copy' }));
 
@@ -356,7 +356,7 @@ describe('Update my copy on the overview', () => {
         .getAllByRole('listitem')
         .map((li) => li.textContent),
     ).toEqual(['src/app.ts']);
-    expect(screen.getByRole('status')).toHaveTextContent('1 file has conflict markers to fix');
+    expect(screen.getByRole('status')).toHaveTextContent('1 file has clash markers to fix');
     expect(screen.queryByRole('region', { name: 'Main has changed' })).not.toBeInTheDocument();
     expect(
       fetchMock.mock.calls.filter(

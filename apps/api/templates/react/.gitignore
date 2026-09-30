@@ -1,0 +1,6 @@
+# Files that are made on your computer and should not be shared
+node_modules/
+dist/
+.env
+__pycache__/
+.venv/

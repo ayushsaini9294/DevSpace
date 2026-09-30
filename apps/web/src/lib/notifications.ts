@@ -143,7 +143,7 @@ export function describeNotification(n: NotificationView): string {
     case 'submission.reverted':
       return `${n.data.actorName ?? 'Someone'} undid the merge of your submission ${quoted(n.data.title)}`;
     case 'submission.needs_update':
-      return `Your submission ${quoted(n.data.title)} needs an update: it now conflicts with main in ${moreFiles(n.data.paths, n.data.morePaths)}`;
+      return `Your submission ${quoted(n.data.title)} needs an update: it now clashes with main in ${moreFiles(n.data.paths, n.data.morePaths)}`;
     case 'task.assigned':
       return `${n.data.actorName ?? 'Someone'} assigned you the task ${quoted(n.data.title)}`;
     case 'task.confirm_done':

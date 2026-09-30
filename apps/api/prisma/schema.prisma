@@ -100,6 +100,8 @@ model Project {
   repoPath      String?         @map("repo_path")
   repoStatus    RepoStatus      @default(none) @map("repo_status")
   repoSource    RepoSource?     @map("repo_source")
+  /// The starter template main began from (TemplateIdSchema), when repoSource is `template`.
+  template      String?
   /// Normalized https link the repository was imported from (ImportUrlSchema).
   importUrl     String?         @map("import_url")
   /// Why the last import failed, in plain words.
@@ -132,6 +134,7 @@ enum RepoStatus {
 enum RepoSource {
   empty
   import
+  template
 
   @@map("repo_source")
 }
@@ -155,6 +158,10 @@ model ProjectMember {
   joinedAt    DateTime    @default(now()) @map("joined_at")
   /// Last time this member was seen in the project (app socket or IDE), written at most once a minute.
   lastSeenAt  DateTime?   @map("last_seen_at")
+  /// The last time this member launched a Preview of their app (getting-started step `preview`).
+  previewedAt            DateTime? @map("previewed_at")
+  /// Set while this member has hidden the getting-started card (Phase 11).
+  gettingStartedHiddenAt DateTime? @map("getting_started_hidden_at")
 
   @@id([projectId, userId])
   @@index([userId])

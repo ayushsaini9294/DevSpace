@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { TemplateIdSchema } from './templates.ts';
 
 /** Hosts a project can be imported from over https (see docs/decisions.md, Phase 4). */
 export const IMPORT_HOSTS = ['github.com', 'gitlab.com', 'bitbucket.org'] as const;
@@ -61,6 +62,11 @@ export const ImportUrlSchema = z
 export const SetUpRepositoryRequestSchema = z.discriminatedUnion('source', [
   z.object({ source: z.literal('empty') }),
   z.object({ source: z.literal('import'), url: ImportUrlSchema }),
+  /**
+   * Phase 11: main starts with one commit holding the template's files (modes kept), credited
+   * to you, with the message `Start from the <Name> template`. Ready at once (202, `ready`).
+   */
+  z.object({ source: z.literal('template'), template: TemplateIdSchema }),
 ]);
 
 export const CommitSummarySchema = z.object({
@@ -72,7 +78,9 @@ export const CommitSummarySchema = z.object({
 
 export const RepositoryStatusSchema = z.object({
   status: z.enum(['none', 'importing', 'ready', 'failed']),
-  source: z.enum(['empty', 'import']).nullable(),
+  source: z.enum(['empty', 'import', 'template']).nullable(),
+  /** The template main started from (Phase 11); null unless `source` is `template`. */
+  template: TemplateIdSchema.nullable(),
   importUrl: z.string().nullable(),
   /** Why the last import failed, in plain words; null otherwise. */
   error: z.string().nullable(),

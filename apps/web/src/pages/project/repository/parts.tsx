@@ -19,7 +19,7 @@ export function useRepoPathFromUrl(): string | null {
 export function InvalidPath() {
   return (
     <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-800">
-      Invalid path
+      This address doesn’t point to a file or folder. Check the link, or go back to Files.
     </p>
   );
 }
@@ -64,7 +64,7 @@ export function FileIcon() {
 
 /** "Add login page — Ada Lovelace, 5 minutes ago" */
 export function LastCommit({ commit }: { commit: CommitSummary | null }) {
-  if (!commit) return <p className="text-sm text-gray-600">No commits on main yet.</p>;
+  if (!commit) return <p className="text-sm text-gray-600">Nothing has been added to main yet.</p>;
   return (
     <p className="text-sm break-words text-gray-700">
       <span className="font-medium text-gray-900">{commitTitle(commit.message)}</span>

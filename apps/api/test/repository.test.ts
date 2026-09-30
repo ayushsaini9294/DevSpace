@@ -77,6 +77,7 @@ describe('empty repository', () => {
     expect(await status(leader, project.id)).toEqual({
       status: 'none',
       source: null,
+      template: null,
       importUrl: null,
       error: null,
       lastCommit: null,

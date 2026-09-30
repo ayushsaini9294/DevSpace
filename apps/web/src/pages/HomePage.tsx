@@ -59,7 +59,10 @@ function YourTeams() {
       ) : teams.isError ? (
         <LoadError what="your teams" error={teams.error} onRetry={() => teams.refetch()} />
       ) : teams.data.length === 0 ? (
-        <p className="text-gray-700">You aren’t in any teams yet. Create one below.</p>
+        <p className="text-gray-700">
+          You aren’t in any teams yet. Create one below: a team holds your projects, and you can
+          invite people to each project.
+        </p>
       ) : (
         <ul className="divide-y divide-gray-200">
           {teams.data.map((team) => (
@@ -127,8 +130,9 @@ export function HomePage() {
     <section className="space-y-4">
       <h1 className="text-3xl font-bold tracking-tight">DevSpace</h1>
       <p className="text-gray-700">
-        A team workspace: everyone works on their own copy, and leaders merge reviewed work into
-        main.
+        Build projects together, right in your browser. Everyone works in their own copy, sends
+        their changes for review, and a leader adds the reviewed work to main, the team’s shared
+        version. Nothing to install, and mistakes are easy to undo.
       </p>
       <Account />
       <ApiStatus state={status} />

@@ -28,7 +28,10 @@ export function ActivityPage() {
             onRetry={() => activity.refetch()}
           />
         ) : activity.data.length === 0 ? (
-          <p className="text-gray-700">Nothing has happened in this project yet.</p>
+          <p className="text-gray-700">
+            Nothing has happened in this project yet. Invites, submitted work, reviews and merges
+            will be listed here.
+          </p>
         ) : (
           <ol className="divide-y divide-gray-200">
             {newestFirst(activity.data).map((entry) => (

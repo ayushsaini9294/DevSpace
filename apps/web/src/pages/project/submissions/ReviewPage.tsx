@@ -12,6 +12,7 @@ import {
   type SubmissionFile,
 } from '@devspace/shared';
 import { FormAlert } from '../../../components/AuthPageShell';
+import { HelpTip } from '../../../components/HelpTip';
 import type { LinePick } from '../../../components/code/DiffViewer';
 import { LazyDiffViewer } from '../../../components/code/LazyDiffViewer';
 import {
@@ -397,16 +398,16 @@ function LineCommentForm({
             onChange={(event) => setSide(event.currentTarget.value as DiffSide)}
             className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-base shadow-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-200 focus:outline-none"
           >
-            <option value="head">Head (new version)</option>
-            <option value="base">Base (old version)</option>
+            <option value="head">New version</option>
+            <option value="base">Old version</option>
           </select>
         </label>
         <NumberField label="Range starts at" value={startLine} onChange={setStartLine} />
         <NumberField label="Line" value={line} onChange={setLine} />
       </div>
       <p className="text-sm text-gray-600">
-        Tip: click a line number in the diff to pick it, or select several lines. Leave “Range
-        starts at” empty for one line.
+        Tip: click a line number in the changes above to pick it, or select several lines. Leave
+        “Range starts at” empty for one line.
       </p>
       {fieldError && <p className="text-sm text-red-700">{fieldError}</p>}
       <TextArea
@@ -480,7 +481,7 @@ function FileDiff({
   const { submission } = ctx;
   const diff = useSubmissionFile(ctx.projectId, submission.id, submission.headSha, file.path, true);
 
-  if (diff.isPending) return <Loading>Loading the diff…</Loading>;
+  if (diff.isPending) return <Loading>Loading the changes…</Loading>;
   if (diff.isError) {
     return (
       <div className="space-y-2">
@@ -493,7 +494,11 @@ function FileDiff({
   }
   const { base, head } = diff.data;
   if (base.kind === 'binary' || head.kind === 'binary') {
-    return <p className="text-sm text-gray-700">This file is binary, so it can’t be shown here.</p>;
+    return (
+      <p className="text-sm text-gray-700">
+        This file isn’t text (for example an image), so it can’t be shown here.
+      </p>
+    );
   }
   if (base.kind === 'too_large' || head.kind === 'too_large') {
     return (
@@ -564,7 +569,7 @@ function FileSection({
           className={`${buttonStyles.secondary} py-1`}
           onClick={() => setOpen((value) => !value)}
         >
-          {open ? 'Hide diff' : 'Show diff'}
+          {open ? 'Hide changes' : 'Show changes'}
         </button>
       </header>
       {open && (
@@ -779,8 +784,12 @@ function Actions({ ctx }: { ctx: Ctx }) {
 
   return (
     <>
-      <div role="group" aria-label="Actions" className="flex flex-wrap gap-2">
-        {buttons}
+      <div className="flex flex-wrap items-center gap-2">
+        <div role="group" aria-label="Actions" className="flex flex-wrap gap-2">
+          {buttons}
+        </div>
+        {can(submission, 'merge') && <HelpTip term="merge" />}
+        {can(submission, 'revert') && <HelpTip term="undo" />}
       </div>
       {(dialog === 'approved' || dialog === 'changes_requested') && (
         <ReviewDialog ctx={ctx} decision={dialog} onClose={close} />
@@ -799,7 +808,12 @@ function Actions({ ctx }: { ctx: Ctx }) {
 
 function Reviews({ submission }: { submission: SubmissionDetail }) {
   if (submission.reviews.length === 0) {
-    return <p className="text-sm text-gray-700">No reviews yet.</p>;
+    return (
+      <p className="text-sm text-gray-700">
+        No reviews yet. A leader, or a member allowed to approve, will look at it and approve it or
+        ask for changes.
+      </p>
+    );
   }
   return (
     <ul className="space-y-2">
@@ -809,7 +823,7 @@ function Reviews({ submission }: { submission: SubmissionDetail }) {
             <span className="font-medium text-gray-900">{review.reviewer.name}</span>
             {review.decision === 'approved' ? 'approved' : 'requested changes'} on version{' '}
             {review.version} · <When iso={review.createdAt} />
-            {review.stale && <Tag>Stale: given before the latest update</Tag>}
+            {review.stale && <Tag>Out of date: given before the latest update</Tag>}
           </p>
           {review.body && (
             <p className="break-words whitespace-pre-wrap text-gray-900">{review.body}</p>
@@ -892,9 +906,12 @@ function Review({
       </header>
 
       <section aria-labelledby="reviews-heading" className="space-y-2">
-        <h3 id="reviews-heading" className="text-lg font-semibold">
-          Reviews
-        </h3>
+        <div className="flex items-center gap-2">
+          <h3 id="reviews-heading" className="text-lg font-semibold">
+            Reviews
+          </h3>
+          <HelpTip term="review" />
+        </div>
         <Reviews submission={submission} />
       </section>
 
@@ -952,7 +969,10 @@ function Review({
           Conversation
         </h3>
         {general.length === 0 ? (
-          <p className="text-sm text-gray-700">No general comments yet.</p>
+          <p className="text-sm text-gray-700">
+            No general comments yet. Comments about the work as a whole go here; comments on a line
+            go with its file above.
+          </p>
         ) : (
           <Threads ctx={ctx} threads={general} replies={replies} />
         )}
