@@ -11,17 +11,14 @@ The page asks the server for a message at `api/hello`. Vite passes those request
 
 1. Click **Open IDE** on the project page.
 2. Open a terminal: menu **Terminal → New Terminal**.
-3. Install the packages for both parts (only the first time, or when a `package.json` changes):
-
-   ```
-   npm install
-   ```
-
-4. Start both parts together:
+3. Start both parts together:
 
    ```
    npm run dev
    ```
+
+   The first time, it installs the packages it needs before starting, which takes about a
+   minute. After that it starts in a few seconds.
 
    The server runs on port 8081 and the app on port 5173.
 

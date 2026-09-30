@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "npm install --no-audit --no-fund --loglevel=error",
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"

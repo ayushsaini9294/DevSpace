@@ -900,7 +900,7 @@ function Review({
         )}
         <MergeInfo submission={submission} />
         <LinkedTaskPanel projectId={projectId} submission={submission} />
-        <MergeBlockerNote submission={submission} isLead={isLead} />
+        <MergeBlockerNote projectId={projectId} submission={submission} isLead={isLead} />
         <Actions ctx={ctx} />
         <NeedsUpdatePanel projectId={projectId} submission={submission} />
       </header>

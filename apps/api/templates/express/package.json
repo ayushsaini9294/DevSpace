@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "prestart": "npm install --no-audit --no-fund --loglevel=error",
     "start": "node src/index.js"
   },
   "dependencies": {

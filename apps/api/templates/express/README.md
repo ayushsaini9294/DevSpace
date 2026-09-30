@@ -10,17 +10,14 @@ A small web server made with Node.js and Express.
 
 1. Click **Open IDE** on the project page.
 2. Open a terminal: menu **Terminal → New Terminal**.
-3. Install the packages (only the first time, or when `package.json` changes):
-
-   ```
-   npm install
-   ```
-
-4. Start the server:
+3. Start the server:
 
    ```
    npm start
    ```
+
+   The first time, it installs the packages it needs before starting, which takes about a
+   minute. After that it starts in a few seconds.
 
    You will see "Your app is running on port 8080".
 

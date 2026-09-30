@@ -11,17 +11,14 @@ A web app made with React and Vite. The page updates by itself when you save a f
 
 1. Click **Open IDE** on the project page.
 2. Open a terminal: menu **Terminal → New Terminal**.
-3. Install the packages (only the first time, or when `package.json` changes):
-
-   ```
-   npm install
-   ```
-
-4. Start the app:
+3. Start the app:
 
    ```
    npm run dev
    ```
+
+   The first time, it installs the packages it needs before starting, which takes about a
+   minute. After that it starts in a few seconds.
 
 ## How to see it
 

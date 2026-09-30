@@ -47,21 +47,24 @@ export const TEMPLATES: readonly TemplateView[] = [
     id: 'express',
     name: 'Node.js (Express)',
     description: 'A small web server with a page and an /api/hello route.',
-    runHint: 'Run npm install, then npm start, then click Preview (port 8080).',
+    runHint:
+      'Run npm start (it installs what it needs the first time), then click Preview (port 8080).',
     previewPort: 8080,
   },
   {
     id: 'react',
     name: 'React + Vite',
     description: 'A React app (JavaScript) that reloads as you type.',
-    runHint: 'Run npm install, then npm run dev, then click Preview (port 5173).',
+    runHint:
+      'Run npm run dev (it installs what it needs the first time), then click Preview (port 5173).',
     previewPort: 5173,
   },
   {
     id: 'fullstack',
     name: 'Full-stack (React + Express)',
     description: 'A React front end that talks to an Express server.',
-    runHint: 'Run npm install, then npm run dev (starts both), then click Preview (port 5173).',
+    runHint:
+      'Run npm run dev (installs what it needs the first time, then starts both), then click Preview (port 5173).',
     previewPort: 5173,
   },
   {

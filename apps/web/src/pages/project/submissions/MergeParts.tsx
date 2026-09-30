@@ -34,14 +34,36 @@ const BLOCKER_TEXT: Record<Exclude<MergeBlocker, 'not_active'>, string> = {
 
 /** For leads who can't merge an active submission right now: why, in words. */
 export function MergeBlockerNote({
+  projectId,
   submission,
   isLead,
 }: {
+  projectId: string;
   submission: SubmissionDetail;
   isLead: boolean;
 }) {
   const blocker = submission.mergeBlocker;
   if (!isLead || blocker === null || blocker === 'not_active') return null;
+  if (blocker === 'approval_required') {
+    const base = `/projects/${projectId}`;
+    return (
+      <div className="space-y-1 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+        <p>{BLOCKER_TEXT[blocker]}</p>
+        <p>
+          Someone other than the author must approve it, because nobody can approve their own work.
+          Ask a teammate who has the Approve permission (
+          <Link to={`${base}/members`} className={linkStyle}>
+            Members
+          </Link>
+          ), or switch off “Require approval before merge” in{' '}
+          <Link to={`${base}/settings`} className={linkStyle}>
+            Settings
+          </Link>{' '}
+          if you work alone.
+        </p>
+      </div>
+    );
+  }
   return (
     <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
       {BLOCKER_TEXT[blocker]}

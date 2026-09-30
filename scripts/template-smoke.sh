@@ -91,8 +91,8 @@ start_app() { # command
 
 app_log() { docker exec "$IDE" sh -c 'tail -30 /tmp/app.log 2>/dev/null' >&2 || true; }
 
-wait_for_port() { # port -> 0 when it answers HTTP from the host
-  for _ in $(seq 1 90); do
+wait_for_port() { # port -> 0 when it answers HTTP from the host (npm start/dev may install first)
+  for _ in $(seq 1 300); do
     curl -s -m 3 -o /dev/null "http://$IP:$1/" && return 0
     sleep 1
   done
@@ -166,7 +166,7 @@ smoke_html() {
 smoke_express() {
   local base
   base="$(preview_base 8080)"
-  npm_install express || return
+  # No separate npm install: `npm start` installs what it needs first (prestart).
   start_app 'npm start'
   if ! wait_for_port 8080; then fail "express: nothing answers on 8080"; app_log; return; fi
   check_page_and_assets express "http://$IP:8080$base" "$base"
@@ -205,7 +205,7 @@ smoke_react() {
 smoke_fullstack() {
   local base
   base="$(preview_base 5173)"
-  npm_install fullstack || return
+  # No separate npm install: `npm run dev` installs what it needs first (predev).
   start_app 'npm run dev'
   if ! wait_for_port 5173; then fail "fullstack: nothing answers on 5173"; app_log; return; fi
   check_vite fullstack "$base"

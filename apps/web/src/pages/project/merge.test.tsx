@@ -133,6 +133,12 @@ describe('Merge on the review page', () => {
     );
     renderApp(REVIEW);
     expect(await screen.findByText(/this project needs an approval first/)).toBeInTheDocument();
+    expect(screen.getByText(/nobody can approve their own work/)).toBeInTheDocument();
+    const note = screen.getByText(/nobody can approve their own work/);
+    expect(within(note).getByRole('link', { name: 'Settings' })).toHaveAttribute(
+      'href',
+      '/projects/project-1/settings',
+    );
     expect(screen.queryByRole('button', { name: 'Merge' })).not.toBeInTheDocument();
   });
 

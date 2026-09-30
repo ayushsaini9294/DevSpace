@@ -7,6 +7,7 @@
     "server"
   ],
   "scripts": {
+    "predev": "npm install --no-audit --no-fund --loglevel=error",
     "dev": "concurrently --names server,client --prefix-colors blue,green \"npm run dev --workspace server\" \"npm run dev --workspace client\"",
     "start": "npm run dev"
   },
