@@ -306,6 +306,10 @@ function ChangesLoader({
           Nothing to submit yet: every file in your copy is the same as in main. Open the IDE,
           change a file and save it, then come back here.
         </p>
+        <p className="text-sm text-gray-600">
+          Changed something already? DevSpace only sees saved files. A tab with a dot (●) instead of
+          ✕ isn’t saved yet: click it and press Ctrl+S.
+        </p>
         <Link to={idePageUrl(projectId)} className={linkStyle}>
           Open IDE
         </Link>

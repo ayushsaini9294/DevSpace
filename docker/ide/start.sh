@@ -41,6 +41,14 @@ DEVSPACE_PREVIEW_BASE_8080="$base_path/__preview/8080/"
 DEVSPACE_PREVIEW_BASE="$DEVSPACE_PREVIEW_BASE_5173"
 export DEVSPACE_PREVIEW_BASE_5173 DEVSPACE_PREVIEW_BASE_8080 DEVSPACE_PREVIEW_BASE
 
+# Beginners don't know to press Ctrl+S, and DevSpace only sees saved files. So files save on
+# their own after a second by default. Written only when missing: a member's own choice wins.
+machine_settings="$HOME/.openvscode-server/data/Machine/settings.json"
+if [ ! -e "$machine_settings" ]; then
+  mkdir -p "$(dirname "$machine_settings")"
+  printf '{\n  "files.autoSave": "afterDelay",\n  "files.autoSaveDelay": 1000\n}\n' >"$machine_settings"
+fi
+
 exec "$OPENVSCODE_SERVER_ROOT/bin/openvscode-server" \
   --host 0.0.0.0 \
   --port 3000 \
