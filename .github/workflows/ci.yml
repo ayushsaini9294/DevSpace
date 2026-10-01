@@ -89,10 +89,12 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      # IDE containers (Phase 5): the image (devspace-ide:4 with the tracker extension, Phases 9 and 10; built
-      # after npm ci because the tracker is a workspace), its network and firewall, then a check on a real
-      # container that the image works when locked down and that the network is isolated. Before
-      # the unit tests, so the API's real-container tests run instead of skipping.
+      # IDE containers (Phase 5): the image (devspace-ide:5 with the tracker extension, Phases 9 and 10,
+      # and the Cline AI assistant, Phase 12; built after npm ci because the tracker is a workspace),
+      # its network and firewall (which lets containers reach only the API's AI gateway on the host,
+      # 10.213.0.1:3200), then a check on a real container that the image works when locked down,
+      # that Cline is connected to the gateway, and that the network is isolated. Before the unit
+      # tests, so the API's real-container tests (which need devspace-ide:5) run instead of skipping.
       - name: Build IDE image
         run: npm run ide:build
 

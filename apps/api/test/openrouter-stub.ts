@@ -16,11 +16,20 @@ export interface StubCall {
   path: string;
   auth: string | null;
   body: unknown;
+  /** The request's headers, as received. */
+  headers: IncomingMessage['headers'];
+  /** The raw request body text. */
+  rawBody: string;
 }
 
 export interface OpenRouterStub {
   url: string;
   calls: StubCall[];
+  /**
+   * While set, chat completions wait for it before answering (streamed answers send their first
+   * chunk, then wait).
+   */
+  hold: Promise<void> | null;
   /** Keys handed out by the code exchange. */
   keys: string[];
   /** Scripted answers per model id (default: findings on the diff's first file). */
@@ -47,14 +56,14 @@ function send(res: ServerResponse, status: number, body: unknown) {
   res.end(text);
 }
 
-async function readJson(req: IncomingMessage): Promise<unknown> {
+async function readJson(req: IncomingMessage): Promise<{ json: unknown; text: string }> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(chunk as Buffer);
   const text = Buffer.concat(chunks).toString('utf8');
   try {
-    return text ? JSON.parse(text) : null;
+    return { json: text ? JSON.parse(text) : null, text };
   } catch {
-    return text;
+    return { json: text, text };
   }
 }
 
@@ -64,6 +73,7 @@ export async function startOpenRouterStub(): Promise<OpenRouterStub> {
   const stub = {
     url: '',
     calls: [] as StubCall[],
+    hold: null,
     keys: [] as string[],
     answers: new Map<string, ModelAnswer>(),
     freeUsed: 3,
@@ -86,9 +96,17 @@ export async function startOpenRouterStub(): Promise<OpenRouterStub> {
   const server = http.createServer((req, res) => {
     void (async () => {
       const url = new URL(req.url ?? '/', 'http://stub');
-      const body = req.method === 'POST' ? await readJson(req) : null;
+      const read = req.method === 'POST' ? await readJson(req) : { json: null, text: '' };
+      const body = read.json;
       const auth = (req.headers.authorization as string | undefined) ?? null;
-      stub.calls.push({ method: req.method ?? '', path: url.pathname, auth, body });
+      stub.calls.push({
+        method: req.method ?? '',
+        path: url.pathname,
+        auth,
+        body,
+        headers: req.headers,
+        rawBody: read.text,
+      });
       const keyOk = auth !== null && stub.keys.some((k) => auth === `Bearer ${k}`);
 
       if (req.method === 'GET' && url.pathname === '/auth') {
@@ -151,6 +169,30 @@ export async function startOpenRouterStub(): Promise<OpenRouterStub> {
           const line = Number(/^@@ -\d+(?:,\d+)? \+(\d+)/m.exec(user)?.[1] ?? 1);
           content = defaultFindings(path, line);
         }
+        if ((body as { stream?: unknown }).stream === true) {
+          // Server-sent events like OpenAI's: the first chunk, then (after `hold`) the rest.
+          res.writeHead(200, {
+            'content-type': 'text/event-stream',
+            'cache-control': 'no-cache',
+            'set-cookie': 'stub_session=1; Path=/',
+            'x-stub-internal': 'yes',
+          });
+          const chunk = (text: string, finish: string | null) =>
+            `data: ${JSON.stringify({
+              id: 'gen-stub',
+              object: 'chat.completion.chunk',
+              model: b.model,
+              choices: [{ index: 0, delta: { content: text }, finish_reason: finish }],
+            })}\n\n`;
+          const half = Math.ceil(content.length / 2);
+          res.write(chunk(content.slice(0, half), null));
+          if (stub.hold) await stub.hold;
+          res.write(chunk(content.slice(half), 'stop'));
+          res.end('data: [DONE]\n\n');
+          return;
+        }
+        if (stub.hold) await stub.hold;
+        res.setHeader('set-cookie', 'stub_session=1; Path=/');
         return send(res, 200, {
           id: 'gen-stub',
           object: 'chat.completion',

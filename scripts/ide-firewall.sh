@@ -4,7 +4,9 @@
 #
 # Containers on bridge br-dsp-ide:
 #   - cannot open connections to the host itself (the API, PostgreSQL, Redis, the Docker host's
-#     DNS, anything listening on it), whatever address they use;
+#     DNS, anything listening on it), whatever address they use, except the API's AI gateway
+#     (Phase 12): TCP to AI_GATEWAY_HOST:AI_GATEWAY_PORT (default 10.213.0.1:3200, the bridge's
+#     own address) and nothing else;
 #   - cannot reach private, loopback, link-local, CGNAT or multicast ranges, so no other
 #     container, no Windows host behind WSL, no local network;
 #   - can reach the internet (Docker masquerades their traffic);
@@ -16,6 +18,11 @@
 set -euo pipefail
 
 BRIDGE=br-dsp-ide
+# The API's AI gateway (Phase 12): same defaults as the API (AI_GATEWAY_HOST, AI_GATEWAY_PORT).
+AI_GATEWAY_HOST="${AI_GATEWAY_HOST:-10.213.0.1}"
+AI_GATEWAY_PORT="${AI_GATEWAY_PORT:-3200}"
+[[ "$AI_GATEWAY_HOST" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "ide-firewall: AI_GATEWAY_HOST must be an IPv4 address" >&2; exit 1; }
+[[ "$AI_GATEWAY_PORT" =~ ^[0-9]+$ ]] || { echo "ide-firewall: AI_GATEWAY_PORT must be a port number" >&2; exit 1; }
 IN_CHAIN=DEVSPACE-IDE-IN
 FWD_CHAIN=DEVSPACE-IDE-FWD
 
@@ -70,6 +77,8 @@ ensure_jump() { # parent chain, rule...
 # opened (the API proxying to the IDE) are accepted; everything else is dropped.
 ensure_chain "$IN_CHAIN"
 ipt -A "$IN_CHAIN" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+# The one exception (Phase 12): the API's AI gateway, on the bridge's own address and one port.
+ipt -A "$IN_CHAIN" -p tcp -d "$AI_GATEWAY_HOST" --dport "$AI_GATEWAY_PORT" -j ACCEPT
 ipt -A "$IN_CHAIN" -j DROP
 ensure_jump INPUT -i "$BRIDGE" -j "$IN_CHAIN"
 
@@ -83,4 +92,4 @@ done
 ipt -A "$FWD_CHAIN" -j RETURN
 ensure_jump DOCKER-USER -i "$BRIDGE" -j "$FWD_CHAIN"
 
-echo "ide-firewall: rules for $BRIDGE are in place ($IPT)"
+echo "ide-firewall: rules for $BRIDGE are in place, AI gateway $AI_GATEWAY_HOST:$AI_GATEWAY_PORT allowed ($IPT)"

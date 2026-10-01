@@ -490,6 +490,32 @@ describe('Leads open a member’s copy', () => {
     );
     expect(screen.queryByRole('link', { name: 'Submit work' })).not.toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Main has changed' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('ide-ai-hint')).toHaveTextContent(
+      'It works as Cleo Member and uses their AI requests.',
+    );
+  });
+
+  it('tells a helping lead when the member hasn’t connected OpenRouter', async () => {
+    const running = testCopy({
+      containerStatus: 'running',
+      aiAssistant: { ready: false, reason: 'not_connected' },
+    });
+    stubApi({
+      ...membersPage('leader'),
+      [`POST ${M}/ide`]: { status: 200, body: { copy: running } },
+      [`GET ${M}`]: { status: 200, body: { copy: running } },
+      [`POST ${M}/ide/launch`]: {
+        status: 200,
+        body: { url: 'http://127.0.0.1:3100/ide-launch?ticket=t1' },
+      },
+    });
+    renderApp('/projects/project-1/members/user-3/ide');
+    await screen.findByTitle('VS Code for Cleo Member’s copy');
+    const hint = screen.getByTestId('ide-ai-hint');
+    expect(hint).toHaveTextContent('Cleo Member hasn’t connected an OpenRouter account yet');
+    expect(hint).toHaveAttribute('data-reason', 'not_connected');
+    // It's the member's account: no link for the lead to follow.
+    expect(hint.querySelector('a')).toBeNull();
   });
 
   it.each([

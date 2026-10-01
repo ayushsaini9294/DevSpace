@@ -142,9 +142,9 @@ function SettingsSection({ projectId, saved }: { projectId: string; saved: Proje
             type="checkbox"
             name="aiReviewEnabled"
             defaultChecked={saved.aiReviewEnabled}
-            hint="Warning: when this is on, members can send a submission’s changes (code and file names) to outside AI providers through their own OpenRouter account. Free models may keep or learn from what they receive. Leave it off for code that mustn’t leave DevSpace."
+            hint="Warning: when this is on, members can send code and file names to outside AI providers through their own OpenRouter account, both for AI review of a submission and with the AI assistant in the IDE. Free models may keep or learn from what they receive. Leave it off for code that mustn’t leave DevSpace."
           >
-            Allow AI review (sends code to AI providers)
+            Allow AI (AI review and the IDE assistant; sends code to AI providers)
           </Choice>
         </div>
         <fieldset className="space-y-1">

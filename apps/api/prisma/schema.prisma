@@ -47,6 +47,9 @@ model User {
   aiConnection        AiConnection?
   aiOAuthStates       AiOAuthState[]
   aiReviews           AiReview[]
+  /// The IDE assistant may use paid models (uses the member's OpenRouter credits; Phase 12).
+  aiAllowPaid         Boolean         @default(false) @map("ai_allow_paid")
+  aiGatewayUsage      AiGatewayUsage[]
 
   @@map("users")
 }
@@ -249,6 +252,9 @@ model Copy {
   pendingConflictPaths String[]            @default([]) @map("pending_conflict_paths")
   /// An update brought a package.json / package-lock.json change from main (Phase 9); cleared on dismiss.
   packagesChangedAt    DateTime?           @map("packages_changed_at")
+  /// SHA-256 hex of the AI gateway token given to this copy's IDE container (Phase 12). The
+  /// token itself is only in the container's settings; a new one is made with every container.
+  aiGatewayTokenHash   String?             @unique @map("ai_gateway_token_hash")
   createdAt            DateTime            @default(now()) @map("created_at")
   ideTickets           IdeTicket[]
   ideSessions          IdeSession[]
@@ -612,4 +618,17 @@ model AiReview {
   @@index([requestedById, status])
   @@index([batchId])
   @@map("ai_reviews")
+}
+
+/// IDE assistant requests through the AI gateway (Phase 12): counts only, per user, UTC day and
+/// model. No prompt or answer text is ever stored.
+model AiGatewayUsage {
+  userId   String   @map("user_id")
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day      DateTime @db.Date
+  model    String
+  requests Int      @default(0)
+
+  @@id([userId, day, model])
+  @@map("ai_gateway_usage")
 }

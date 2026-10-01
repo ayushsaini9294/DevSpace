@@ -11,6 +11,7 @@ import { useMembers, useProject } from '../../lib/projects';
 import { useRepository } from '../../lib/repository';
 import { newSubmissionUrl } from '../../lib/submissions';
 import { findTemplate, useTemplates } from '../../lib/templates';
+import { AiAssistantHint } from './AiAssistantHint';
 import { CopyUpdates } from './CopyUpdates';
 import { PreviewControl } from './PreviewControl';
 import { Spinner } from './repository/parts';
@@ -295,6 +296,16 @@ export function IdePage() {
           You’re working in {memberName ?? 'this member'}’s copy (their own space to work in) to
           help them. Changes you make here are theirs, and they are told you opened it.
         </p>
+      )}
+      {running && copy.data && (
+        <AiAssistantHint
+          projectId={projectId}
+          status={copy.data.aiAssistant}
+          memberName={own ? null : (memberName ?? 'This member')}
+          canChangeSettings={
+            project.data?.allowedActions.includes('project.updateSettings') ?? false
+          }
+        />
       )}
       {own && copy.data && <OwnCopyStrip projectId={projectId} copy={copy.data} />}
       <main className="flex min-h-0 flex-1 flex-col">{body}</main>

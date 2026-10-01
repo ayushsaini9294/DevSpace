@@ -13,6 +13,7 @@ import type {
   GettingStartedView,
   TemplateList,
   AiConnectionView,
+  AiPreferences,
   AiConnectStartResponse,
   AiModelListResponse,
   AiNoticeAcceptResponse,
@@ -110,6 +111,7 @@ export type StubBody =
   | PresenceListResponse
   | Preferences
   | AiConnectionView
+  | AiPreferences
   | AiConnectStartResponse
   | AiNoticeAcceptResponse
   | AiModelListResponse
@@ -280,6 +282,7 @@ export function testCopy(overrides: Partial<CopyView> = {}): CopyView {
     unresolvedPaths: [],
     helpers: [],
     packagesChanged: false,
+    aiAssistant: { ready: true, reason: null },
     ...overrides,
   };
 }

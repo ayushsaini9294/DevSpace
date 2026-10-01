@@ -5,6 +5,7 @@ import {
   AiModelListResponseSchema,
   AiNoticeAcceptResponseSchema,
   CreateAiReviewRequestSchema,
+  UpdateAiPreferencesRequestSchema,
 } from '@devspace/shared';
 import { env } from '../config/env.ts';
 import { hashSessionToken, readSessionToken, type AuthUser } from '../auth/session.ts';
@@ -19,6 +20,7 @@ import {
   listModels,
   startConnect,
 } from './connection.ts';
+import { aiPreferences, setAiAllowPaid } from './assistant.ts';
 import { writeIdeReview } from './ide-review.ts';
 import { listAiReviews, requestCrossReview } from './reviews.ts';
 
@@ -56,6 +58,18 @@ aiRouter.delete('/connection', async (req, res) => {
 aiRouter.post('/notice/accept', async (req, res) => {
   const at = await acceptNotice((req.user as AuthUser).id);
   res.json(AiNoticeAcceptResponseSchema.parse({ noticeAcceptedAt: at.toISOString() }));
+});
+
+// The IDE assistant (Phase 12): "Allow paid models" and today's request counts.
+aiRouter.get('/preferences', async (req, res) => {
+  res.json(await aiPreferences((req.user as AuthUser).id));
+});
+
+aiRouter.patch('/preferences', async (req, res) => {
+  const user = req.user as AuthUser;
+  const { allowPaid } = parseBody(UpdateAiPreferencesRequestSchema, req.body);
+  await setAiAllowPaid(user.id, allowPaid);
+  res.json(await aiPreferences(user.id));
 });
 
 aiRouter.get('/models', async (_req, res) => {

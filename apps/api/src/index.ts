@@ -4,6 +4,7 @@ import { prisma } from './lib/prisma.ts';
 import { createApp } from './app.ts';
 import { recoverInterruptedImports } from './repository/import.ts';
 import { createIdeServer } from './ide/proxy.ts';
+import { startAiGateway } from './ai/gateway.ts';
 import { recoverIdeContainers } from './ide/service.ts';
 import { backfillCopyBaseShas } from './copies/service.ts';
 import { closeCopyUpdateQueue } from './jobs/copy-updates.ts';
@@ -60,6 +61,10 @@ server.listen(env.PORT, () => {
   console.log(`API listening on http://localhost:${env.PORT} (${env.NODE_ENV})`);
 });
 
+// The AI gateway for IDE assistants (Phase 12), only on the IDE network's host address. If that
+// address doesn't exist yet it logs why and keeps retrying; nothing else waits for it.
+const aiGateway = startAiGateway();
+
 // IDE reports that ran out (an IDE was closed): tell teammates the member is no longer active.
 const PRESENCE_SWEEP_MS = 15_000;
 const presenceSweep = setInterval(() => {
@@ -81,6 +86,7 @@ async function shutdown(signal: string): Promise<void> {
   }, 10_000);
   forceExit.unref();
   clearInterval(presenceSweep);
+  aiGateway.close();
   await realtime.close().catch(() => undefined);
   ideServer.close();
   ideServer.closeAllConnections();

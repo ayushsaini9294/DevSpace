@@ -24,7 +24,7 @@ import {
 // and qwen and nemotron-ultra report the same place, so their findings form an agreed group.
 // The second test covers "Review with my IDE AI" and the tracker's "DevSpace: Send review
 // findings" command, run from VS Code's command palette in the reviewer's real IDE container
-// (image devspace-ide:4; needs Docker, the IDE network and firewall, and Redis).
+// (image devspace-ide:5; needs Docker, the IDE network and firewall, and Redis).
 
 const STUB = `http://127.0.0.1:${process.env.OPENROUTER_STUB_PORT || '4010'}`;
 
@@ -165,7 +165,7 @@ test('a member with no paid plan connects OpenRouter and gets two free AI review
   // The reviewer connects OpenRouter: DevSpace → the (stand-in) OpenRouter page → back.
   const rp = reviewer.page;
   await rp.goto('/settings/ai');
-  await expect(rp.getByRole('heading', { level: 2, name: 'AI review' })).toBeVisible();
+  await expect(rp.getByRole('heading', { level: 2, name: 'AI settings' })).toBeVisible();
   await expect(rp.getByTestId('ai-connection-status')).toHaveText('Not connected');
   await rp.getByRole('button', { name: 'Connect OpenRouter', exact: true }).click();
   await expect(rp).toHaveURL((url) => url.origin === STUB && url.pathname === '/auth');
@@ -196,7 +196,10 @@ test('a member with no paid plan connects OpenRouter and gets two free AI review
   // The leader switches AI review on for the project.
   await page.goto(state.lp.projectPath);
   await projectNav(page, 'Settings').click();
-  const aiSwitch = page.getByLabel('Allow AI review (sends code to AI providers)', { exact: true });
+  const aiSwitch = page.getByLabel(
+    'Allow AI (AI review and the IDE assistant; sends code to AI providers)',
+    { exact: true },
+  );
   await expect(aiSwitch).not.toBeChecked();
   await aiSwitch.check();
   await page.getByRole('button', { name: 'Save settings', exact: true }).click();

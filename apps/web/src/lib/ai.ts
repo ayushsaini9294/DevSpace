@@ -4,6 +4,7 @@ import {
   AiConnectStartResponseSchema,
   AiModelListResponseSchema,
   AiNoticeAcceptResponseSchema,
+  AiPreferencesSchema,
   AiReviewListResponseSchema,
   DEVSPACE_FOLDER,
   IdeReviewResponseSchema,
@@ -14,8 +15,9 @@ import {
   type AiReviewView,
   type CreateAiReviewRequest,
   type IdeReviewResponse,
+  type UpdateAiPreferencesRequest,
 } from '@devspace/shared';
-import { ApiError, apiDelete, apiFetch, apiPost } from './api';
+import { ApiError, apiDelete, apiFetch, apiPatch, apiPost } from './api';
 import { errorMessage } from './formErrors';
 import { usePollInterval } from './liveStore';
 import { queryKeys } from './projects';
@@ -31,6 +33,7 @@ export const AI_SETTINGS_URL = '/settings/ai';
 export const aiKeys = {
   connection: ['ai', 'connection'] as const,
   models: ['ai', 'models'] as const,
+  preferences: ['ai', 'preferences'] as const,
   // Under the project's key, so refreshing a project refreshes its AI reviews too.
   reviews: (projectId: string, submissionId: string) =>
     [...queryKeys.project(projectId), 'ai-reviews', submissionId] as const,
@@ -101,6 +104,26 @@ export function useAcceptAiNotice() {
       queryClient.setQueryData<AiConnectionView>(aiKeys.connection, (connection) =>
         connection ? { ...connection, noticeAcceptedAt } : connection,
       ),
+  });
+}
+
+// ---------- IDE assistant (Phase 12) ----------
+
+/** GET /api/ai/preferences: whether the IDE assistant may use paid models, and today's usage. */
+export function useAiPreferences() {
+  return useQuery({
+    queryKey: aiKeys.preferences,
+    queryFn: async () => AiPreferencesSchema.parse(await apiFetch('/api/ai/preferences')),
+  });
+}
+
+/** PATCH /api/ai/preferences `{ allowPaid }`. */
+export function useUpdateAiPreferences() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (request: UpdateAiPreferencesRequest) =>
+      AiPreferencesSchema.parse(await apiPatch('/api/ai/preferences', request)),
+    onSuccess: (preferences) => queryClient.setQueryData(aiKeys.preferences, preferences),
   });
 }
 
@@ -194,7 +217,7 @@ export function aiErrorMessage(error: unknown): string {
     case 'ai_disabled':
       return 'AI review is turned off for this project. A leader can turn it on in the project’s Settings.';
     case 'not_connected':
-      return 'Connect your OpenRouter account first, on the AI review settings page.';
+      return 'Connect your OpenRouter account first, on the AI settings page.';
     case 'notice_required':
       return 'Please read and accept the AI review notice first.';
     case 'paid_confirmation_required':
@@ -240,7 +263,7 @@ export function reviewFailureMessage(review: AiReviewView): string {
     case 'rate_limited':
       return 'Every model was busy or rate limited. Try again in a minute.';
     case 'key_invalid':
-      return 'OpenRouter refused your key. Connect your account again on the AI review settings page.';
+      return 'OpenRouter refused your key. Connect your account again on the AI settings page.';
     case 'no_credits':
       return 'This paid model needs OpenRouter credits, and your account has none left.';
     case 'not_connected':

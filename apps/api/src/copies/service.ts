@@ -13,6 +13,7 @@ import { projectNotFound } from '../projects/access.ts';
 import { moveIntoPlace, removeDir } from '../repository/storage.ts';
 import { readRegular } from './safe-fs.ts';
 import { transaction } from '../lib/transaction.ts';
+import { aiAssistantStatus } from '../ai/assistant.ts';
 
 /**
  * Working copies: each member has exactly one per project, a real git clone of the project's
@@ -129,10 +130,12 @@ async function copyHelpers(row: CopyViewRow) {
 
 /** The browser's view of a copy row: no paths, no container id, no token, no IDE link. */
 export async function toView(row: CopyViewRow): Promise<CopyView> {
-  const [behind, unresolvedPaths, helpers] = await Promise.all([
+  const [behind, unresolvedPaths, helpers, aiAssistant] = await Promise.all([
     isBehind(row),
     unresolvedMarkers(row),
     copyHelpers(row),
+    // For the copy's owner: a helping lead uses the assistant as the owner.
+    aiAssistantStatus(row.projectId, row.userId),
   ]);
   return CopyViewSchema.parse({
     id: row.id,
@@ -145,6 +148,7 @@ export async function toView(row: CopyViewRow): Promise<CopyView> {
     unresolvedPaths,
     helpers,
     packagesChanged: row.packagesChangedAt !== null,
+    aiAssistant,
   });
 }
 

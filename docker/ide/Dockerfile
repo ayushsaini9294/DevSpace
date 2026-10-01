@@ -1,4 +1,4 @@
-# DevSpace IDE image (devspace-ide:4): OpenVSCode Server for one member's copy.
+# DevSpace IDE image (devspace-ide:5): OpenVSCode Server for one member's copy.
 # Build with `npm run ide:build`. Started by the API through dockerode (Phase 5 contract in CLAUDE.md).
 #
 # Runtime contract:
@@ -14,6 +14,9 @@
 #   venv inside the copy.
 # - sets DEVSPACE_PREVIEW_BASE_5173, DEVSPACE_PREVIEW_BASE_8080 and DEVSPACE_PREVIEW_BASE (the 5173
 #   one) to <DEVSPACE_BASE_PATH>/__preview/<port>/, the path Preview serves an app under (Phase 11).
+# - includes the Cline AI assistant (Phase 12). env DEVSPACE_AI_TOKEN, DEVSPACE_AI_BASE_URL
+#   (http://<AI_GATEWAY_HOST>:<AI_GATEWAY_PORT>/v1) and DEVSPACE_AI_MODEL: start.sh connects Cline
+#   to DevSpace's AI gateway with them, then removes them from the environment.
 
 # Node.js 24.21.0 LTS with npm 11.19.0, pinned by digest; only its files are copied below.
 FROM node:24.21.0-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS node
@@ -47,6 +50,21 @@ RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
     && ln -s ../lib/node_modules/corepack/dist/corepack.js /usr/local/bin/corepack \
     && node --version && npm --version
+
+# The AI assistant (Phase 12, owner): Cline, pinned, from Open VSX, checked against its sha256.
+# Installed with VS Code's built-in extensions, outside HOME and owned by root (like the tracker),
+# so it is there in every IDE and a member cannot change it. start.sh connects it to DevSpace's
+# AI gateway.
+ARG CLINE_VERSION=4.1.22
+ADD --checksum=sha256:134b54af94e1e4cc6cd07224a61f6873c40c845d9fba1f9e6aa510dd6e2c5382 \
+    https://open-vsx.org/api/saoudrizwan/claude-dev/${CLINE_VERSION}/file/saoudrizwan.claude-dev-${CLINE_VERSION}.vsix \
+    /tmp/cline.vsix
+RUN python3 -m zipfile -e /tmp/cline.vsix /tmp/cline \
+    && mv /tmp/cline/extension $OPENVSCODE_SERVER_ROOT/extensions/saoudrizwan.claude-dev \
+    && rm -rf /tmp/cline /tmp/cline.vsix \
+    && chown -R root:root $OPENVSCODE_SERVER_ROOT/extensions/saoudrizwan.claude-dev \
+    && chmod -R u=rwX,go=rX $OPENVSCODE_SERVER_ROOT/extensions/saoudrizwan.claude-dev \
+    && grep -q "\"version\": \"${CLINE_VERSION}\"" $OPENVSCODE_SERVER_ROOT/extensions/saoudrizwan.claude-dev/package.json
 
 COPY --chmod=0755 start.sh /usr/local/bin/devspace-ide-start
 

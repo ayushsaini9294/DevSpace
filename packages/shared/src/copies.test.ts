@@ -18,6 +18,7 @@ const copy = {
   unresolvedPaths: [],
   helpers: [],
   packagesChanged: false,
+  aiAssistant: { ready: false, reason: 'ai_disabled' },
 };
 
 describe('Phase 7 copy schemas', () => {

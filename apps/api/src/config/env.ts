@@ -69,7 +69,7 @@ const EnvSchema = z
       .default('/var/run/docker.sock')
       .refine((value) => isAbsolute(value), 'DOCKER_SOCKET must be an absolute socket path'),
     /** The IDE image (built by `npm run ide:build`). */
-    IDE_IMAGE: z.string().trim().min(1).default('devspace-ide:4'),
+    IDE_IMAGE: z.string().trim().min(1).default('devspace-ide:5'),
     /** The Docker network IDE containers join (made by `npm run ide:network`). */
     IDE_NETWORK: z.string().trim().min(1).default('devspace-ide'),
     /** The second listener, which serves only the IDE (its own site: never the app's cookies). */
@@ -94,6 +94,12 @@ const EnvSchema = z
     AI_DEFAULT_MODELS: modelList(
       'qwen/qwen3.8-27b:free,nvidia/nemotron-3-ultra-550b-a55b:free,google/gemma-4-31b-it:free',
     ),
+    /**
+     * The AI gateway listener (Phase 12) binds only this address: the IDE network's gateway on
+     * the host (bridge `br-dsp-ide`), so only IDE containers can reach it. IPv4 only.
+     */
+    AI_GATEWAY_HOST: z.ipv4().default('10.213.0.1'),
+    AI_GATEWAY_PORT: z.coerce.number().int().min(1).max(65535).default(3200),
     /** Tried in order when a model fails (429, 5xx, timeout, empty answer). */
     AI_FALLBACK_MODELS: modelList(
       'poolside/laguna-s-2.1:free,nvidia/nemotron-3-super-120b-a12b:free,openrouter/free',

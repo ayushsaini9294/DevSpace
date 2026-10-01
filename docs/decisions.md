@@ -129,3 +129,14 @@ The local PostgreSQL already has a `devspace` role and database from the old pro
 - A Preview button opens the app running in the member's IDE in a new tab, through DevSpace's IDE site with the same login rules as the IDE (owner). Templates are set up to work under the preview path; apps that use absolute paths may not load in Preview.
 - The first-time guide is a "Getting started" checklist on the project page whose steps tick themselves when the member really does them (owner).
 - The app stays in English for now, written in plain words for beginners with short help tips and no Git jargon (owner).
+
+## 2026-09-30: Built-in AI helper (Phase 12)
+
+- Every IDE comes with an AI coding agent like Cline, already connected to the member's own AI account, so beginners can ask it to build things with no setup (owner).
+- The member's real key never enters their IDE. The assistant talks to a DevSpace AI gateway with a stand-in key that works only for that copy and only from its container; DevSpace adds the real, encrypted key on the server. A leader helping inside a copy can use the assistant as that member but can never see the key (owner).
+- IDE containers may reach the gateway's one port on the host and nothing else there.
+- Free models by default; a member can allow paid models for themselves, with a clear credits warning (owner).
+- The project's AI switch covers both AI review and the IDE assistant; it stays off by default (owner).
+- The built-in assistant is Cline (pinned version), connected through the gateway with no setup. It may read the member's files, but always asks before editing files, running commands, using a browser or MCP tools.
+- Anything that could spend credits needs "Allow paid models", not only a paid model name: fallback model lists with paid models and paid plugins such as web search count too.
+- The IDE no longer shows VS Code's "Do you trust the authors?" prompt, since the isolated container is the safety boundary and the folder is the member's own copy; and VS Code's own Copilot chat is hidden, since it doesn't work here and Cline is the assistant (owner).

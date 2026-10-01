@@ -15,7 +15,7 @@ import {
 
 // Phase 11 Done-when: someone new creates a project from a template and makes their first
 // submission by following the getting-started checklist. Real IDE containers (image
-// devspace-ide:4, the IDE network and firewall), real apps started in them, and Preview through
+// devspace-ide:5, the IDE network and firewall), real apps started in them, and Preview through
 // the IDE site's `/ide/<copyId>/__preview/<port>/` path.
 
 const IDE_ORIGIN = process.env.IDE_ORIGIN || 'http://127.0.0.1:3100';

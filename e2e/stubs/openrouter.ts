@@ -12,6 +12,8 @@
 // - POST /api/v1/chat/completions  findings as JSON, per model (see `answerFor`):
 //        google/gemma-4-31b-it:free always answers 429 (free daily limit), so the fallback runs;
 //        qwen and nemotron-ultra report the same path within ±3 lines, so they form an agreed group.
+//        A request that offers tools (the IDE's AI assistant, Phase 12, through DevSpace's AI
+//        gateway) gets an assistant's streamed answer instead (see `answerAssistant`).
 // - GET  /__stub/requests   test-only: what was called (no keys), for assertions
 // - GET  /__stub/health     test-only: readiness for Playwright
 //
@@ -40,6 +42,11 @@ type Logged = {
   model?: string;
   /** True when the request carried a key this stand-in issued. */
   authorized?: boolean;
+  /** The last 4 characters of that key (what DevSpace's settings page shows), never the key. */
+  keyEnding?: string;
+  /** A chat request from an AI coding assistant (it offers tools), and whether it streamed. */
+  assistant?: boolean;
+  stream?: boolean;
 };
 const log: Logged[] = [];
 
@@ -170,6 +177,72 @@ function answerFor(model: string, prompt: string): { status: number; content?: s
   }
 }
 
+/** The file the stand-in assistant creates, in the copy (the IDE's folder). */
+const ASSISTANT_FILE = '/home/workspace/hello-from-ai.html';
+const ASSISTANT_TEXT = '<h1>Hello from the AI helper</h1>\n';
+
+/**
+ * An AI coding assistant's turn, OpenAI-style (streamed when asked): the first turn asks to create
+ * ASSISTANT_FILE with the assistant's `editor` tool (Cline's); once a tool result comes back, it
+ * says it is done. The assistant asks the member before it writes the file.
+ */
+function answerAssistant(res: ServerResponse, model: string, body: Record<string, unknown>) {
+  const messages = Array.isArray(body.messages) ? (body.messages as { role?: unknown }[]) : [];
+  const tools = (body.tools as { function?: { name?: unknown } }[]).map((t) => t?.function?.name);
+  const done = messages.some((m) => m?.role === 'tool');
+  const id = `gen-stub-${randomBytes(8).toString('hex')}`;
+  const created = Math.floor(Date.now() / 1000);
+  const toolCall =
+    !done && tools.includes('editor')
+      ? {
+          id: `call_${randomBytes(6).toString('hex')}`,
+          type: 'function' as const,
+          function: {
+            name: 'editor',
+            arguments: JSON.stringify({ path: ASSISTANT_FILE, new_text: ASSISTANT_TEXT }),
+          },
+        }
+      : null;
+  const content = toolCall
+    ? 'I will create hello-from-ai.html for you.'
+    : 'Done: hello-from-ai.html is in your copy.';
+  const finish = toolCall ? 'tool_calls' : 'stop';
+  const usage = { prompt_tokens: 100, completion_tokens: 20, total_tokens: 120 };
+
+  if (body.stream !== true) {
+    return json(res, 200, {
+      id,
+      object: 'chat.completion',
+      created,
+      model,
+      choices: [
+        {
+          index: 0,
+          finish_reason: finish,
+          message: { role: 'assistant', content, ...(toolCall ? { tool_calls: [toolCall] } : {}) },
+        },
+      ],
+      usage,
+    });
+  }
+  res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store' });
+  const chunk = (delta: unknown, finishReason: string | null = null, extra = {}) =>
+    res.write(
+      `data: ${JSON.stringify({
+        id,
+        object: 'chat.completion.chunk',
+        created,
+        model,
+        choices: [{ index: 0, delta, finish_reason: finishReason }],
+        ...extra,
+      })}\n\n`,
+    );
+  chunk({ role: 'assistant', content });
+  if (toolCall) chunk({ tool_calls: [{ index: 0, ...toolCall }] });
+  chunk({}, finish, { usage });
+  res.end('data: [DONE]\n\n');
+}
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', `http://${HOST}:${PORT}`);
   const entry: Logged = {
@@ -284,10 +357,17 @@ const server = createServer(async (req, res) => {
       const key = bearer(req);
       entry.authorized = !!key;
       if (!key) return error(res, 401, 'No auth credentials found');
+      entry.keyEnding = key.slice(-4);
       const body = await readJson(req);
       const model = typeof body?.model === 'string' ? body.model : '';
       entry.model = model;
       if (!model) return error(res, 400, 'model is required');
+      if (Array.isArray(body?.tools)) {
+        entry.assistant = true;
+        entry.stream = body.stream === true;
+        if (isFree(model)) keys.get(key)!.freeUsed += 1;
+        return answerAssistant(res, model, body);
+      }
       const messages = Array.isArray(body?.messages) ? (body.messages as unknown[]) : [];
       const prompt = messages
         .map((m) => (m && typeof m === 'object' ? (m as { content?: unknown }).content : ''))

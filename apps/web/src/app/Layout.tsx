@@ -80,7 +80,7 @@ function UserMenu({ name, email }: { name: string; email: string }) {
           </p>
           <ShareFileSwitch />
           <Link to={AI_SETTINGS_URL} onClick={toggle} className={`${linkStyle} block text-sm`}>
-            AI review settings
+            AI settings
           </Link>
         </div>
       )}

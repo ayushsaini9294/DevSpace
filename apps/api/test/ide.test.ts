@@ -603,7 +603,25 @@ describe.skipIf(!available.ide)(
         expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
         expect(row.containerId).toBe(info.Id);
         expect(info.Name).toBe(`/devspace-ide-${copy.id}`);
-        expect(info.Config.Image).toBe('devspace-ide:4');
+        expect(info.Config.Image).toBe('devspace-ide:5');
+        // Phase 12: the AI gateway token (only its hash in the database) and address.
+        const aiVar = info.Config.Env.find((e) => e.startsWith('DEVSPACE_AI_TOKEN='))!;
+        const aiToken = aiVar.slice('DEVSPACE_AI_TOKEN='.length);
+        expect(aiToken).toMatch(/^[A-Za-z0-9_-]{43}$/);
+        expect(aiToken).not.toBe(token);
+        expect(row.aiGatewayTokenHash).toBe(createHash('sha256').update(aiToken).digest('hex'));
+        expect(info.Config.Env).toContain(
+          `DEVSPACE_AI_BASE_URL=http://${env.AI_GATEWAY_HOST}:${env.AI_GATEWAY_PORT}/v1`,
+        );
+        expect(info.Config.Env.filter((e) => e.startsWith('DEVSPACE_')).sort()).toEqual(
+          [
+            'DEVSPACE_AI_BASE_URL',
+            'DEVSPACE_AI_MODEL',
+            'DEVSPACE_AI_TOKEN',
+            'DEVSPACE_BASE_PATH',
+            'DEVSPACE_CONNECTION_TOKEN',
+          ].map((name) => expect.stringMatching(new RegExp(`^${name}=`))),
+        );
         expect(info.Config.Labels).toMatchObject({
           'devspace.copy': copy.id,
           'devspace.project': project.id,

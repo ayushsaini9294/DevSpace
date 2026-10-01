@@ -112,6 +112,93 @@ export const AiModelListResponseSchema = z.object({
   fallbacks: z.array(z.string()),
 });
 
+// ---------- IDE assistant: preferences and usage (Phase 12, /api/ai, logged in) ----------
+
+/** One model's assistant requests on one day. */
+export const AiAssistantModelUsageSchema = z.object({
+  model: z.string(),
+  requests: z.number().int().nonnegative(),
+});
+
+/**
+ * Your IDE assistant's requests through the DevSpace AI gateway today (UTC day `YYYY-MM-DD`),
+ * counted per model (most used first). Requests the gateway refused are not counted. Counts only;
+ * no prompt or answer text is ever kept.
+ */
+export const AiAssistantUsageSchema = z.object({
+  day: z.iso.date(),
+  requests: z.number().int().nonnegative(),
+  models: z.array(AiAssistantModelUsageSchema),
+});
+
+/**
+ * GET /api/ai/preferences → AiPreferences.
+ * PATCH /api/ai/preferences { allowPaid } → AiPreferences (400 `validation_error` for a bad
+ * body; 401 when logged out). `allowPaid` (default false): the IDE assistant may use any
+ * OpenRouter model, which uses your OpenRouter credits; off → free models only (`:free` ids and
+ * `openrouter/free`). Cross-reviews keep their own `confirmPaid` rule.
+ */
+export const AiPreferencesSchema = z.object({
+  allowPaid: z.boolean(),
+  assistantUsageToday: AiAssistantUsageSchema,
+});
+
+export const UpdateAiPreferencesRequestSchema = z.object({ allowPaid: z.boolean() });
+
+// ---------- The AI gateway (Phase 12; for the IDE container, never the browser) ----------
+
+/** Default port of the gateway listener (env `AI_GATEWAY_PORT`). */
+export const AI_GATEWAY_DEFAULT_PORT = 3200;
+/** Largest request body the gateway accepts (413 above it). */
+export const AI_GATEWAY_MAX_BODY_BYTES = 4 * 1024 * 1024;
+/** Most requests at once per copy (429 above it). */
+export const AI_GATEWAY_MAX_CONCURRENT = 2;
+/** Most requests per minute per copy (429 above it). */
+export const AI_GATEWAY_MAX_PER_MINUTE = 30;
+/** How long one forwarded request may take, in ms. */
+export const AI_GATEWAY_TIMEOUT_MS = 5 * 60 * 1000;
+
+/**
+ * `error.code` in the gateway's OpenAI-style error bodies
+ * `{ error: { message, type, code } }` (`message` is written for the member):
+ * - 401 `invalid_token`: wrong or old token, or not from that copy's container
+ * - 403 `not_member`: the copy's owner is no longer in the project
+ * - 403 `ai_disabled`: the project's AI switch is off
+ * - 403 `not_connected`: the owner hasn't connected OpenRouter
+ * - 403 `notice_required`: the owner hasn't accepted the AI notice
+ * - 403 `paid_model_not_allowed`: a paid model without "Allow paid models"
+ * - 400 `invalid_request`: not JSON, or no valid `model`
+ * - 404 `not_found`, 405 `method_not_allowed`, 413 `request_too_large`
+ * - 429 `too_many_requests` (more than 2 at once or 30 a minute)
+ * - 502 `upstream_error` / 504 `upstream_timeout`: OpenRouter didn't answer
+ * - 500 `internal_error`: something went wrong in DevSpace
+ * Errors from OpenRouter itself are passed through with their own status and body.
+ */
+export const AiGatewayErrorCodeSchema = z.enum([
+  'invalid_token',
+  'not_member',
+  'ai_disabled',
+  'not_connected',
+  'notice_required',
+  'paid_model_not_allowed',
+  'invalid_request',
+  'not_found',
+  'method_not_allowed',
+  'request_too_large',
+  'too_many_requests',
+  'upstream_error',
+  'upstream_timeout',
+  'internal_error',
+]);
+
+export const AiGatewayErrorBodySchema = z.object({
+  error: z.object({
+    message: z.string(),
+    type: z.string(),
+    code: AiGatewayErrorCodeSchema,
+  }),
+});
+
 // ---------- Reviews (/api/projects/:projectId/submissions/:id/…) ----------
 
 export const AiReviewStatusSchema = z.enum(['queued', 'running', 'done', 'failed']);
@@ -267,6 +354,12 @@ export type AiConnectFinishRequest = z.infer<typeof AiConnectFinishRequestSchema
 export type AiNoticeAcceptResponse = z.infer<typeof AiNoticeAcceptResponseSchema>;
 export type AiModel = z.infer<typeof AiModelSchema>;
 export type AiModelListResponse = z.infer<typeof AiModelListResponseSchema>;
+export type AiAssistantModelUsage = z.infer<typeof AiAssistantModelUsageSchema>;
+export type AiAssistantUsage = z.infer<typeof AiAssistantUsageSchema>;
+export type AiPreferences = z.infer<typeof AiPreferencesSchema>;
+export type UpdateAiPreferencesRequest = z.infer<typeof UpdateAiPreferencesRequestSchema>;
+export type AiGatewayErrorCode = z.infer<typeof AiGatewayErrorCodeSchema>;
+export type AiGatewayErrorBody = z.infer<typeof AiGatewayErrorBodySchema>;
 export type AiReviewStatus = z.infer<typeof AiReviewStatusSchema>;
 export type AiReviewSource = z.infer<typeof AiReviewSourceSchema>;
 export type AiSeverity = z.infer<typeof AiSeveritySchema>;

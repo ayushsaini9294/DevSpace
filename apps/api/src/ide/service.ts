@@ -23,6 +23,7 @@ import {
   removeContainersByLabel,
 } from './docker.ts';
 import { withCopyDbLock } from './lock.ts';
+import { newAiGatewayToken, setAiGatewayToken } from '../ai/assistant.ts';
 
 /**
  * The IDE container of each copy: started on request, `starting` until OpenVSCode Server
@@ -104,7 +105,9 @@ async function ensureContainer(copyId: string, projectId: string): Promise<strin
   }
   if (!info) {
     try {
-      await docker.createContainer(ideContainerSpec({ ...input, token: newToken() }));
+      await docker.createContainer(
+        ideContainerSpec({ ...input, token: newToken(), aiToken: newAiGatewayToken() }),
+      );
     } catch (err) {
       // Another process made it first: use theirs.
       if (!isConflict(err)) throw err;
@@ -112,6 +115,11 @@ async function ensureContainer(copyId: string, projectId: string): Promise<strin
     info = await inspectIdeContainer(copyId);
     if (!info) throw new StartFailure('The container disappeared right after it was created');
   }
+  // The AI gateway accepts only this container's token: store its hash (a new container's
+  // token replaces the old one, which stops working).
+  const aiToken = envValue(info, 'DEVSPACE_AI_TOKEN');
+  if (!aiToken) throw new StartFailure('The container has no AI gateway token');
+  await setAiGatewayToken(copyId, aiToken);
   if (!info.State.Running) {
     try {
       await docker.getContainer(info.Id).start();

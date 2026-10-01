@@ -23,6 +23,21 @@ export const CopyHelperSchema = z.object({
   at: z.iso.datetime(),
 });
 
+/**
+ * Why the IDE's built-in AI assistant can't answer yet (Phase 12), checked for the copy's
+ * **owner** (a helping lead uses the assistant as the owner): `ai_disabled` = the project's AI
+ * switch is off (ask a leader), `not_connected` = the owner hasn't connected OpenRouter,
+ * `notice_required` = the owner hasn't accepted the one-time AI notice. The first failing reason
+ * wins, in that order.
+ */
+export const AiAssistantReasonSchema = z.enum(['ai_disabled', 'not_connected', 'notice_required']);
+
+/** `ready: true` exactly when `reason` is null. */
+export const AiAssistantStatusSchema = z.object({
+  ready: z.boolean(),
+  reason: AiAssistantReasonSchema.nullable(),
+});
+
 export const CopyViewSchema = z.object({
   id: z.uuid(),
   branchName: z.string(),
@@ -45,6 +60,11 @@ export const CopyViewSchema = z.object({
    * show "Packages changed in main: run `npm install` in the terminal" until dismissed.
    */
   packagesChanged: z.boolean(),
+  /**
+   * Whether the IDE's built-in AI assistant can answer (Phase 12), for the copy's owner. On
+   * every copy view (GET/POST /copy, POST /copy/ide, the lead's member-copy routes, updates).
+   */
+  aiAssistant: AiAssistantStatusSchema,
 });
 
 /**
@@ -169,6 +189,8 @@ export const PHASE7_ACTIVITY_ACTIONS = [
   'copy.helped',
 ] as const;
 
+export type AiAssistantReason = z.infer<typeof AiAssistantReasonSchema>;
+export type AiAssistantStatus = z.infer<typeof AiAssistantStatusSchema>;
 export type CopyHelper = z.infer<typeof CopyHelperSchema>;
 export type CopyUpdatePreview = z.infer<typeof CopyUpdatePreviewSchema>;
 export type CopyUpdateResponse = z.infer<typeof CopyUpdateResponseSchema>;

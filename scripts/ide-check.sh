@@ -3,11 +3,11 @@
 # it (Phase 5 contract): random uid:gid, all capabilities dropped, no-new-privileges, 1 CPU,
 # 2 GB memory without extra swap, 512 pids, only a temp folder mounted, network devspace-ide.
 #
-# Needs: image devspace-ide:4 (npm run ide:build), scripts/ide-network.sh and, as root,
+# Needs: image devspace-ide:5 (npm run ide:build), scripts/ide-network.sh and, as root,
 # scripts/ide-firewall.sh. Exits non-zero on the first failed check. Used in CI.
 set -euo pipefail
 
-IMAGE=devspace-ide:4
+IMAGE=devspace-ide:5
 NETWORK=devspace-ide
 RUN_ID="check-$$"
 IDE="devspace-ide-$RUN_ID"
@@ -15,6 +15,12 @@ PROBE="devspace-ide-probe-$RUN_ID"
 BASE_PATH="/ide/$RUN_ID"
 TOKEN="$(head -c 32 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n')"
 USER_ID="$((20000 + RANDOM % 10000)):$((20000 + RANDOM % 10000))"
+# The AI gateway (Phase 12): same defaults as the API and scripts/ide-firewall.sh.
+AI_GATEWAY_HOST="${AI_GATEWAY_HOST:-10.213.0.1}"
+AI_GATEWAY_PORT="${AI_GATEWAY_PORT:-3200}"
+AI_TOKEN="$(head -c 32 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n')"
+AI_BASE_URL="http://$AI_GATEWAY_HOST:$AI_GATEWAY_PORT/v1"
+AI_MODEL="qwen/qwen3.8-27b:free"
 WORKSPACE="$(mktemp -d)"
 failures=0
 
@@ -49,6 +55,7 @@ chmod 0777 "$WORKSPACE"
 chmod 0666 "$WORKSPACE/hello.txt"
 run_restricted "$IDE" \
   -e DEVSPACE_CONNECTION_TOKEN="$TOKEN" -e DEVSPACE_BASE_PATH="$BASE_PATH" \
+  -e DEVSPACE_AI_TOKEN="$AI_TOKEN" -e DEVSPACE_AI_BASE_URL="$AI_BASE_URL" -e DEVSPACE_AI_MODEL="$AI_MODEL" \
   -v "$WORKSPACE:/home/workspace" "$IMAGE"
 IP="$(docker inspect -f "{{(index .NetworkSettings.Networks \"$NETWORK\").IPAddress}}" "$IDE")"
 URL="http://$IP:3000$BASE_PATH"
@@ -107,6 +114,44 @@ expect "no connection token in the server's env" 0 "$(server_env | grep -c '^DEV
 expect "tracker extension installed outside HOME" yes "$(docker exec "$IDE" sh -c   '[ -f "$OPENVSCODE_SERVER_ROOT/extensions/devspace-tracker/dist/extension.js" ] && grep -q "\"name\": \"devspace-tracker\"" "$OPENVSCODE_SERVER_ROOT/extensions/devspace-tracker/package.json" && echo yes || echo no')"
 expect "the member cannot move or delete the tracker" kept "$(docker exec "$IDE" sh -c   'd="$OPENVSCODE_SERVER_ROOT/extensions"; mv "$d/devspace-tracker" "$d/moved" 2>/dev/null; rm -rf "$d/devspace-tracker" 2>/dev/null;    [ -f "$d/devspace-tracker/dist/extension.js" ] && echo kept || echo gone')"
 
+# The AI assistant (Phase 12): Cline, pinned, outside HOME and owned by root, connected to the
+# gateway by start.sh; the gateway settings are gone from the environment and its files are private.
+cline_ext='$OPENVSCODE_SERVER_ROOT/extensions/saoudrizwan.claude-dev'
+expect "Cline installed outside HOME, owned by root" "4.1.22 0:0" "$(docker exec "$IDE" sh -c \
+  "d=$cline_ext; v=\$(grep -m1 -o '\"version\": \"[^\"]*\"' \"\$d/package.json\" | cut -d'\"' -f4); echo \"\$v \$(stat -c %u:%g \"\$d/dist/extension.js\")\"")"
+expect "the member cannot move or delete Cline" kept "$(docker exec "$IDE" sh -c \
+  "d=$cline_ext; mv \"\$d\" \"\$d-moved\" 2>/dev/null; rm -rf \"\$d\" 2>/dev/null; [ -f \"\$d/dist/extension.js\" ] && echo kept || echo gone")"
+cline_json() { # file under ~/.cline/data, python expression on `d`
+  docker exec "$IDE" sh -c "cat \"\$HOME/.cline/data/$1\"" 2>/dev/null |
+    python3 -c "import json, sys; d = json.load(sys.stdin); print($2)" 2>/dev/null || echo missing
+}
+expect "Cline's provider is OpenAI Compatible (act and plan)" "openai openai" \
+  "$(cline_json globalState.json "d['actModeApiProvider'], d['planModeApiProvider']")"
+expect "Cline's base URL is the gateway" "$AI_BASE_URL" "$(cline_json globalState.json "d['openAiBaseUrl']")"
+expect "Cline's model is DEVSPACE_AI_MODEL" "$AI_MODEL" "$(cline_json globalState.json "d['actModeOpenAiModelId']")"
+expect "Cline's welcome screen is skipped" True "$(cline_json globalState.json "d['welcomeViewCompleted']")"
+expect "Cline's telemetry is off" disabled "$(cline_json globalState.json "d['telemetrySetting']")"
+expect "Cline asks before edits, commands, browser and MCP" "False False False False False False" \
+  "$(cline_json globalState.json "*[d['autoApprovalSettings']['actions'][k] for k in ['editFiles', 'editFilesExternally', 'executeSafeCommands', 'executeAllCommands', 'useBrowser', 'useMcp']]")"
+expect "Cline's API key is the gateway token" yes \
+  "$(cline_json secrets.json "'yes' if d['openAiApiKey'] == '$AI_TOKEN' else 'no'")"
+expect "Cline's files are private to the member" "700 600 600" "$(docker exec "$IDE" sh -c \
+  'cd "$HOME/.cline/data" && stat -c %a . secrets.json globalState.json | tr "\n" " " | sed "s/ $//"')"
+for var in DEVSPACE_AI_TOKEN DEVSPACE_AI_BASE_URL DEVSPACE_AI_MODEL; do
+  expect "no $var in the server's (and so terminals') env" 0 "$(server_env | grep -c "^$var=" || true)"
+done
+# Every process the server started (extension hosts, the terminals' pty host, …), not tini or
+# `docker exec`, which get the container's settings from Docker itself.
+expect "the gateway token is in none of the server's processes" 0 "$(docker exec "$IDE" sh -c "
+  server=\$(ls /proc | grep -E '^[0-9]+\$' | sort -n | sed -n 2p); n=0; hits=0
+  for p in /proc/[0-9]*; do
+    pid=\${p#/proc/}; a=\$pid
+    while [ \"\$a\" -gt 1 ] && [ \"\$a\" != \"\$server\" ]; do a=\$(awk '/^PPid/ {print \$2}' /proc/\$a/status 2>/dev/null || echo 0); done
+    [ \"\$a\" = \"\$server\" ] || continue
+    n=\$((n + 1)); tr '\0' '\n' <\$p/environ 2>/dev/null | grep -q -- '$AI_TOKEN' && hits=\$((hits + 1))
+  done
+  [ \$n -ge 1 ] && echo \$hits || echo 'no server process'")"
+
 echo "Network isolation (from a second container on $NETWORK)"
 run_restricted "$PROBE" --entrypoint sleep "$IMAGE" 300
 probe() { docker exec "$PROBE" sh -c "$1" 2>/dev/null || true; }
@@ -134,16 +179,39 @@ for _ in $(seq 1 20); do
 done
 expect "the host reaches its own listener $HOST_IP:$LISTEN_PORT" 200 "$(code "http://$HOST_IP:$LISTEN_PORT/")"
 
+# The AI gateway's address (Phase 12): the API's gateway when it is running, else a stand-in
+# listener on exactly that address and port.
+GATEWAY_LISTENER=""
+if ! curl -s -m 3 -o /dev/null "http://$AI_GATEWAY_HOST:$AI_GATEWAY_PORT/"; then
+  python3 -m http.server "$AI_GATEWAY_PORT" --bind "$AI_GATEWAY_HOST" >/dev/null 2>&1 &
+  GATEWAY_LISTENER=$!
+  trap 'kill $LISTENER $GATEWAY_LISTENER 2>/dev/null || true; cleanup' EXIT
+  for _ in $(seq 1 20); do
+    curl -s -o /dev/null "http://$AI_GATEWAY_HOST:$AI_GATEWAY_PORT/" && break
+    sleep 0.5
+  done
+fi
+
 expect "internet (https://example.com)" 200 "$(probe "curl -s -m 15 -o /dev/null -w '%{http_code}' https://example.com")"
 expect "other IDE container $IP:3000" blocked "$(reach "$IP" 3000)"
 expect "host via bridge gateway $GATEWAY:$LISTEN_PORT" blocked "$(reach "$GATEWAY" "$LISTEN_PORT")"
 expect "host via $HOST_IP:$LISTEN_PORT" blocked "$(reach "$HOST_IP" "$LISTEN_PORT")"
 expect "host via docker0 172.17.0.1:$LISTEN_PORT" blocked "$(reach 172.17.0.1 "$LISTEN_PORT")"
-expect "host via $HOST_IP:5432 (PostgreSQL's published port)" blocked "$(reach "$HOST_IP" 5432)"
 expect "private 10.0.0.1:80" blocked "$(reach 10.0.0.1 80)"
 expect "private 172.16.0.1:80" blocked "$(reach 172.16.0.1 80)"
 expect "private 192.168.1.1:80" blocked "$(reach 192.168.1.1 80)"
 expect "link-local 169.254.169.254:80" blocked "$(reach 169.254.169.254 80)"
+# Phase 12: the AI gateway is the one host port a container may reach; the rest stay refused.
+# (Over HTTP: an HTTP listener keeps a bare TCP connection open until curl's timeout.)
+expect "the AI gateway $AI_GATEWAY_HOST:$AI_GATEWAY_PORT (from the probe)" open "$(probe \
+  "curl -s -m 5 -o /dev/null -w '%{http_code}' http://$AI_GATEWAY_HOST:$AI_GATEWAY_PORT/v1/models | grep -Eq '^[1-5][0-9][0-9]\$' && echo open || echo blocked")"
+expect "the AI gateway from the IDE, at Cline's base URL" yes "$(docker exec "$IDE" sh -c \
+  "curl -s -m 5 -o /dev/null -w '%{http_code}' '$AI_BASE_URL/models' | grep -Eq '^[1-5][0-9][0-9]\$' && echo yes || echo no")"
+for port in 3000 3100 5432 6379; do
+  expect "host via the gateway's address $AI_GATEWAY_HOST:$port (API, IDE, PostgreSQL, Redis)" blocked "$(reach "$AI_GATEWAY_HOST" "$port")"
+  expect "host via $HOST_IP:$port" blocked "$(reach "$HOST_IP" "$port")"
+done
+expect "the gateway port on another host address $HOST_IP:$AI_GATEWAY_PORT" blocked "$(reach "$HOST_IP" "$AI_GATEWAY_PORT")"
 expect "the host still reaches the IDE (replies to the API)" 200 "$(code "$URL/version")"
 
 if [ "$failures" -gt 0 ]; then

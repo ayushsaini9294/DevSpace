@@ -90,7 +90,7 @@ The IDE is served from `127.0.0.1` on purpose. The browser treats it as a differ
 | `npm test`                | Runs unit and API tests (the API tests need the database)                      |
 | `npm run test:e2e`        | Runs the Playwright browser tests                                              |
 | `npm run format`          | Formats the code with Prettier                                                 |
-| `npm run ide:build`       | Builds the tracker extension and the IDE image `devspace-ide:4`                |
+| `npm run ide:build`       | Builds the tracker extension and the IDE image `devspace-ide:5`                |
 | `npm run ide:network`     | Creates the Docker network IDE containers join                                 |
 | `npm run ports:check`     | Checks that ports 3000, 3100, 5173 and 4010 are free                           |
 | `npm run templates:smoke` | Runs every starter template inside the IDE image (needs the image and network) |

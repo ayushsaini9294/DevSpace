@@ -7,12 +7,12 @@
 # from the host through the container's address (as the Preview proxy reaches them), under their
 # preview path.
 #
-# Needs: image devspace-ide:4 (npm run ide:build), scripts/ide-network.sh and, as root,
+# Needs: image devspace-ide:5 (npm run ide:build), scripts/ide-network.sh and, as root,
 # scripts/ide-firewall.sh (npm install needs the internet). Usage: bash scripts/template-smoke.sh
 # [template id ...] (default: all). Exits non-zero if any check failed. Used in CI.
 set -euo pipefail
 
-IMAGE="${IDE_IMAGE:-devspace-ide:4}"
+IMAGE="${IDE_IMAGE:-devspace-ide:5}"
 NETWORK=devspace-ide
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TEMPLATES="$ROOT/apps/api/templates"

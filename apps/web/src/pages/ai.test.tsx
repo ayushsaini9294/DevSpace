@@ -5,8 +5,10 @@ import {
   AiConnectFinishRequestSchema,
   CreateAiReviewRequestSchema,
   DEFAULT_MEMBER_PERMISSIONS,
+  UpdateAiPreferencesRequestSchema,
   UpdateProjectSettingsRequestSchema,
   groupAiFindings,
+  type AiPreferences,
   type AiReviewListResponse,
   type AiReviewView,
   type NotificationView,
@@ -54,7 +56,112 @@ function sequence(...replies: StubReply[]): () => StubReply {
 
 // ---------- Settings → AI ----------
 
-describe('AI review settings', () => {
+function preferences(overrides: Partial<AiPreferences> = {}): AiPreferences {
+  return {
+    allowPaid: false,
+    assistantUsageToday: { day: '2026-09-30', requests: 0, models: [] },
+    ...overrides,
+  };
+}
+
+describe('AI settings: the IDE assistant', () => {
+  it('shows today’s assistant use and the note about helping leads', async () => {
+    stubApi({
+      'GET /api/auth/me': loggedIn,
+      'GET /api/ai/connection': { status: 200, body: testAiConnection() },
+      'GET /api/ai/preferences': {
+        status: 200,
+        body: preferences({
+          assistantUsageToday: {
+            day: '2026-09-30',
+            requests: 5,
+            models: [
+              { model: 'qwen/qwen3.8-27b:free', requests: 4 },
+              { model: 'openrouter/free', requests: 1 },
+            ],
+          },
+        }),
+      },
+    });
+    renderApp('/settings/ai');
+
+    const usage = await screen.findByTestId('ai-assistant-usage');
+    expect(usage).toHaveTextContent('Assistant use today (UTC): 5 requests.');
+    expect(usage).toHaveTextContent('qwen/qwen3.8-27b:free: 4 requests');
+    expect(usage).toHaveTextContent('openrouter/free: 1 request');
+    expect(screen.getByTestId('ai-helper-note')).toHaveTextContent('they can never see your key');
+    expect(screen.getByRole('heading', { level: 2, name: 'AI settings' })).toBeInTheDocument();
+    // Already accepted: no notice.
+    expect(screen.queryByTestId('ai-notice')).not.toBeInTheDocument();
+  });
+
+  it('turns paid models on for the assistant', async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubApi({
+      'GET /api/auth/me': loggedIn,
+      'GET /api/ai/connection': { status: 200, body: testAiConnection() },
+      'GET /api/ai/preferences': { status: 200, body: preferences() },
+      'PATCH /api/ai/preferences': { status: 200, body: preferences({ allowPaid: true }) },
+    });
+    renderApp('/settings/ai');
+
+    const toggle = await screen.findByRole('switch', {
+      name: 'Allow paid models in the IDE assistant (uses your OpenRouter credits)',
+    });
+    expect(toggle).toHaveAttribute('aria-checked', 'false');
+    expect(toggle).toHaveAccessibleDescription(/only use free models/);
+    expect(screen.getByTestId('ai-assistant-usage')).toHaveTextContent('no requests yet');
+
+    await user.click(toggle);
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-checked', 'true'));
+    expect(
+      UpdateAiPreferencesRequestSchema.parse(requestBody(fetchMock, 'PATCH /api/ai/preferences')),
+    ).toEqual({ allowPaid: true });
+  });
+
+  it('shows an error when the switch can’t be saved', async () => {
+    const user = userEvent.setup();
+    stubApi({
+      'GET /api/auth/me': loggedIn,
+      'GET /api/ai/connection': { status: 200, body: testAiConnection() },
+      'GET /api/ai/preferences': { status: 200, body: preferences({ allowPaid: true }) },
+      'PATCH /api/ai/preferences': {
+        status: 500,
+        body: { error: 'internal', message: 'Something went wrong' },
+      },
+    });
+    renderApp('/settings/ai');
+    const toggle = await screen.findByTestId('ai-allow-paid');
+    await user.click(toggle);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not change this setting.');
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('lets me accept the AI notice here, which the assistant needs', async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubApi({
+      'GET /api/auth/me': loggedIn,
+      'GET /api/ai/connection': {
+        status: 200,
+        body: testAiConnection({ noticeAcceptedAt: null }),
+      },
+      'GET /api/ai/preferences': { status: 200, body: preferences() },
+      'POST /api/ai/notice/accept': {
+        status: 200,
+        body: { noticeAcceptedAt: '2026-09-30T10:00:00.000Z' },
+      },
+    });
+    renderApp('/settings/ai');
+
+    const notice = await screen.findByTestId('ai-notice');
+    expect(notice).toHaveTextContent('IDE’s AI assistant send your code');
+    await user.click(within(notice).getByRole('button', { name: 'I understand' }));
+    await waitFor(() => expect(screen.queryByTestId('ai-notice')).not.toBeInTheDocument());
+    expect(calls(fetchMock, 'POST /api/ai/notice/accept')).toBe(1);
+  });
+});
+
+describe('AI settings page', () => {
   it('connects: asks the API for OpenRouter’s address and goes there', async () => {
     const leave = vi.spyOn(browser, 'leaveFor').mockImplementation(() => {});
     const url = 'https://openrouter.ai/auth?callback_url=x&code_challenge=y';
@@ -71,6 +178,7 @@ describe('AI review settings', () => {
         }),
       },
       'POST /api/ai/openrouter/start': { status: 200, body: { url } },
+      'GET /api/ai/preferences': { status: 200, body: preferences() },
     });
     renderApp('/settings/ai');
 
@@ -91,6 +199,7 @@ describe('AI review settings', () => {
         },
       ),
       'DELETE /api/ai/connection': { status: 204 },
+      'GET /api/ai/preferences': { status: 200, body: preferences() },
     });
     renderApp('/settings/ai');
 
@@ -121,7 +230,7 @@ describe('AI review settings', () => {
     });
     renderApp('/');
     await user.click(await screen.findByTestId('current-user'));
-    expect(screen.getByRole('link', { name: 'AI review settings' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'AI settings' })).toHaveAttribute(
       'href',
       '/settings/ai',
     );
@@ -134,6 +243,7 @@ describe('the OpenRouter callback page', () => {
       'GET /api/auth/me': loggedIn,
       'POST /api/ai/openrouter/finish': { status: 200, body: testAiConnection() },
       'GET /api/ai/connection': { status: 200, body: testAiConnection() },
+      'GET /api/ai/preferences': { status: 200, body: preferences() },
     });
     const { router } = renderApp('/settings/ai/callback?code=the-code&state=the-state');
 
@@ -158,7 +268,7 @@ describe('the OpenRouter callback page', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'This connection link has expired or was already used.',
     );
-    expect(screen.getByRole('link', { name: 'Back to AI review settings' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to AI settings' })).toBeInTheDocument();
   });
 
   it('says so when OpenRouter sent no code', async () => {
@@ -186,7 +296,7 @@ describe('the project’s AI switch', () => {
     renderApp('/projects/project-1/settings');
 
     const box = await screen.findByRole('checkbox', {
-      name: 'Allow AI review (sends code to AI providers)',
+      name: 'Allow AI (AI review and the IDE assistant; sends code to AI providers)',
     });
     expect(box).not.toBeChecked();
     expect(box).toHaveAccessibleDescription(/outside AI providers/);

@@ -1,7 +1,7 @@
-import { act, screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ProjectDetail, RepositoryStatus } from '@devspace/shared';
+import type { AiAssistantStatus, ProjectDetail, RepositoryStatus } from '@devspace/shared';
 import {
   loggedIn,
   renderApp,
@@ -363,5 +363,57 @@ describe('IDE page', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Your IDE isn’t running.');
     expect(screen.getByRole('button', { name: 'Start the IDE' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Reload IDE' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('ide-ai-hint')).not.toBeInTheDocument();
+  });
+});
+
+describe('IDE page AI assistant hint', () => {
+  async function hintFor(
+    aiAssistant: AiAssistantStatus,
+    project: ProjectDetail = testProject('member'),
+  ): Promise<HTMLElement> {
+    const copy = testCopy({ containerStatus: 'running', aiAssistant });
+    stubApi({
+      ...ideRoutes({
+        [`POST ${P}/copy/ide`]: { status: 200, body: { copy } },
+        [LAUNCH]: freshTickets(),
+      }),
+      [`GET ${P}`]: { status: 200, body: { project } },
+    });
+    renderApp('/projects/project-1/ide');
+    await screen.findByTitle('VS Code for Website');
+    return screen.getByTestId('ide-ai-hint');
+  }
+
+  it('tells a ready member how to use the assistant', async () => {
+    const hint = await hintFor({ ready: true, reason: null });
+    expect(hint).toHaveAttribute('data-ready', 'true');
+    expect(hint).toHaveTextContent(
+      'AI assistant: Click the AI icon on the left and describe what to build.',
+    );
+  });
+
+  it.each([
+    ['not_connected', 'connect your OpenRouter account'],
+    ['notice_required', 'read and accept the AI notice'],
+  ] as const)('links to AI settings for %s', async (reason, name) => {
+    const hint = await hintFor({ ready: false, reason });
+    expect(hint).toHaveAttribute('data-ready', 'false');
+    expect(hint).toHaveAttribute('data-reason', reason);
+    expect(within(hint).getByRole('link', { name })).toHaveAttribute('href', '/settings/ai');
+  });
+
+  it('asks a member to ask a leader when AI is off', async () => {
+    const hint = await hintFor({ ready: false, reason: 'ai_disabled' });
+    expect(hint).toHaveTextContent('Ask a leader to switch it on in the project’s Settings.');
+    expect(within(hint).queryByRole('link')).toBeNull();
+  });
+
+  it('links a leader to the project’s Settings when AI is off', async () => {
+    const hint = await hintFor({ ready: false, reason: 'ai_disabled' }, testProject('leader'));
+    expect(within(hint).getByRole('link', { name: 'Switch it on in Settings' })).toHaveAttribute(
+      'href',
+      '/projects/project-1/settings',
+    );
   });
 });

@@ -20,7 +20,7 @@
     "db:migrate": "npm run db:migrate -w @devspace/api",
     "test:e2e": "playwright test",
     "db:generate": "npm run db:generate -w @devspace/api",
-    "ide:build": "npm run build -w devspace-tracker && docker build -t devspace-ide:4 docker/ide",
+    "ide:build": "npm run build -w devspace-tracker && docker build -t devspace-ide:5 docker/ide",
     "templates:smoke": "bash scripts/template-smoke.sh",
     "ide:network": "bash scripts/ide-network.sh",
     "ports:check": "bash scripts/check-ports.sh"

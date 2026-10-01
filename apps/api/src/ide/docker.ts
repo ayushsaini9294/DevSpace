@@ -42,6 +42,18 @@ export interface IdeContainerInput {
   /** The copy's folder on the Docker host. */
   hostDir: string;
   token: string;
+  /** The copy's AI gateway token (Phase 12); only its hash is stored in the database. */
+  aiToken: string;
+}
+
+/** Where the container's AI assistant sends requests: the AI gateway on the IDE network. */
+export function aiGatewayBaseUrl(): string {
+  return `http://${env.AI_GATEWAY_HOST}:${env.AI_GATEWAY_PORT}/v1`;
+}
+
+/** The assistant's default model: the first default free model (AI_DEFAULT_MODELS). */
+export function aiAssistantDefaultModel(): string {
+  return env.AI_DEFAULT_MODELS[0]!;
 }
 
 /** The full create options for one copy's IDE container. */
@@ -53,6 +65,11 @@ export function ideContainerSpec(input: IdeContainerInput): Docker.ContainerCrea
     Env: [
       `DEVSPACE_CONNECTION_TOKEN=${input.token}`,
       `DEVSPACE_BASE_PATH=${ideBasePath(input.copyId)}`,
+      // The assistant's settings (start.sh writes them into its config, then unsets them). The
+      // member's real OpenRouter key is never here: the gateway adds it on the server.
+      `DEVSPACE_AI_TOKEN=${input.aiToken}`,
+      `DEVSPACE_AI_BASE_URL=${aiGatewayBaseUrl()}`,
+      `DEVSPACE_AI_MODEL=${aiAssistantDefaultModel()}`,
     ],
     Labels: { 'devspace.copy': input.copyId, 'devspace.project': input.projectId },
     WorkingDir: WORKSPACE_PATH,
@@ -120,7 +137,7 @@ export function ideNetworkIp(info: Docker.ContainerInspectInfo): string | undefi
  */
 export function matchesSpec(
   info: Docker.ContainerInspectInfo,
-  input: Omit<IdeContainerInput, 'token'>,
+  input: Omit<IdeContainerInput, 'token' | 'aiToken'>,
 ): boolean {
   const mounts = info.Mounts ?? [];
   const networks = Object.keys(info.NetworkSettings.Networks ?? {});
@@ -136,7 +153,9 @@ export function matchesSpec(
     networks.length === 1 &&
     networks[0] === env.IDE_NETWORK &&
     envValue(info, 'DEVSPACE_BASE_PATH') === ideBasePath(input.copyId) &&
-    !!envValue(info, 'DEVSPACE_CONNECTION_TOKEN')
+    !!envValue(info, 'DEVSPACE_CONNECTION_TOKEN') &&
+    !!envValue(info, 'DEVSPACE_AI_TOKEN') &&
+    envValue(info, 'DEVSPACE_AI_BASE_URL') === aiGatewayBaseUrl()
   );
 }
 
