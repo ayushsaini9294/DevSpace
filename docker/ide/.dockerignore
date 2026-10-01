@@ -3,3 +3,4 @@
 !start.sh
 !tracker/package.json
 !tracker/dist/extension.js
+!defaults/devspace-defaults.js

@@ -94,25 +94,19 @@ DEVSPACE_PREVIEW_BASE_8080="$base_path/__preview/8080/"
 DEVSPACE_PREVIEW_BASE="$DEVSPACE_PREVIEW_BASE_5173"
 export DEVSPACE_PREVIEW_BASE_5173 DEVSPACE_PREVIEW_BASE_8080 DEVSPACE_PREVIEW_BASE
 
-# Beginner defaults, written only when missing so a member's own choices win (owner decisions):
-# - files save on their own after a second: beginners don't know Ctrl+S, and DevSpace only sees
-#   saved files;
-# - no "Do you trust the authors?" prompt: in Restricted Mode Cline doesn't load, and the safety
-#   boundary is the isolated container (it holds only the member's own copy);
-# - VS Code's own AI chat (Copilot) is hidden: it doesn't work here, and Cline is the assistant.
+# Beginners don't know to press Ctrl+S, and DevSpace only sees saved files. So files save on
+# their own after a second by default. Written only when missing: a member's own choice wins.
+# (VS Code's own AI chat and its welcome walkthrough are hidden by the devspace-defaults
+# script in the image: the web client ignores application-wide settings in these files.)
 machine_settings="$HOME/.openvscode-server/data/Machine/settings.json"
 if [ ! -e "$machine_settings" ]; then
   mkdir -p "$(dirname "$machine_settings")"
-  cat >"$machine_settings" <<'SETTINGS'
-{
-  "files.autoSave": "afterDelay",
-  "files.autoSaveDelay": 1000,
-  "security.workspace.trust.enabled": false,
-  "chat.disableAIFeatures": true
-}
-SETTINGS
+  printf '{\n  "files.autoSave": "afterDelay",\n  "files.autoSaveDelay": 1000\n}\n' >"$machine_settings"
 fi
 
+# --disable-workspace-trust (owner decision, 2026-10-01): no "Do you trust the authors?" prompt
+# and no Restricted Mode, which kept Cline from loading. The folder is the member's own copy, and
+# the safety boundary is the isolated container. Settings files can't change this; only this flag.
 exec "$OPENVSCODE_SERVER_ROOT/bin/openvscode-server" \
   --host 0.0.0.0 \
   --port 3000 \
@@ -120,4 +114,5 @@ exec "$OPENVSCODE_SERVER_ROOT/bin/openvscode-server" \
   --server-base-path "$base_path" \
   --default-folder /home/workspace \
   --telemetry-level off \
+  --disable-workspace-trust \
   "$@"

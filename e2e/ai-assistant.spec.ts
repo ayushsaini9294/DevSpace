@@ -143,9 +143,14 @@ test('a member asks the built-in AI assistant to build something, and it lands i
   await expect(
     ide.locator('.explorer-folders-view').getByText('README.md', { exact: true }),
   ).toBeVisible({ timeout: 120_000 });
-  // VS Code's workspace-trust prompt (since Phase 5): trusting their own copy is what a member does.
-  const trust = ide.getByRole('button', { name: /Yes, I trust/i });
-  if (await trust.isVisible().catch(() => false)) await trust.click();
+  // No workspace-trust prompt and no Restricted Mode (owner decision): Cline must load at once.
+  await expect(ide.getByText('Restricted Mode', { exact: false })).toHaveCount(0);
+  await expect(ide.getByRole('button', { name: /Yes, I trust/i })).toHaveCount(0);
+  // VS Code's own AI chat (Copilot) and its "Setup VS Code Web" walkthrough are hidden (owner
+  // decision): Cline is the one AI helper.
+  await expect(ide.getByText('Build with agent mode')).toHaveCount(0);
+  await expect(ide.getByRole('tab', { name: /^Chat/ })).toHaveCount(0);
+  await expect(ide.getByText(/Walkthrough: Setup VS Code/)).toHaveCount(0);
 
   // Cline is already there and connected: its icon on the left opens the chat, with no setup.
   await ide

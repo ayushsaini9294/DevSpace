@@ -66,6 +66,17 @@ RUN python3 -m zipfile -e /tmp/cline.vsix /tmp/cline \
     && chmod -R u=rwX,go=rX $OPENVSCODE_SERVER_ROOT/extensions/saoudrizwan.claude-dev \
     && grep -q "\"version\": \"${CLINE_VERSION}\"" $OPENVSCODE_SERVER_ROOT/extensions/saoudrizwan.claude-dev/package.json
 
+# DevSpace's default settings (Phase 12, owner): VS Code's own AI chat (Copilot; Cline is the
+# assistant) and the "Setup VS Code Web" walkthrough are off by default. The web client takes
+# default settings only from the page's workbench configuration, so devspace-defaults.js adds them
+# there, loaded just before workbench.js (module scripts run in order). Members can still change
+# both.
+COPY --chown=root:root --chmod=0644 defaults/devspace-defaults.js $OPENVSCODE_SERVER_ROOT/out/vs/code/browser/workbench/devspace-defaults.js
+RUN html=$OPENVSCODE_SERVER_ROOT/out/vs/code/browser/workbench/workbench.html \
+    && grep -q 'src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/code/browser/workbench/workbench.js"' "$html" \
+    && sed -i 's#^\(\s*\)<script type="module" src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/code/browser/workbench/workbench.js"></script>#\1<script type="module" src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/code/browser/workbench/devspace-defaults.js"></script>\n&#' "$html" \
+    && grep -q 'devspace-defaults.js' "$html"
+
 COPY --chmod=0755 start.sh /usr/local/bin/devspace-ide-start
 
 # devspace-tracker (Phase 9): a web extension that reports the open file and activity to the API
