@@ -22,6 +22,8 @@ import { ProjectRoleSchema } from './permissions.ts';
  * - `invitation.accepted` → leaders and co-leaders
  * - `ai_review.finished` → whoever asked for the cross-review, once all its models finished
  *   (Phase 10; link: the submission)
+ * - `github.sync_paused`, `github.sync_failed` → leaders and co-leaders (Phase 13; link: the
+ *   project's settings, GitHub section). Automatic, so nobody is excluded.
  *
  * Links (web): submission types → /projects/:projectId/submissions/:submissionId; task types →
  * /projects/:projectId/tasks; copy types → /projects/:projectId/ide (or the overview); member
@@ -52,6 +54,8 @@ export const NOTIFICATION_TYPES = [
   'member.permissions_changed',
   'invitation.accepted',
   'ai_review.finished',
+  'github.sync_paused',
+  'github.sync_failed',
 ] as const;
 
 export const NotificationTypeSchema = z.enum(NOTIFICATION_TYPES);
@@ -100,6 +104,8 @@ export const NotificationDataSchemas = {
     /** Findings across the done reviews. */
     findingCount: z.number().int().nonnegative(),
   }),
+  'github.sync_paused': z.object({ repoFullName: z.string(), reason: z.string() }),
+  'github.sync_failed': z.object({ repoFullName: z.string(), reason: z.string() }),
 } as const satisfies Record<NotificationType, z.ZodType>;
 
 const Base = {
@@ -133,6 +139,8 @@ export const NotificationViewSchema = z.discriminatedUnion('type', [
   variant('member.permissions_changed'),
   variant('invitation.accepted'),
   variant('ai_review.finished'),
+  variant('github.sync_paused'),
+  variant('github.sync_failed'),
 ]);
 
 /** GET /api/notifications?cursor= — query. `cursor` is the previous page's `nextCursor`. */

@@ -1,6 +1,7 @@
 import {
   ActivityListResponseSchema,
   type ActivityEntry,
+  type GithubActivityAction,
   type InvalidateKey,
   type TaskActivityAction,
 } from '@devspace/shared';
@@ -38,7 +39,8 @@ export type ActivityAction =
   | 'submission.reverted'
   | 'copy.updated'
   | 'copy.helped'
-  | TaskActivityAction;
+  | TaskActivityAction
+  | GithubActivityAction;
 
 export interface ActivityInput {
   projectId: string;
@@ -85,7 +87,7 @@ export function invalidationsFor(input: ActivityInput): InvalidateKey[] {
       if (input.action === 'member.removed' || input.action === 'member.left') keys.push('tasks');
       break;
     case 'repository':
-      keys.push('repository', 'copy');
+      keys.push('repository', 'copy', 'github');
       break;
     case 'copy':
       if (target) keys.push(`copy:${target}`);
@@ -96,6 +98,9 @@ export function invalidationsFor(input: ActivityInput): InvalidateKey[] {
       if (input.action === 'submission.merged' || input.action === 'submission.reverted') {
         keys.push('repository', 'copy');
       }
+      break;
+    case 'github':
+      keys.push('github');
       break;
     case 'task':
       keys.push('tasks');

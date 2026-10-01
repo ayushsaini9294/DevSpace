@@ -7,7 +7,8 @@
     "./housekeeping": "./src/housekeeping/index.ts",
     "./prisma": "./src/lib/prisma.ts",
     "./copy-updates": "./src/jobs/worker-exports.ts",
-    "./ai-reviews": "./src/jobs/ai-worker-exports.ts"
+    "./ai-reviews": "./src/jobs/ai-worker-exports.ts",
+    "./github-sync": "./src/jobs/github-worker-exports.ts"
   },
   "scripts": {
     "predev": "npm run db:generate",

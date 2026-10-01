@@ -100,6 +100,40 @@ const EnvSchema = z
      */
     AI_GATEWAY_HOST: z.ipv4().default('10.213.0.1'),
     AI_GATEWAY_PORT: z.coerce.number().int().min(1).max(65535).default(3200),
+    /**
+     * GitHub (Phase 13): the DevSpace GitHub App. All optional; without the app's id, slug,
+     * private key and client id/secret, every GitHub feature answers `github_not_configured`.
+     */
+    GITHUB_APP_ID: z
+      .string()
+      .trim()
+      .regex(/^\d{1,20}$/, 'must be the numeric GitHub App ID')
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
+    GITHUB_APP_SLUG: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9-]{1,100}$/, 'must be the app’s URL slug')
+      .optional()
+      .or(z.literal('').transform(() => undefined)),
+    /** The app's private key (PEM file, outside the repository). Read when needed, never logged. */
+    GITHUB_APP_PRIVATE_KEY_PATH: z
+      .string()
+      .trim()
+      .optional()
+      .transform((value) => (value ? (isAbsolute(value) ? value : resolve(value)) : undefined)),
+    GITHUB_CLIENT_ID: z.string().trim().max(200).optional(),
+    GITHUB_CLIENT_SECRET: z.string().trim().max(500).optional(),
+    /** GitHub's REST API (a GHES-style prefix such as `http://127.0.0.1:4020/api/v3` works). */
+    GITHUB_API_URL: z.string().trim().default('https://api.github.com'),
+    /** GitHub's web address: sign-in, app install pages and Git over HTTPS. */
+    GITHUB_WEB_URL: z.string().trim().default('https://github.com'),
+    /** `1` lets GITHUB_API_URL/GITHUB_WEB_URL use http:// (stand-in GitHub in e2e only). */
+    GITHUB_ALLOW_HTTP: z
+      .string()
+      .trim()
+      .optional()
+      .transform((value) => value === '1' || value === 'true'),
     /** Tried in order when a model fails (429, 5xx, timeout, empty answer). */
     AI_FALLBACK_MODELS: modelList(
       'poolside/laguna-s-2.1:free,nvidia/nemotron-3-super-120b-a12b:free,openrouter/free',
@@ -120,6 +154,37 @@ const EnvSchema = z
     }
     return { ...e, AI_SECRETS_KEY: key };
   })
+  .superRefine((e, ctx) => {
+    // GitHub's addresses: https only (http only for a stand-in: NODE_ENV=test or GITHUB_ALLOW_HTTP),
+    // no credentials, query or fragment.
+    for (const key of ['GITHUB_API_URL', 'GITHUB_WEB_URL'] as const) {
+      let ok: boolean;
+      try {
+        const url = new URL(e[key]);
+        const httpOk = e.NODE_ENV === 'test' || e.GITHUB_ALLOW_HTTP;
+        ok =
+          (url.protocol === 'https:' || (httpOk && url.protocol === 'http:')) &&
+          !url.username &&
+          !url.password &&
+          !url.search &&
+          !url.hash;
+      } catch {
+        ok = false;
+      }
+      if (!ok) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [key],
+          message: 'must be an https:// address with no login, query or # part',
+        });
+      }
+    }
+  })
+  .transform((e) => ({
+    ...e,
+    GITHUB_API_URL: e.GITHUB_API_URL.replace(/\/+$/, ''),
+    GITHUB_WEB_URL: e.GITHUB_WEB_URL.replace(/\/+$/, ''),
+  }))
   .refine(
     (e) => {
       try {

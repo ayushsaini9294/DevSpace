@@ -179,6 +179,29 @@ export function describeActivity(entry: ActivityEntry): string {
         ? `${actor} said the task ${task} isn’t done yet`
         : `${actor} marked the task ${task} done`;
     }
+    case 'github.published': {
+      const repo = dataString(data, 'repoFullName');
+      const where = repo ? `GitHub (${repo})` : 'GitHub';
+      return data.private === false
+        ? `${actor} published the project to ${where} as a public repository`
+        : `${actor} published the project to ${where}`;
+    }
+    case 'github.unlinked': {
+      const repo = dataString(data, 'repoFullName');
+      return repo
+        ? `${actor} stopped sending the project to GitHub (${repo})`
+        : `${actor} stopped sending the project to GitHub`;
+    }
+    case 'github.sync_paused': {
+      const reason = dataString(data, 'reason');
+      return reason
+        ? `Sending main to GitHub was paused: ${reason}`
+        : 'Sending main to GitHub was paused';
+    }
+    case 'github.sync_failed': {
+      const reason = dataString(data, 'reason');
+      return reason ? `Sending main to GitHub failed: ${reason}` : 'Sending main to GitHub failed';
+    }
     default:
       return `${actor}: ${entry.action}`;
   }

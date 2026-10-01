@@ -5,6 +5,7 @@ import { CopyViewSchema, type CopyView } from '@devspace/shared';
 import { recordActivity } from '../activity/log.ts';
 import { env } from '../config/env.ts';
 import { Prisma } from '../generated/prisma/client.ts';
+import { commitIdentity } from '../github/identity.ts';
 import { cleanIdentity, lastCommit, MAIN_REF, resolveCommit, type Identity } from '../git/repo.ts';
 import { runGit } from '../git/run.ts';
 import { HttpError } from '../lib/http-error.ts';
@@ -224,7 +225,7 @@ export async function ensureCopy(
   const temp = `${target}.new`;
   await mkdir(projectCopiesDir(projectId), { recursive: true });
   try {
-    const baseSha = await cloneCopy(project.repoPath, temp, branchName, user);
+    const baseSha = await cloneCopy(project.repoPath, temp, branchName, await commitIdentity(user));
     const row = await transaction(async (tx) => {
       const created = await tx.copy.create({
         data: { id, projectId, userId: user.id, branchName, baseSha },

@@ -6,6 +6,7 @@ import { popoverPanel, usePopover } from '../components/usePopover';
 import { linkStyle } from '../components/ui';
 import { AI_SETTINGS_URL } from '../lib/ai';
 import { useCurrentUser, useLogOut } from '../lib/auth';
+import { GITHUB_SETTINGS_URL } from '../lib/github';
 
 const navLink =
   'rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900';
@@ -81,6 +82,14 @@ function UserMenu({ name, email }: { name: string; email: string }) {
           <ShareFileSwitch />
           <Link to={AI_SETTINGS_URL} onClick={toggle} className={`${linkStyle} block text-sm`}>
             AI settings
+          </Link>
+          <Link
+            to={GITHUB_SETTINGS_URL}
+            onClick={toggle}
+            data-testid="github-settings-link"
+            className={`${linkStyle} block text-sm`}
+          >
+            GitHub settings
           </Link>
         </div>
       )}

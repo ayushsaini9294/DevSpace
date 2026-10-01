@@ -9,6 +9,7 @@ import {
   type TreeEntry,
 } from '@devspace/shared';
 import { templateDir, writeFolderTree } from './templates.ts';
+import { commitIdentity } from '../github/identity.ts';
 import { recordActivity } from '../activity/log.ts';
 import {
   initBare,
@@ -81,7 +82,7 @@ export async function repositoryResponse(projectId: string) {
 }
 
 /** Status `none` or `failed` is the only state a repository can be set up from. */
-async function assertCanSetUp(projectId: string): Promise<void> {
+export async function assertCanSetUp(projectId: string): Promise<void> {
   const row = await prisma.project.findUniqueOrThrow({
     where: { id: projectId },
     select: { repoStatus: true },
@@ -144,7 +145,7 @@ async function setUpWithFirstCommit(
   try {
     await initBare(temp);
     const { tree, message } = await build(temp);
-    const commit = await writeCommit(temp, tree, [], message, user);
+    const commit = await writeCommit(temp, tree, [], message, await commitIdentity(user));
     await updateRef(temp, MAIN_REF, commit);
 
     await transaction(async (tx) => {
@@ -176,12 +177,16 @@ async function setUpWithFirstCommit(
 }
 
 /** Claims the project for an import (status → importing), or 409 if it can't be set up now. */
-export async function claimImport(projectId: string, url: string): Promise<void> {
+export async function claimImport(
+  projectId: string,
+  url: string,
+  source: 'import' | 'github' = 'import',
+): Promise<void> {
   const { count } = await prisma.project.updateMany({
     where: { id: projectId, repoStatus: { in: ['none', 'failed'] } },
     data: {
       repoStatus: 'importing',
-      repoSource: 'import',
+      repoSource: source,
       template: null,
       importUrl: url,
       repoError: null,

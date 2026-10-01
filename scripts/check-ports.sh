@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Checks that the ports DevSpace needs are free before `npm run dev` or the e2e tests start:
 # the API (PORT, 3000), the IDE listener (IDE_PORT, 3100), the web app (5173) and the e2e tests'
-# stand-in OpenRouter (OPENROUTER_STUB_PORT, 4010; a test double, e2e/stubs/openrouter.ts).
+# stand-in OpenRouter (OPENROUTER_STUB_PORT, 4010; a test double, e2e/stubs/openrouter.ts) and
+# stand-in GitHub (GITHUB_STUB_PORT, 4020; a test double, e2e/stubs/github.ts).
 # Exits 1 and names the process holding a port that is already taken. Used in CI.
 set -euo pipefail
 
-ports=("${PORT:-3000}" "${IDE_PORT:-3100}" 5173 "${OPENROUTER_STUB_PORT:-4010}")
+ports=("${PORT:-3000}" "${IDE_PORT:-3100}" 5173 "${OPENROUTER_STUB_PORT:-4010}" "${GITHUB_STUB_PORT:-4020}")
 busy=0
 
 for port in "${ports[@]}"; do

@@ -256,7 +256,7 @@ describe('setting up a repository from a template', () => {
 
       const gitDir = await repoPathOf(project.id);
       const head = (await lastCommit(gitDir, MAIN_REF))!;
-      expect(head.authorEmail).toBe(leader.email);
+      expect(head.authorEmail).toBe(`${leader.id}@users.noreply.devspace.invalid`);
       const inMain = await listAllFiles(gitDir, head.sha);
       const onDisk = await folderFiles(templateDir(id));
       expect(inMain.map((f) => f.path).sort()).toEqual([...onDisk.keys()].sort());

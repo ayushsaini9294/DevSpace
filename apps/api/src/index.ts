@@ -9,6 +9,7 @@ import { recoverIdeContainers } from './ide/service.ts';
 import { backfillCopyBaseShas } from './copies/service.ts';
 import { closeCopyUpdateQueue } from './jobs/copy-updates.ts';
 import { closeAiReviewQueue } from './jobs/ai-reviews.ts';
+import { closeGithubSyncQueue } from './jobs/github-sync.ts';
 import { closeEmitter } from './realtime/emitter.ts';
 import { attachRealtime } from './realtime/io.ts';
 import { sweepPresence } from './realtime/presence.ts';
@@ -93,6 +94,7 @@ async function shutdown(signal: string): Promise<void> {
   server.close(async (err) => {
     await closeCopyUpdateQueue();
     await closeAiReviewQueue();
+    await closeGithubSyncQueue();
     await closeEmitter();
     await prisma.$disconnect().catch(() => undefined);
     process.exit(err ? 1 : 0);

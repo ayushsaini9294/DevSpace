@@ -42,6 +42,13 @@ function showFile(projectId: string, rev: string, path: string) {
   return `${bareGit(projectId, ['show', `${rev}:${path}`])}\n`;
 }
 
+/** The logged-in user's id (GET /api/auth/me). */
+async function userId(page: Page) {
+  const res = await page.request.get('/api/auth/me');
+  expect(res.status()).toBe(200);
+  return ((await res.json()) as { user: { id: string } }).user.id;
+}
+
 function readCopyFile(folder: string, path: string) {
   return readFileSync(join(folder, path), 'utf8');
 }
@@ -154,16 +161,17 @@ test('a merge changes main and updates other copies; undo restores main and give
     ).toBeVisible();
 
     // main really changed: exactly one new commit on top of the old main, credited to the author,
-    // committed by the leader, holding the new text.
+    // committed by the leader, holding the new text. Their emails are private ones (Phase 13:
+    // neither connected GitHub, so `<userId>@users.noreply.devspace.invalid`), never the real ones.
     const main1 = mainSha(projectId);
     expect(main1).not.toBe(main0);
     expect(bareGit(projectId, ['rev-list', '--count', `${main0}..${main1}`])).toBe('1');
     expect(bareGit(projectId, ['rev-parse', `${main1}^`])).toBe(main0);
     expect(bareGit(projectId, ['show', '-s', '--format=%an <%ae>', main1])).toBe(
-      `${author.user.name} <${author.user.email}>`,
+      `${author.user.name} <${await userId(author.page)}@users.noreply.devspace.invalid>`,
     );
     expect(bareGit(projectId, ['show', '-s', '--format=%cn <%ce>', main1])).toBe(
-      `${lp.leader.name} <${lp.leader.email}>`,
+      `${lp.leader.name} <${await userId(page)}@users.noreply.devspace.invalid>`,
     );
     const message = bareGit(projectId, ['show', '-s', '--format=%B', main1]);
     expect(message.split('\n')[0]).toBe(title);

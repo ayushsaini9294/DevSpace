@@ -54,9 +54,27 @@ jobs:
       # double, e2e/stubs/openrouter.ts) on this port, never the real one: playwright.config.ts
       # starts it and sets OPENROUTER_BASE_URL for `npm run dev`.
       OPENROUTER_STUB_PORT: 4010
+      # GitHub (Phase 13): in the e2e tests the API and worker call the stand-in GitHub (a test
+      # double, e2e/stubs/github.ts) on this port, never real GitHub: playwright.config.ts starts
+      # it and sets the GITHUB_* variables (the stand-in's addresses and app) for `npm run dev`.
+      # Its port is the default, 4020 (GITHUB_STUB_PORT; check-ports.sh checks it).
 
     steps:
       - uses: actions/checkout@v5
+
+      # The stand-in GitHub App's private key and client secret: throwaway ones made for this run
+      # (outside the checkout), never a real GitHub App's. Only the stand-in and the app under test
+      # see them; playwright.config.ts passes them on as GITHUB_APP_PRIVATE_KEY_PATH and
+      # GITHUB_CLIENT_SECRET.
+      - name: Make a throwaway stand-in GitHub App key
+        run: |
+          key="$RUNNER_TEMP/stand-in-github-app.pem"
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$key"
+          chmod 600 "$key"
+          echo "E2E_GITHUB_APP_KEY_PATH=$key" >> "$GITHUB_ENV"
+          secret="$(openssl rand -hex 20)"
+          echo "::add-mask::$secret"
+          echo "E2E_GITHUB_CLIENT_SECRET=$secret" >> "$GITHUB_ENV"
 
       # The key that encrypts members' OpenRouter keys: a throwaway one per run, never a stored
       # secret (CI only ever holds the stand-in's fake keys). Masked in the logs.
@@ -139,7 +157,8 @@ jobs:
           # after a merge or undo (Phase 7, automatic mode), so both see the same folders.
           COPIES_DIR: ${{ runner.temp }}/devspace-copies
           # e2e/ai.spec.ts (Phase 10) also uses both: it writes the IDE AI's findings.md into the
-          # reviewer's copy, as the IDE AI would.
+          # reviewer's copy, as the IDE AI would. e2e/github.spec.ts (Phase 13) too: it compares
+          # main in the project's bare repository with main on the stand-in GitHub.
 
       - name: Upload Playwright report
         if: failure()

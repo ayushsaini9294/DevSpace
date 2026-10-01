@@ -100,7 +100,7 @@ describe('empty repository', () => {
     expect(await refExists(gitDir, MAIN_REF)).toBe(true);
     const log = await runGit(['log', '-1', '--format=%an|%ae|%cn|%ce', MAIN_REF, '--'], { gitDir });
     expect(log.stdout.toString().trim()).toBe(
-      `Lena Leader|${leader.email}|Lena Leader|${leader.email}`,
+      `Lena Leader|${leader.id}@users.noreply.devspace.invalid|Lena Leader|${leader.id}@users.noreply.devspace.invalid`,
     );
     const head = await runGit(['symbolic-ref', 'HEAD'], { gitDir });
     expect(head.stdout.toString().trim()).toBe(MAIN_REF);

@@ -96,7 +96,9 @@ describe('working copies', () => {
     expect(await gitIn(dir, ['remote'])).toBe('');
     expect(await gitIn(dir, ['status', '--porcelain'])).toBe('');
     expect(await gitIn(dir, ['config', '--local', 'user.name'])).toBe('Lena Leader');
-    expect(await gitIn(dir, ['config', '--local', 'user.email'])).toBe(leader.email);
+    expect(await gitIn(dir, ['config', '--local', 'user.email'])).toBe(
+      `${leader.id}@users.noreply.devspace.invalid`,
+    );
 
     const activity = await as(leader).get(`/api/projects/${project.id}/activity`);
     const entries = ActivityListResponseSchema.parse(activity.body).entries;
@@ -168,7 +170,9 @@ describe('working copies', () => {
     expect(readdirSync(projectCopiesDir(project.id)).sort()).toEqual([mine.id, theirs.id].sort());
     expect(await gitIn(memberDir, ['symbolic-ref', 'HEAD'])).toBe(`refs/heads/copy/${member.id}`);
     expect(await gitIn(memberDir, ['config', '--local', 'user.name'])).toBe('-Dash Member');
-    expect(await gitIn(memberDir, ['config', '--local', 'user.email'])).toBe(member.email);
+    expect(await gitIn(memberDir, ['config', '--local', 'user.email'])).toBe(
+      `${member.id}@users.noreply.devspace.invalid`,
+    );
     expect(await gitIn(leaderDir, ['symbolic-ref', 'HEAD'])).toBe(`refs/heads/copy/${leader.id}`);
   });
 

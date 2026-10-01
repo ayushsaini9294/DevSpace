@@ -14,3 +14,4 @@ export * from './realtime.ts';
 export * from './ai.ts';
 export * from './templates.ts';
 export * from './getting-started.ts';
+export * from './github.ts';

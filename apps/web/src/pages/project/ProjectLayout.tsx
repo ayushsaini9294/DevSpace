@@ -14,10 +14,12 @@ export function useProjectContext() {
   return useOutletContext<ProjectContext>();
 }
 
+/** Leaders open Settings; so do members allowed to publish to GitHub (only that section). */
 export function canOpenSettings(project: ProjectDetail): boolean {
   return (
     project.allowedActions.includes('project.updateSettings') ||
-    project.allowedActions.includes('project.delete')
+    project.allowedActions.includes('project.delete') ||
+    project.allowedActions.includes('github.publish')
   );
 }
 

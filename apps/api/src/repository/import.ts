@@ -36,9 +36,31 @@ export function cancelImport(projectId: string): Promise<void> {
   return entry.done;
 }
 
+/**
+ * Where an import clones from. A public link (Phase 4) is cloned as is; a GitHub repository
+ * (Phase 13) is cloned from `cloneUrl` with an installation token in `env` (per-command config,
+ * never in argv or the URL). `url` is what the project records (and guards the update with).
+ */
+export interface ImportSource {
+  url: string;
+  cloneUrl?: string;
+  env?: Record<string, string>;
+  allowHttp?: boolean;
+  /** `github`: a private repository is expected; failures say so. */
+  kind?: 'public' | 'github';
+}
+
 /** Turns what git reported into a plain-language reason. */
-function describeGitFailure(err: GitError, host: string): string {
+function describeGitFailure(err: GitError, host: string, kind: ImportSource['kind']): string {
   const text = err.stderr.toLowerCase();
+  if (
+    kind === 'github' &&
+    /terminal prompts disabled|could not read (username|password)|authentication failed|repository not found|not found|returned error: 40[134]|access denied|http 40[134]/.test(
+      text,
+    )
+  ) {
+    return "GitHub didn't let DevSpace read the repository; check that the DevSpace app has access to it";
+  }
   if (
     /terminal prompts disabled|could not read (username|password)|authentication failed|repository not found|not found|returned error: 40[134]|access denied|http 40[134]/.test(
       text,
@@ -59,7 +81,14 @@ function describeGitFailure(err: GitError, host: string): string {
   return 'The import failed; check the link and try again';
 }
 
-async function cloneMainBranch(url: string, dir: string, signal: AbortSignal, deadline: number) {
+async function cloneMainBranch(
+  source: ImportSource,
+  dir: string,
+  signal: AbortSignal,
+  deadline: number,
+) {
+  const url = source.cloneUrl ?? source.url;
+  const extra = { env: source.env, allowHttp: source.allowHttp };
   const remaining = () => Math.max(1, deadline - Date.now());
   await initBare(dir);
 
@@ -69,6 +98,7 @@ async function cloneMainBranch(url: string, dir: string, signal: AbortSignal, de
     signal,
     timeoutMs: remaining(),
     maxBuffer: 64 * 1024,
+    ...extra,
   });
   const lines = stdout.toString('utf8').split('\n').filter(Boolean);
   if (lines.length === 0) {
@@ -78,7 +108,7 @@ async function cloneMainBranch(url: string, dir: string, signal: AbortSignal, de
   }
   const symref = /^ref: (refs\/heads\/[^\s\0]+)\tHEAD$/.exec(lines[0] ?? '');
   // Without a symref (very old servers) fetch whatever HEAD points at.
-  const source = symref ? symref[1]! : 'HEAD';
+  const branch = symref ? symref[1]! : 'HEAD';
 
   await runGit(
     [
@@ -89,9 +119,9 @@ async function cloneMainBranch(url: string, dir: string, signal: AbortSignal, de
       '--no-write-fetch-head',
       '--',
       url,
-      `+${source}:${MAIN_REF}`,
+      `+${branch}:${MAIN_REF}`,
     ],
-    { gitDir: dir, signal, timeoutMs: remaining() },
+    { gitDir: dir, signal, timeoutMs: remaining(), ...extra },
   );
   if (!(await refExists(dir, MAIN_REF))) {
     throw new ImportFailure("The repository's default branch couldn't be copied");
@@ -109,10 +139,11 @@ async function cloneMainBranch(url: string, dir: string, signal: AbortSignal, de
 
 async function runImport(
   projectId: string,
-  url: string,
+  source: ImportSource,
   actorId: string,
   controller: AbortController,
 ) {
+  const url = source.url;
   const temp = importTempDir(projectId);
   const target = repoDir(projectId);
   const host = new URL(url).hostname;
@@ -141,7 +172,7 @@ async function runImport(
     await ensureReposDir();
     await removeDir(temp);
     try {
-      await cloneMainBranch(url, temp, controller.signal, deadline);
+      await cloneMainBranch(source, temp, controller.signal, deadline);
       if ((await folderSize(temp)) > MAX_IMPORT_BYTES) stop('too_large');
     } finally {
       clearTimeout(overall);
@@ -174,7 +205,7 @@ async function runImport(
     else if (reason === 'cancelled' || controller.signal.aborted)
       message = 'The import was cancelled';
     else if (err instanceof ImportFailure) message = err.message;
-    else if (err instanceof GitError) message = describeGitFailure(err, host);
+    else if (err instanceof GitError) message = describeGitFailure(err, host, source.kind);
     else message = 'The import failed because of a server error; please try again';
 
     if (err instanceof GitError) {
@@ -215,9 +246,14 @@ async function runImport(
  * Starts copying `url` into the project's repository in the background. The caller has already
  * moved the project to `importing` with this URL (a conditional update, so one at a time).
  */
-export function startImport(projectId: string, url: string, actorId: string): void {
+export function startImport(
+  projectId: string,
+  source: string | ImportSource,
+  actorId: string,
+): void {
   const controller = new AbortController();
-  const done = runImport(projectId, url, actorId, controller).finally(() => {
+  const from = typeof source === 'string' ? { url: source } : source;
+  const done = runImport(projectId, from, actorId, controller).finally(() => {
     running.delete(projectId);
   });
   running.set(projectId, { controller, done });

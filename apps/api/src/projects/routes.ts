@@ -35,6 +35,8 @@ import { closeProjectRoom, removeUserFromProject } from '../realtime/emitter.ts'
 import { forgetPresence, listPresence } from '../realtime/presence.ts';
 import { forbidden, readPermissions, requireProjectAction } from './access.ts';
 import { gettingStartedRouter } from './getting-started.ts';
+import { projectGithubRouter } from '../github/routes.ts';
+import { onGithubModeChanged, requestGithubSync } from '../github/link.ts';
 import { memberSelect, projectResponse, toMember, toProjectSummary } from './views.ts';
 import { transaction } from '../lib/transaction.ts';
 
@@ -51,6 +53,7 @@ projectsRouter.use('/:projectId', submissionsRouter);
 projectsRouter.use('/:projectId', aiSubmissionRouter);
 projectsRouter.use('/:projectId', tasksRouter);
 projectsRouter.use('/:projectId', gettingStartedRouter);
+projectsRouter.use('/:projectId', projectGithubRouter);
 
 projectsRouter.get('/', async (req, res) => {
   const user = req.user as AuthUser;
@@ -107,7 +110,7 @@ projectsRouter.patch('/:projectId/settings', async (req, res) => {
     }
   }
   if (Object.keys(changed).length > 0) {
-    await transaction(async (tx) => {
+    const push = await transaction(async (tx) => {
       await tx.project.update({ where: { id: project.id }, data: { settings: next } });
       await recordActivity(tx, {
         projectId: project.id,
@@ -115,7 +118,10 @@ projectsRouter.patch('/:projectId/settings', async (req, res) => {
         action: 'project.settings_changed',
         data: { changes: changed },
       });
+      // Phase 13: the GitHub link follows the mode; switching to keep updated pushes at once.
+      return changed.githubMode ? onGithubModeChanged(tx, project.id, next.githubMode) : false;
     });
+    if (push) await requestGithubSync(project.id, { automatic: false });
   }
   res.json(await projectResponse(project.id, access.userId));
 });

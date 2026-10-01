@@ -4,6 +4,7 @@ import { closeEmitter } from '@devspace/api/copy-updates';
 import { startCopyUpdates } from './copy-updates.ts';
 import { startHousekeeping } from './housekeeping.ts';
 import { startAiReviews } from './ai-reviews.ts';
+import { startGithubSync } from './github-sync.ts';
 
 /**
  * The DevSpace worker: `npm run dev -w @devspace/worker` (or `start`). It reads apps/api/.env
@@ -17,8 +18,9 @@ const env = z
 const housekeeping = await startHousekeeping({ redisUrl: env.REDIS_URL });
 const copyUpdates = await startCopyUpdates({ redisUrl: env.REDIS_URL });
 const aiReviews = await startAiReviews({ redisUrl: env.REDIS_URL });
+const githubSync = await startGithubSync({ redisUrl: env.REDIS_URL });
 console.log(
-  `Worker running housekeeping every minute, copy updates and AI reviews (Redis ${new URL(env.REDIS_URL).host})`,
+  `Worker running housekeeping every minute, copy updates, AI reviews and GitHub pushes (Redis ${new URL(env.REDIS_URL).host})`,
 );
 
 let shuttingDown = false;
@@ -29,6 +31,7 @@ async function shutdown(signal: string): Promise<void> {
   const forceExit = setTimeout(() => process.exit(1), 30_000);
   forceExit.unref();
   try {
+    await githubSync.close();
     await aiReviews.close();
     await copyUpdates.close();
     await housekeeping.close();

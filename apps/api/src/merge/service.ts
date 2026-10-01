@@ -25,6 +25,8 @@ import { onSubmissionMerged, onSubmissionReverted } from '../tasks/automatic.ts'
 import { notify, nameOf, pathsData } from '../notifications/service.ts';
 import { invalidateAfterCommit } from '../realtime/emitter.ts';
 import { withProjectLock, type Tx } from './lock.ts';
+import { commitIdentity } from '../github/identity.ts';
+import { afterMainMovedGithub } from '../github/link.ts';
 
 /**
  * Merge, revert and the conflict re-check (Phase 7). Everything happens in the project's bare
@@ -169,6 +171,8 @@ async function afterMainMoved(projectId: string, settings: ProjectSettings): Pro
   });
   const mode = project ? readSettings(project.settings).copyUpdateMode : settings.copyUpdateMode;
   if (mode === 'automatic') await queueCopyUpdates(projectId);
+  // Phase 13: keep-updated projects push main to GitHub.
+  await afterMainMovedGithub(projectId);
 }
 
 // ---------- Merge ----------
@@ -252,9 +256,9 @@ export async function mergeSubmission(
       merged.tree,
       [main],
       mergeMessage(sub),
-      { name: sub.author.name, email: sub.author.email },
+      await commitIdentity({ id: sub.authorId, name: sub.author.name }, tx),
       now,
-      leader,
+      await commitIdentity(leader, tx),
     );
     await tx.submission.update({
       where: { id: sub.id },
@@ -353,7 +357,7 @@ export async function revertSubmission(
       result.tree,
       [main],
       revertMessage({ id: sub.id, title: sub.title, mergedSha: sub.mergedSha }),
-      leader,
+      await commitIdentity(leader, tx),
       now,
     );
     await tx.submission.update({

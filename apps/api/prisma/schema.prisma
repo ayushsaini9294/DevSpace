@@ -14,20 +14,20 @@ datasource db {
 }
 
 model User {
-  id                  String          @id @default(uuid())
+  id                  String             @id @default(uuid())
   name                String
   /// Always stored lowercased (the shared Zod schema lowercases it).
-  email               String          @unique
+  email               String             @unique
   /// Self-describing scrypt string: scrypt$N$r$p$<salt b64>$<hash b64>. Never returned by the API.
-  passwordHash        String          @map("password_hash")
-  createdAt           DateTime        @default(now()) @map("created_at")
-  updatedAt           DateTime        @updatedAt @map("updated_at")
+  passwordHash        String             @map("password_hash")
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
   sessions            Session[]
   ownedTeams          Team[]
   teamMemberships     TeamMember[]
   projectMemberships  ProjectMember[]
-  invitationsSent     Invitation[]    @relation("InvitedBy")
-  invitationsAccepted Invitation[]    @relation("AcceptedBy")
+  invitationsSent     Invitation[]       @relation("InvitedBy")
+  invitationsAccepted Invitation[]       @relation("AcceptedBy")
   activity            ActivityLog[]
   copies              Copy[]
   ideTickets          IdeTicket[]
@@ -35,33 +35,37 @@ model User {
   submissions         Submission[]
   reviews             Review[]
   comments            Comment[]
-  mergedSubmissions   Submission[]    @relation("MergedBy")
-  revertedSubmissions Submission[]    @relation("RevertedBy")
-  createdTasks        Task[]          @relation("TaskCreatedBy")
+  mergedSubmissions   Submission[]       @relation("MergedBy")
+  revertedSubmissions Submission[]       @relation("RevertedBy")
+  createdTasks        Task[]             @relation("TaskCreatedBy")
   taskAssignments     TaskAssignee[]
   notifications       Notification[]
   /// Share which file I have open with teammates (Phase 9 presence). Off → file is always null.
-  shareOpenFile       Boolean         @default(true) @map("share_open_file")
+  shareOpenFile       Boolean            @default(true) @map("share_open_file")
   /// When the member accepted the one-time AI review notice (Phase 10); null = not yet.
-  aiNoticeAcceptedAt  DateTime?       @map("ai_notice_accepted_at")
+  aiNoticeAcceptedAt  DateTime?          @map("ai_notice_accepted_at")
   aiConnection        AiConnection?
   aiOAuthStates       AiOAuthState[]
   aiReviews           AiReview[]
   /// The IDE assistant may use paid models (uses the member's OpenRouter credits; Phase 12).
-  aiAllowPaid         Boolean         @default(false) @map("ai_allow_paid")
+  aiAllowPaid         Boolean            @default(false) @map("ai_allow_paid")
   aiGatewayUsage      AiGatewayUsage[]
+  githubAccount       GithubAccount?
+  githubOAuthStates   GithubOAuthState[]
+  githubLinksSetUp    GithubLink[]
 
   @@map("users")
 }
 
 model Session {
   /// SHA-256 hex hash of the session token; the token itself is only in the cookie.
-  id            String         @id
-  userId        String         @map("user_id")
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt     DateTime       @map("expires_at")
-  createdAt     DateTime       @default(now()) @map("created_at")
-  aiOAuthStates AiOAuthState[]
+  id                String             @id
+  userId            String             @map("user_id")
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt         DateTime           @map("expires_at")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  aiOAuthStates     AiOAuthState[]
+  githubOAuthStates GithubOAuthState[]
 
   @@index([userId])
   @@map("sessions")
@@ -120,6 +124,7 @@ model Project {
   submissions   Submission[]
   tasks         Task[]
   notifications Notification[]
+  githubLink    GithubLink?
 
   @@index([teamId])
   @@map("projects")
@@ -138,6 +143,8 @@ enum RepoSource {
   empty
   import
   template
+  /// Imported from GitHub through the DevSpace app (Phase 13).
+  github
 
   @@map("repo_source")
 }
@@ -151,20 +158,20 @@ enum ProjectRole {
 }
 
 model ProjectMember {
-  projectId   String      @map("project_id")
-  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  userId      String      @map("user_id")
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role        ProjectRole
+  projectId              String      @map("project_id")
+  project                Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId                 String      @map("user_id")
+  user                   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role                   ProjectRole
   /// MemberPermissions from packages/shared; validated with MemberPermissionsSchema when read.
-  permissions Json
-  joinedAt    DateTime    @default(now()) @map("joined_at")
+  permissions            Json
+  joinedAt               DateTime    @default(now()) @map("joined_at")
   /// Last time this member was seen in the project (app socket or IDE), written at most once a minute.
-  lastSeenAt  DateTime?   @map("last_seen_at")
+  lastSeenAt             DateTime?   @map("last_seen_at")
   /// The last time this member launched a Preview of their app (getting-started step `preview`).
-  previewedAt            DateTime? @map("previewed_at")
+  previewedAt            DateTime?   @map("previewed_at")
   /// Set while this member has hidden the getting-started card (Phase 11).
-  gettingStartedHiddenAt DateTime? @map("getting_started_hidden_at")
+  gettingStartedHiddenAt DateTime?   @map("getting_started_hidden_at")
 
   @@id([projectId, userId])
   @@index([userId])
@@ -631,4 +638,88 @@ model AiGatewayUsage {
 
   @@id([userId, day, model])
   @@map("ai_gateway_usage")
+}
+
+// ---------- GitHub (Phase 13) ----------
+
+/// A member's connected GitHub account (the DevSpace GitHub App's user authorization). Tokens
+/// are encrypted with AI_SECRETS_KEY (ai/crypto.ts) and never leave the server.
+model GithubAccount {
+  id                    String    @id @default(uuid())
+  userId                String    @unique @map("user_id")
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  githubUserId          BigInt    @map("github_user_id")
+  login                 String
+  encryptedAccessToken  String    @map("encrypted_access_token")
+  /// Null when the app's tokens don't expire.
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
+  encryptedRefreshToken String?   @map("encrypted_refresh_token")
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
+  connectedAt           DateTime  @default(now()) @map("connected_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@index([githubUserId])
+  @@map("github_accounts")
+}
+
+/// A pending "Connect GitHub" (PKCE): id = SHA-256 of the state; single use, 10 minutes.
+model GithubOAuthState {
+  id                String   @id
+  userId            String   @map("user_id")
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId         String   @map("session_id")
+  session           Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  encryptedVerifier String   @map("encrypted_verifier")
+  expiresAt         DateTime @map("expires_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([expiresAt])
+  @@map("github_oauth_states")
+}
+
+enum GithubMode {
+  publish_once
+  keep_updated
+
+  @@map("github_mode")
+}
+
+enum GithubLinkStatus {
+  ok
+  pushing
+  paused
+  failed
+
+  @@map("github_link_status")
+}
+
+/// The GitHub repository a project is published to (blueprint github_links).
+model GithubLink {
+  id              String           @id @default(uuid())
+  projectId       String           @unique @map("project_id")
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  installationId  BigInt           @map("installation_id")
+  repoId          BigInt           @map("repo_id")
+  repoFullName    String           @map("repo_full_name")
+  htmlUrl         String           @map("html_url")
+  private         Boolean
+  mode            GithubMode
+  setUpById       String?          @map("set_up_by_id")
+  setUpBy         User?            @relation(fields: [setUpById], references: [id], onDelete: SetNull)
+  lastPushedSha   String?          @map("last_pushed_sha")
+  lastPushedAt    DateTime?        @map("last_pushed_at")
+  status          GithubLinkStatus @default(pushing)
+  statusReason    String?          @map("status_reason")
+  /// A push was asked for and not yet started (the running push takes it on when it ends).
+  syncRequestedAt DateTime?        @map("sync_requested_at")
+  /// Whoever is pushing right now (random id) and since when; a stale claim (10 min) is taken over.
+  pushClaim       String?          @map("push_claim")
+  pushStartedAt   DateTime?        @map("push_started_at")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("github_links")
 }

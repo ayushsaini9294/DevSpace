@@ -79,9 +79,9 @@ describe('merge', () => {
     expect(meta.trim().split('\n')).toEqual([
       before,
       w.ann.name,
-      w.ann.email,
+      `${w.ann.id}@users.noreply.devspace.invalid`,
       w.leader.name,
-      w.leader.email,
+      `${w.leader.id}@users.noreply.devspace.invalid`,
     ]);
     expect(await git(w.gitDir, ['log', '-1', '--format=%B', after])).toBe(
       `Raise a\n\nBecause a was low\n\nSubmission: ${sub.id}\n\n`,

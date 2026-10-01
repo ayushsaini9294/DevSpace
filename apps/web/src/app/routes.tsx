@@ -3,6 +3,7 @@ import { Layout } from './Layout';
 import { AppRoot } from '../components/LiveUpdates';
 import { RequireAuth } from '../components/RequireAuth';
 import { AiCallbackPage, AiSettingsPage } from '../pages/AiSettingsPage';
+import { GithubCallbackPage, GithubSettingsPage } from '../pages/GithubSettingsPage';
 import { HomePage } from '../pages/HomePage';
 import { InvitePage } from '../pages/InvitePage';
 import { LogInPage } from '../pages/LogInPage';
@@ -44,6 +45,8 @@ const pageRoutes: RouteObject[] = [
           { path: 'teams/:teamId', element: <TeamPage /> },
           { path: 'settings/ai', element: <AiSettingsPage /> },
           { path: 'settings/ai/callback', element: <AiCallbackPage /> },
+          { path: 'settings/github', element: <GithubSettingsPage /> },
+          { path: 'settings/github/callback', element: <GithubCallbackPage /> },
           {
             path: 'projects/:projectId',
             element: <ProjectLayout />,

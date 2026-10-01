@@ -140,3 +140,11 @@ The local PostgreSQL already has a `devspace` role and database from the old pro
 - The built-in assistant is Cline (pinned version), connected through the gateway with no setup. It may read the member's files, but always asks before editing files, running commands, using a browser or MCP tools.
 - Anything that could spend credits needs "Allow paid models", not only a paid model name: fallback model lists with paid models and paid plugins such as web search count too.
 - The IDE no longer shows VS Code's "Do you trust the authors?" prompt, since the isolated container is the safety boundary and the folder is the member's own copy; and VS Code's own Copilot chat is hidden, since it doesn't work here and Cline is the assistant (owner).
+
+## 2026-10-01: GitHub (Phase 13)
+
+- DevSpace connects to GitHub only through its own GitHub App, which the owner registers. Each member can connect their GitHub account; DevSpace keeps their tokens encrypted.
+- Publishing creates a new repository on the publisher's GitHub account and pushes main with its full history. New repositories are private unless the person ticks "Make it public" (owner).
+- From now on, commits made by DevSpace use private email addresses: the person's GitHub "noreply" address when they connected GitHub (so commits show on their GitHub profile), otherwise a DevSpace private address. Before publishing, DevSpace warns which people's real email addresses are in older commits (owner).
+- In "keep updated" mode DevSpace pushes main after every merge or undo, never force-pushes, and pauses with an explanation if someone changed the repository directly on GitHub (owner). Bringing GitHub changes back into DevSpace stays a later feature.
+- Leaders can start a project by importing a GitHub repository, private ones included.

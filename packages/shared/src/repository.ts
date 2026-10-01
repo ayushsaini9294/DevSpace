@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { GithubRepoFullNameSchema } from './github.ts';
 import { TemplateIdSchema } from './templates.ts';
 
 /** Hosts a project can be imported from over https (see docs/decisions.md, Phase 4). */
@@ -67,6 +68,14 @@ export const SetUpRepositoryRequestSchema = z.discriminatedUnion('source', [
    * to you, with the message `Start from the <Name> template`. Ready at once (202, `ready`).
    */
   z.object({ source: z.literal('template'), template: TemplateIdSchema }),
+  /**
+   * Phase 13: import a repository reachable through your DevSpace app installations (private
+   * included; see GET /api/github/repos), cloned with an installation token. Same limits and
+   * polling as `import`; its default branch becomes main. Not linked for syncing until
+   * published. 409 `github_not_configured` / `github_not_connected`, 404
+   * `github_repo_not_found`.
+   */
+  z.object({ source: z.literal('github'), repoFullName: GithubRepoFullNameSchema }),
 ]);
 
 export const CommitSummarySchema = z.object({
@@ -78,9 +87,10 @@ export const CommitSummarySchema = z.object({
 
 export const RepositoryStatusSchema = z.object({
   status: z.enum(['none', 'importing', 'ready', 'failed']),
-  source: z.enum(['empty', 'import', 'template']).nullable(),
+  source: z.enum(['empty', 'import', 'template', 'github']).nullable(),
   /** The template main started from (Phase 11); null unless `source` is `template`. */
   template: TemplateIdSchema.nullable(),
+  /** The imported link (`github`: the repository's GitHub page). */
   importUrl: z.string().nullable(),
   /** Why the last import failed, in plain words; null otherwise. */
   error: z.string().nullable(),

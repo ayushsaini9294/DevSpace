@@ -93,6 +93,11 @@ export interface RunGitOptions {
    * path we built. Never set this for a command that touches a user-supplied URL.
    */
   allowLocalRepo?: boolean;
+  /**
+   * Also allows plain `http` (a stand-in GitHub in tests only; callers check the configuration
+   * allows it).
+   */
+  allowHttp?: boolean;
   /** Exit codes other than 0 that still count as success (e.g. 1 = conflicts for merge-tree). */
   okExitCodes?: readonly number[];
 }
@@ -133,6 +138,7 @@ export function runGit(args: readonly string[], options: RunGitOptions = {}): Pr
   const fullArgs = [
     ...HARDENING,
     ...(options.allowLocalRepo ? ['-c', 'protocol.file.allow=always'] : []),
+    ...(options.allowHttp ? ['-c', 'protocol.http.allow=always'] : []),
     ...(options.gitDir !== undefined ? [`--git-dir=${options.gitDir}`] : []),
     ...args,
   ];

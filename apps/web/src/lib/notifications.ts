@@ -175,6 +175,10 @@ export function describeNotification(n: NotificationView): string {
         failed === 0 ? '' : failed === 1 ? ' (1 model failed)' : ` (${failed} models failed)`;
       return `The AI review of ${quoted(n.data.title)} finished: ${found}${failures}`;
     }
+    case 'github.sync_paused':
+      return `Sending main to GitHub (${n.data.repoFullName}) is paused: ${n.data.reason}`;
+    case 'github.sync_failed':
+      return `Sending main to GitHub (${n.data.repoFullName}) failed: ${n.data.reason}`;
   }
 }
 
@@ -205,6 +209,9 @@ export function notificationUrl(n: NotificationView): string | null {
     case 'member.permissions_changed':
     case 'invitation.accepted':
       return `${base}/members`;
+    case 'github.sync_paused':
+    case 'github.sync_failed':
+      return `${base}/settings#github`;
   }
 }
 

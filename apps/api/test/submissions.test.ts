@@ -226,7 +226,7 @@ describe('submitting', () => {
     // Parent = base, author = the member, message = title.
     const commit = await show(w.gitDir, ref);
     expect(commit).toContain(`parent ${w.base}\n`);
-    expect(commit).toContain(`author Ann Author <${w.ann.email}>`);
+    expect(commit).toContain(`author Ann Author <${w.ann.id}@users.noreply.devspace.invalid>`);
     expect(commit.trimEnd().endsWith('Two and a delete')).toBe(true);
     // main unchanged; the copy's files unchanged.
     expect((await lastCommit(w.gitDir, MAIN_REF))!.sha).toBe(w.base);

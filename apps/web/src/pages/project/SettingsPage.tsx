@@ -10,6 +10,7 @@ import { NameForm } from '../../components/NameForm';
 import { FocusHeading, SuccessNote, buttonStyles, cardStyle, linkStyle } from '../../components/ui';
 import { errorMessage } from '../../lib/formErrors';
 import { useDeleteProject, useRenameProject, useUpdateSettings } from '../../lib/projects';
+import { GithubSection } from './GithubSection';
 import { canOpenSettings, useProjectContext } from './ProjectLayout';
 
 function RenameSection({ projectId, name }: { projectId: string; name: string }) {
@@ -74,14 +75,14 @@ function Choice({
   );
 }
 
-/** Read the settings form. */
-function readSettings(form: HTMLFormElement): ProjectSettings {
+/** Read the settings form. The GitHub mode lives in the GitHub section, so it stays as saved. */
+function readSettings(form: HTMLFormElement, saved: ProjectSettings): ProjectSettings {
   const data = new FormData(form);
   return {
     requireApproval: data.get('requireApproval') === 'on',
     membersCanBrowseCopies: data.get('membersCanBrowseCopies') === 'on',
     copyUpdateMode: data.get('copyUpdateMode') === 'manual' ? 'manual' : 'automatic',
-    githubMode: data.get('githubMode') === 'keep_updated' ? 'keep_updated' : 'publish_once',
+    githubMode: saved.githubMode,
     aiReviewEnabled: data.get('aiReviewEnabled') === 'on',
   };
 }
@@ -104,7 +105,7 @@ function SettingsSection({ projectId, saved }: { projectId: string; saved: Proje
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const changes = changedSettings(saved, readSettings(event.currentTarget));
+    const changes = changedSettings(saved, readSettings(event.currentTarget, saved));
     if (Object.keys(changes).length === 0) {
       update.reset();
       setNote('Nothing changed.');
@@ -164,25 +165,6 @@ function SettingsSection({ projectId, saved }: { projectId: string; saved: Proje
             defaultChecked={saved.copyUpdateMode === 'manual'}
           >
             Manual
-          </Choice>
-        </fieldset>
-        <fieldset className="space-y-1">
-          <legend className="font-medium text-gray-800">GitHub mode</legend>
-          <Choice
-            type="radio"
-            name="githubMode"
-            value="publish_once"
-            defaultChecked={saved.githubMode === 'publish_once'}
-          >
-            Publish once
-          </Choice>
-          <Choice
-            type="radio"
-            name="githubMode"
-            value="keep_updated"
-            defaultChecked={saved.githubMode === 'keep_updated'}
-          >
-            Keep updated
           </Choice>
         </fieldset>
         {update.isError && <FormAlert>{errorMessage(update.error)}</FormAlert>}
@@ -278,6 +260,7 @@ export function SettingsPage() {
           {allowed('project.updateSettings') && (
             <SettingsSection projectId={project.id} saved={project.settings} />
           )}
+          <GithubSection project={project} />
           {allowed('project.delete') && <DangerZone projectId={project.id} name={project.name} />}
         </>
       )}

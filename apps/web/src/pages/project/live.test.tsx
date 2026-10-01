@@ -153,9 +153,11 @@ describe('the live connection', () => {
       ['projects', 'p', 'members'],
       ['projects', 'p', 'invitations'],
       ['projects', 'p', 'presence'],
+      ['projects', 'p', 'github'],
     ]);
     expect(targetsFor('p', 'members', me)[0]).toMatchObject({ exact: true });
     expect(keys('presence')).toEqual([['projects', 'p', 'presence']]);
+    expect(keys('github')).toEqual([['projects', 'p', 'github']]);
   });
 
   it('polls every 60 s while connected, and at the normal rate otherwise', () => {

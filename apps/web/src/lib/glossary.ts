@@ -31,6 +31,14 @@ export const GLOSSARY = {
     term: 'Undo merge',
     help: 'Undo merge takes a merged submission’s changes back out of main. The author keeps the work in their copy and can fix it and submit again.',
   },
+  github: {
+    term: 'GitHub',
+    help: 'GitHub is a website where people keep and share code. Publishing puts a copy of main there, with its history, so you can show the project to others, for example in your portfolio.',
+  },
+  keepUpdated: {
+    term: 'Keep updated',
+    help: '“Publish once” sends main to GitHub one time. “Keep updated” also sends main again after every merge or undo. DevSpace never overwrites changes made directly on GitHub: it pauses and tells you instead.',
+  },
 } as const;
 
 export type GlossaryKey = keyof typeof GLOSSARY;

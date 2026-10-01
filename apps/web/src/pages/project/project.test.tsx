@@ -76,8 +76,8 @@ describe('project layout and overview', () => {
             approve: false,
             comment: true,
             createTasks: false,
-            aiReview: false,
-            publishGithub: true,
+            aiReview: true,
+            publishGithub: false,
           },
         }),
       ),
@@ -88,8 +88,29 @@ describe('project layout and overview', () => {
     expect(within(nav()).queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
     expect(within(nav()).getByRole('link', { name: 'Members' })).toBeInTheDocument();
     expect(screen.getByText('Comment')).toBeInTheDocument();
-    expect(screen.getByText('Publish to GitHub')).toBeInTheDocument();
+    expect(screen.getByText('AI cross-review')).toBeInTheDocument();
     expect(screen.queryByText('Approve submissions')).not.toBeInTheDocument();
+  });
+
+  it('shows Settings to a member allowed to publish to GitHub (for the GitHub section)', async () => {
+    stubApi(
+      projectRoutes(
+        testProject('member', {
+          myPermissions: {
+            approve: false,
+            comment: false,
+            createTasks: false,
+            aiReview: false,
+            publishGithub: true,
+          },
+        }),
+      ),
+    );
+    renderApp('/projects/project-1');
+
+    expect(await screen.findByText('Your role: Member')).toBeInTheDocument();
+    expect(within(nav()).getByRole('link', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByText('Publish to GitHub')).toBeInTheDocument();
   });
 
   it('shows Co-leader for co-leaders, with Settings', async () => {
@@ -388,7 +409,6 @@ describe('settings page', () => {
 
     expect(await screen.findByLabelText('Require approval before merge')).toBeChecked();
     expect(screen.getByLabelText('Automatic')).toBeChecked();
-    expect(screen.getByLabelText('Publish once')).toBeChecked();
 
     // Nothing changed: nothing is sent.
     await user.click(screen.getByRole('button', { name: 'Save settings' }));

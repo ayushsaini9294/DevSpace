@@ -1,6 +1,12 @@
 import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { ImportUrlSchema, type RepositoryStatus, type TemplateId } from '@devspace/shared';
+import { Link } from 'react-router';
+import {
+  GithubRepoFullNameSchema,
+  ImportUrlSchema,
+  type RepositoryStatus,
+  type TemplateId,
+} from '@devspace/shared';
 import { FormAlert } from '../../../components/AuthPageShell';
 import { HelpTip } from '../../../components/HelpTip';
 import { TextField } from '../../../components/TextField';
@@ -13,16 +19,18 @@ import {
   linkStyle,
 } from '../../../components/ui';
 import { describeServerError, errorCode } from '../../../lib/formErrors';
+import { GITHUB_SETTINGS_URL, githubErrorMessage, useGithubAccount } from '../../../lib/github';
 import { repositoryKeys, useRepository, useSetUpRepository } from '../../../lib/repository';
 import { useTemplates } from '../../../lib/templates';
 import { useProjectContext } from '../ProjectLayout';
+import { GithubRepoPicker } from './GithubRepoPicker';
 import { Spinner } from './parts';
 
 export const NOT_SET_UP_MESSAGE =
   "The repository hasn't been set up yet. A leader or co-leader can set it up.";
 
-/** What the leader picked: a template (`empty` = start empty) or an import. */
-type Choice = TemplateId | 'import';
+/** What the leader picked: a template (`empty` = start empty), an import, or a GitHub import. */
+type Choice = TemplateId | 'import' | 'github';
 
 /** The template beginners are pointed at first. */
 const RECOMMENDED: TemplateId = 'html';
@@ -98,22 +106,38 @@ function SetUpForm({ projectId, repository }: { projectId: string; repository: R
   const setUp = useSetUpRepository(projectId);
   const templates = useTemplates();
   const failed = repository.status === 'failed';
+  const github = useGithubAccount();
+  const githubOn = github.data?.configured === true;
   const [picked, setPicked] = useState<Choice>(
-    failed && repository.source === 'import' ? 'import' : RECOMMENDED,
+    failed && repository.source === 'import'
+      ? 'import'
+      : failed && repository.source === 'github'
+        ? 'github'
+        : RECOMMENDED,
   );
-  const [url, setUrl] = useState(repository.importUrl ?? '');
+  const [url, setUrl] = useState(
+    repository.source === 'import' ? (repository.importUrl ?? '') : '',
+  );
   const [urlError, setUrlError] = useState<string | undefined>();
+  const [repoFullName, setRepoFullName] = useState('');
+  const [repoError, setRepoError] = useState<string | undefined>();
 
   const list = templates.data ?? [];
-  // A template that isn't offered (the list failed, or doesn't have it) falls back to Empty.
+  // A template that isn't offered (the list failed, or doesn't have it) falls back to Empty;
+  // GitHub falls back too while this DevSpace has no GitHub set up.
   const choice: Choice =
-    picked === 'import' || picked === 'empty' || list.some((t) => t.id === picked)
+    picked === 'import' ||
+    picked === 'empty' ||
+    (picked === 'github' && githubOn) ||
+    list.some((t) => t.id === picked)
       ? picked
       : 'empty';
   const emptyTemplate = list.find((t) => t.id === 'empty');
   const starters = list.filter((t) => t.id !== 'empty');
 
   const server = describeServerError(setUp.error, ['url'] as const);
+  const formError =
+    choice === 'github' && setUp.error ? githubErrorMessage(setUp.error) : server.formError;
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -129,6 +153,18 @@ function SetUpForm({ projectId, repository }: { projectId: string; repository: R
     };
     if (choice === 'empty') {
       setUp.mutate({ source: 'empty' }, { onError });
+      return;
+    }
+    if (choice === 'github') {
+      const parsedRepo = GithubRepoFullNameSchema.safeParse(repoFullName);
+      if (!parsedRepo.success) {
+        setRepoError('Choose a repository from the list.');
+        const select = event.currentTarget.elements.namedItem('repoFullName');
+        if (select instanceof HTMLSelectElement) select.focus();
+        return;
+      }
+      setRepoError(undefined);
+      setUp.mutate({ source: 'github', repoFullName: parsedRepo.data }, { onError });
       return;
     }
     if (choice !== 'import') {
@@ -201,6 +237,16 @@ function SetUpForm({ projectId, repository }: { projectId: string; repository: R
             checked={choice === 'import'}
             onChoose={() => setPicked('import')}
           />
+          {githubOn && (
+            <ChoiceCard
+              value="github"
+              name="Import from GitHub"
+              description="Bring in one of your own GitHub repositories, private ones included, with its history."
+              runHint={null}
+              checked={choice === 'github'}
+              onChoose={() => setPicked('github')}
+            />
+          )}
         </div>
       </fieldset>
       {choice === 'import' && (
@@ -219,9 +265,36 @@ function SetUpForm({ projectId, repository }: { projectId: string; repository: R
           errorIsAlert={!urlError && Boolean(server.fieldErrors.url)}
         />
       )}
-      {server.formError && <FormAlert>{server.formError}</FormAlert>}
+      {choice === 'github' && github.data && (
+        <div data-testid="github-import">
+          {github.data.connected ? (
+            <GithubRepoPicker
+              value={repoFullName}
+              onChange={(fullName) => {
+                setRepoFullName(fullName);
+                setRepoError(undefined);
+              }}
+              error={repoError}
+              installUrl={github.data.installUrl}
+            />
+          ) : (
+            <p className="text-sm text-gray-700">
+              First connect your GitHub account on the{' '}
+              <Link to={GITHUB_SETTINGS_URL} className={linkStyle}>
+                GitHub settings
+              </Link>{' '}
+              page, then come back here.
+            </p>
+          )}
+        </div>
+      )}
+      {formError && <FormAlert>{formError}</FormAlert>}
       <button type="submit" className={buttonStyles.primary} disabled={setUp.isPending}>
-        {setUp.isPending ? 'Setting up…' : 'Set up repository'}
+        {setUp.isPending
+          ? 'Setting up…'
+          : choice === 'github'
+            ? 'Import from GitHub'
+            : 'Set up repository'}
       </button>
     </form>
   );

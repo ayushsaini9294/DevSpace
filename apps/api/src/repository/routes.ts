@@ -10,6 +10,7 @@ import type { AuthUser } from '../auth/session.ts';
 import { parseBody } from '../lib/validate.ts';
 import { requireProjectAction } from '../projects/access.ts';
 import { startImport } from './import.ts';
+import { startGithubImport } from '../github/repos.ts';
 import {
   claimImport,
   fileResponse,
@@ -41,6 +42,8 @@ repositoryRouter.post('/repository', async (req, res) => {
     await setUpEmpty(access.project, user);
   } else if (request.source === 'template') {
     await setUpFromTemplate(projectId, user, request.template);
+  } else if (request.source === 'github') {
+    await startGithubImport(projectId, user.id, request.repoFullName);
   } else {
     await claimImport(projectId, request.url);
     startImport(projectId, request.url, user.id);

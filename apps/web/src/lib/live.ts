@@ -15,6 +15,7 @@ import {
 import { aiKeys } from './ai';
 import { copyKeys } from './copies';
 import { gettingStartedKeys, touchesGettingStarted } from './gettingStarted';
+import { githubKeys } from './github';
 import { setLiveConnected, useLiveStore, wantedRooms } from './liveStore';
 import { addNotification, notificationKeys } from './notifications';
 import { presenceKeys, replacePresence } from './presence';
@@ -67,9 +68,13 @@ export function targetsFor(projectId: string, key: InvalidateKey, myId: string):
         { queryKey: queryKeys.members(projectId) },
         { queryKey: queryKeys.invitations(projectId) },
         { queryKey: presenceKeys.list(projectId) },
+        // What I may do on GitHub follows my role and permissions.
+        { queryKey: githubKeys.project(projectId) },
       ];
     case 'presence':
       return [{ queryKey: presenceKeys.list(projectId) }];
+    case 'github':
+      return [{ queryKey: githubKeys.project(projectId) }];
     default:
       return [];
   }

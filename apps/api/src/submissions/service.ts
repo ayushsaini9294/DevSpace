@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { commitIdentity } from '../github/identity.ts';
 import {
   ACTIVE_SUBMISSION_STATUSES,
   can,
@@ -213,7 +214,7 @@ async function buildSnapshot(
   const temp = await mkdtemp(join(tmpdir(), 'devspace-index-'));
   try {
     const tree = await treeWithChanges(gitDir, baseSha, changes, join(temp, 'index'));
-    return await writeCommit(gitDir, tree, [baseSha], `${title}\n`, author);
+    return await writeCommit(gitDir, tree, [baseSha], `${title}\n`, await commitIdentity(author));
   } finally {
     await removeDir(temp).catch(() => undefined);
   }

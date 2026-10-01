@@ -8,6 +8,7 @@ import { prisma } from '../lib/prisma.ts';
 import { deleteOldNotifications } from '../notifications/service.ts';
 import { failStuckAiReviews } from '../ai/run.ts';
 import { sendInvalidate } from '../realtime/emitter.ts';
+import { retryGithubSyncs } from '../github/link.ts';
 
 /**
  * Housekeeping the worker runs every minute (apps/worker imports this module, so it shares the
@@ -28,6 +29,11 @@ export interface HousekeepingOptions {
   now?: Date;
   /** Limit the run to these copies (tests); all copies otherwise. */
   copyIds?: string[];
+  /**
+   * Limit the GitHub retries to these projects (tests). When only `copyIds` is given, GitHub
+   * links aren't retried at all.
+   */
+  projectIds?: string[];
   idleLimitMs?: number;
   diskLimitBytes?: number;
 }
@@ -162,6 +168,7 @@ export async function runHousekeeping(options: HousekeepingOptions = {}): Promis
   updates: ProjectUpdateResult;
   notificationsDeleted: number;
   aiReviewsFailed: number;
+  githubRetried: string[];
 }> {
   const idle = await stopIdleIdes(options);
   const disk = await checkCopySizes(options);
@@ -174,5 +181,17 @@ export async function runHousekeeping(options: HousekeepingOptions = {}): Promis
     console.error('Could not check stuck AI reviews:', err instanceof Error ? err.message : err);
     return 0;
   });
-  return { idle, disk, updates, notificationsDeleted, aiReviewsFailed };
+  const githubRetried =
+    options.copyIds && !options.projectIds
+      ? []
+      : await retryGithubSyncs({ now: options.now, projectIds: options.projectIds })
+          .then((r) => r.retried)
+          .catch((err: unknown) => {
+            console.error(
+              'Could not retry GitHub pushes:',
+              err instanceof Error ? err.message : err,
+            );
+            return [] as string[];
+          });
+  return { idle, disk, updates, notificationsDeleted, aiReviewsFailed, githubRetried };
 }

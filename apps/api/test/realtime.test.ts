@@ -466,7 +466,8 @@ describe('invalidations', () => {
       expect.arrayContaining(['members', 'presence', 'tasks']),
     );
     expect(keys('project.renamed')).toEqual(['activity', 'members']);
-    expect(keys('repository.imported')).toEqual(['activity', 'repository', 'copy']);
+    expect(keys('repository.imported')).toEqual(['activity', 'repository', 'copy', 'github']);
+    expect(keys('github.published')).toEqual(['activity', 'github']);
     for (const key of [...keys('submission.created', 's'), ...keys('copy.helped', 'u')]) {
       expect(InvalidateKeySchema.safeParse(key).success, key).toBe(true);
     }

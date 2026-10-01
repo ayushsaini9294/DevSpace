@@ -41,9 +41,19 @@ export const ProjectJoinAckSchema = z.union([
  * - `activity`, `repository`, `members` (members, roles, permissions, and the project itself),
  *   `presence` (refetch the whole presence list)
  * - `ai-reviews:<submissionId>`: that submission's AI reviews (Phase 10)
+ * - `github`: the project's GitHub link (refetch GET /github; Phase 13)
  */
 export const InvalidateKeySchema = z.union([
-  z.enum(['submissions', 'tasks', 'copy', 'activity', 'repository', 'members', 'presence']),
+  z.enum([
+    'submissions',
+    'tasks',
+    'copy',
+    'activity',
+    'repository',
+    'members',
+    'presence',
+    'github',
+  ]),
   z.templateLiteral(['submission:', z.string().min(1)]),
   z.templateLiteral(['copy:', z.string().min(1)]),
   z.templateLiteral(['ai-reviews:', z.string().min(1)]),

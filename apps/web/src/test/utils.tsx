@@ -10,6 +10,11 @@ import {
   allowedActions,
 } from '@devspace/shared';
 import type {
+  GithubAccountView,
+  GithubConnectStartResponseSchema,
+  GithubLinkView,
+  GithubRepoListResponse,
+  ProjectGithubView,
   GettingStartedView,
   TemplateList,
   AiConnectionView,
@@ -118,7 +123,11 @@ export type StubBody =
   | AiReviewListResponse
   | IdeReviewResponse
   | TemplateList
-  | GettingStartedView;
+  | GettingStartedView
+  | GithubAccountView
+  | z.infer<typeof GithubConnectStartResponseSchema>
+  | GithubRepoListResponse
+  | ProjectGithubView;
 
 export type StubReply =
   | { status: 200 | 201 | 202; body: StubBody }
@@ -153,6 +162,34 @@ function defaultReply(key: string): StubReply | null {
   if (key === 'GET /api/templates') return { status: 200, body: [...TEMPLATES] };
   // The getting-started card stays out of the way unless a test gives an answer.
   if (/^GET \/api\/projects\/[^/]+\/getting-started$/.test(key)) return 'pending';
+  // GitHub (Phase 13) isn't set up unless a test says so. (Not 'pending': a project's GitHub
+  // status sits under the project's key, and refreshing the project waits for it.)
+  if (/^GET \/api\/projects\/[^/]+\/github$/.test(key)) {
+    return {
+      status: 200,
+      body: testProjectGithub({
+        configured: false,
+        connected: false,
+        installUrl: null,
+        canPublish: false,
+        canManage: false,
+        canUnlink: false,
+      }),
+    };
+  }
+  if (key === 'GET /api/github/account') {
+    return {
+      status: 200,
+      body: testGithubAccount({
+        configured: false,
+        connected: false,
+        login: null,
+        connectedAt: null,
+        installUrl: null,
+        appInstalled: null,
+      }),
+    };
+  }
   return null;
 }
 
@@ -436,6 +473,57 @@ export function testAiReview(overrides: Partial<AiReviewView> = {}): AiReviewVie
     errorCode: null,
     createdAt: '2026-09-28T10:00:00.000Z',
     finishedAt: '2026-09-28T10:01:00.000Z',
+    ...overrides,
+  };
+}
+
+// ---------- GitHub (Phase 13) ----------
+
+export const GITHUB_INSTALL_URL = 'https://github.com/apps/devspace/installations/new';
+
+/** My GitHub account: GitHub is set up here, and I connected as "ada" with the app installed. */
+export function testGithubAccount(overrides: Partial<GithubAccountView> = {}): GithubAccountView {
+  return {
+    configured: true,
+    connected: true,
+    login: 'ada',
+    connectedAt: '2026-10-01T09:00:00.000Z',
+    installUrl: GITHUB_INSTALL_URL,
+    appInstalled: true,
+    ...overrides,
+  };
+}
+
+/** A project's GitHub link: ada/website, private, publish once, up to date. */
+export function testGithubLink(overrides: Partial<GithubLinkView> = {}): GithubLinkView {
+  return {
+    repoFullName: 'ada/website',
+    htmlUrl: 'https://github.com/ada/website',
+    private: true,
+    mode: 'publish_once',
+    status: 'ok',
+    statusReason: null,
+    lastPushedSha: 'c'.repeat(40),
+    lastPushedAt: '2026-10-01T10:00:00.000Z',
+    behind: false,
+    setUpBy: { id: testUser.id, name: testUser.name },
+    createdAt: '2026-10-01T10:00:00.000Z',
+    updatedAt: '2026-10-01T10:00:00.000Z',
+    ...overrides,
+  };
+}
+
+/** GET …/github for a leader with GitHub connected, before publishing. */
+export function testProjectGithub(overrides: Partial<ProjectGithubView> = {}): ProjectGithubView {
+  return {
+    configured: true,
+    connected: true,
+    installUrl: GITHUB_INSTALL_URL,
+    link: null,
+    canPublish: true,
+    canManage: true,
+    canUnlink: true,
+    emailWarning: { names: [] },
     ...overrides,
   };
 }
