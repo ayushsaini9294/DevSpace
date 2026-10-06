@@ -51,7 +51,7 @@ export function HelpTip(props: Props) {
         aria-expanded={open}
         aria-controls={id}
         onClick={() => setOpen((value) => !value)}
-        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-gray-400 bg-white text-xs font-semibold text-gray-700 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:outline-none"
+        className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-line-strong bg-surface text-xs font-semibold text-fg-soft hover:bg-muted focus-visible:ring-2 focus-visible:ring-accent-ring focus-visible:outline-none"
       >
         ?
       </button>
@@ -60,7 +60,7 @@ export function HelpTip(props: Props) {
         {open && (
           <span
             data-testid="help-tip"
-            className="absolute top-6 left-0 z-30 block w-[min(18rem,calc(100vw-2rem))] rounded-md border border-gray-200 bg-white p-3 text-left text-sm font-normal text-gray-800 shadow-lg"
+            className="absolute top-6 left-0 z-30 block w-[min(18rem,calc(100vw-2rem))] rounded-lg border border-line bg-surface p-3 text-left text-sm font-normal text-fg shadow-pop"
           >
             {text}
           </span>

@@ -31,17 +31,17 @@ function FileView({ path }: { path: string }) {
     const { size, isBinary, tooLarge, content } = file.data;
     body = (
       <>
-        <p className="text-sm text-gray-600">{formatBytes(size)}</p>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-fg-muted">{formatBytes(size)}</p>
+        <p className="text-sm text-fg-muted">
           This is main, the team's shared version, so it's read-only for everyone. You'll change
           files in your own copy with Open IDE, then submit them for review.
         </p>
         {isBinary ? (
-          <p className={`${cardStyle} text-gray-700`}>
+          <p className={`${cardStyle} text-fg-soft`}>
             This file is binary and can't be shown here.
           </p>
         ) : tooLarge || content === null ? (
-          <p className={`${cardStyle} text-gray-700`}>
+          <p className={`${cardStyle} text-fg-soft`}>
             This file is too large to show here ({formatBytes(size)}).
           </p>
         ) : (

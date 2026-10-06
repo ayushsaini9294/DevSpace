@@ -18,7 +18,10 @@ export function useRepoPathFromUrl(): string | null {
 
 export function InvalidPath() {
   return (
-    <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-800">
+    <p
+      role="alert"
+      className="rounded-md border border-danger-line bg-danger-soft px-3 py-2 text-danger-fg"
+    >
       This address doesn’t point to a file or folder. Check the link, or go back to Files.
     </p>
   );
@@ -29,7 +32,7 @@ export function Spinner() {
     <svg
       aria-hidden="true"
       viewBox="0 0 24 24"
-      className="h-4 w-4 shrink-0 animate-spin text-blue-700"
+      className="h-4 w-4 shrink-0 animate-spin text-accent-fg"
       fill="none"
     >
       <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.25" />
@@ -40,7 +43,7 @@ export function Spinner() {
 
 export function FolderIcon() {
   return (
-    <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-blue-700">
+    <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-accent-fg">
       <path
         fill="currentColor"
         d="M2 5.5A1.5 1.5 0 0 1 3.5 4h4l2 2h7A1.5 1.5 0 0 1 18 7.5v7a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 2 14.5z"
@@ -51,7 +54,7 @@ export function FolderIcon() {
 
 export function FileIcon() {
   return (
-    <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-gray-500">
+    <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-fg-muted">
       <path
         fill="none"
         stroke="currentColor"
@@ -64,10 +67,10 @@ export function FileIcon() {
 
 /** "Add login page — Ada Lovelace, 5 minutes ago" */
 export function LastCommit({ commit }: { commit: CommitSummary | null }) {
-  if (!commit) return <p className="text-sm text-gray-600">Nothing has been added to main yet.</p>;
+  if (!commit) return <p className="text-sm text-fg-muted">Nothing has been added to main yet.</p>;
   return (
-    <p className="text-sm break-words text-gray-700">
-      <span className="font-medium text-gray-900">{commitTitle(commit.message)}</span>
+    <p className="text-sm break-words text-fg-soft">
+      <span className="font-medium text-fg">{commitTitle(commit.message)}</span>
       {' — '}
       {commit.authorName},{' '}
       <time dateTime={commit.committedAt} title={fullDate.format(new Date(commit.committedAt))}>
@@ -110,7 +113,7 @@ export function Breadcrumb({
         </li>
         {folders.map((name, index) => (
           <li key={index} className="flex items-center gap-x-1">
-            <span aria-hidden="true" className="text-gray-400">
+            <span aria-hidden="true" className="text-fg-faint">
               /
             </span>
             <Link
@@ -124,10 +127,10 @@ export function Breadcrumb({
         ))}
         {isFile && (
           <li className="flex items-center gap-x-1">
-            <span aria-hidden="true" className="text-gray-400">
+            <span aria-hidden="true" className="text-fg-faint">
               /
             </span>
-            <span aria-current="page" className="font-medium text-gray-900">
+            <span aria-current="page" className="font-medium text-fg">
               {baseName(path)}
             </span>
           </li>

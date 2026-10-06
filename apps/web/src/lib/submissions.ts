@@ -252,14 +252,14 @@ export const STATUS_LABELS: Record<SubmissionStatus, string> = {
 };
 
 export const STATUS_STYLES: Record<SubmissionStatus, string> = {
-  open: 'bg-blue-50 text-blue-800 border-blue-200',
-  changes_requested: 'bg-amber-50 text-amber-900 border-amber-300',
-  approved: 'bg-green-50 text-green-800 border-green-300',
-  needs_update: 'bg-amber-50 text-amber-900 border-amber-300',
-  merged: 'bg-purple-50 text-purple-800 border-purple-200',
-  rejected: 'bg-red-50 text-red-800 border-red-200',
-  closed: 'bg-gray-100 text-gray-700 border-gray-300',
-  reverted: 'bg-gray-100 text-gray-700 border-gray-300',
+  open: 'bg-accent-soft text-accent-fg border-accent-line',
+  changes_requested: 'bg-warning-soft text-warning-strong border-warning-line',
+  approved: 'bg-success-soft text-success-fg border-success-line',
+  needs_update: 'bg-warning-soft text-warning-strong border-warning-line',
+  merged: 'bg-merge-soft text-merge-fg border-merge-line',
+  rejected: 'bg-danger-soft text-danger-fg border-danger-line',
+  closed: 'bg-muted text-fg-soft border-line-strong',
+  reverted: 'bg-muted text-fg-soft border-line-strong',
 };
 
 export const CHANGE_LABELS = { added: 'Added', modified: 'Modified', deleted: 'Deleted' } as const;

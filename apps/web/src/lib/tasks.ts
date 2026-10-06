@@ -165,10 +165,10 @@ export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
 };
 
 export const TASK_STATUS_STYLES: Record<TaskStatus, string> = {
-  todo: 'bg-gray-100 text-gray-800 border-gray-300',
-  in_progress: 'bg-blue-50 text-blue-800 border-blue-200',
-  in_review: 'bg-amber-50 text-amber-900 border-amber-300',
-  done: 'bg-green-50 text-green-800 border-green-300',
+  todo: 'bg-muted text-fg border-line-strong',
+  in_progress: 'bg-accent-soft text-accent-fg border-accent-line',
+  in_review: 'bg-warning-soft text-warning-strong border-warning-line',
+  done: 'bg-success-soft text-success-fg border-success-line',
 };
 
 /** Leaders and co-leaders: move any task anywhere, edit and delete any task. */

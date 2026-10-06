@@ -28,7 +28,7 @@ export function GithubRepoPicker({
   if (repos.isError) {
     if (errorCode(repos.error) === 'github_not_connected') {
       return (
-        <p className="text-sm text-gray-700">
+        <p className="text-sm text-fg-soft">
           {githubErrorMessage(repos.error)}{' '}
           <Link to={GITHUB_SETTINGS_URL} className={linkStyle}>
             Go to GitHub settings
@@ -72,7 +72,7 @@ export function GithubRepoPicker({
   if (repos.data.repos.length === 0) {
     return (
       <div className="space-y-2" data-testid="github-no-repos">
-        <p className="text-sm text-gray-700">
+        <p className="text-sm text-fg-soft">
           DevSpace can’t see any of your GitHub repositories yet. Install the DevSpace app on GitHub
           and choose which repositories it may use, then refresh the list. {installLink}
         </p>
@@ -84,10 +84,10 @@ export function GithubRepoPicker({
   const describedBy = [hintId, error ? errorId : null].filter(Boolean).join(' ');
   return (
     <div className="space-y-2">
-      <label htmlFor={selectId} className="block text-sm font-medium text-gray-800">
+      <label htmlFor={selectId} className="block text-sm font-medium text-fg">
         GitHub repository
       </label>
-      <p id={hintId} className="text-sm text-gray-600">
+      <p id={hintId} className="text-sm text-fg-muted">
         Its main branch (the default branch on GitHub) becomes the project’s main, with its history.
         Up to 200 MB. Missing one? Add it to the DevSpace app on GitHub, then refresh the list.{' '}
         {installLink}
@@ -100,10 +100,10 @@ export function GithubRepoPicker({
         onChange={(event) => onChange(event.target.value)}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
-        className={`block w-full rounded-md border bg-white px-3 py-2 text-base shadow-sm focus:ring-2 focus:outline-none ${
+        className={`block w-full rounded-lg border bg-surface px-3 py-2 text-base shadow-card focus:ring-2 focus:outline-none ${
           error
-            ? 'border-red-600 focus:border-red-600 focus:ring-red-200'
-            : 'border-gray-300 focus:border-blue-600 focus:ring-blue-200'
+            ? 'border-danger-solid focus:border-danger-solid focus:ring-danger-ring'
+            : 'border-line-strong focus:border-accent focus:ring-4 focus:ring-accent-ring/40'
         }`}
       >
         <option value="">Choose a repository…</option>
@@ -114,7 +114,7 @@ export function GithubRepoPicker({
         ))}
       </select>
       {error && (
-        <p id={errorId} className="text-sm text-red-700">
+        <p id={errorId} className="text-sm text-danger-fg">
           {error}
         </p>
       )}

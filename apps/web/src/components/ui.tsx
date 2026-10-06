@@ -3,18 +3,19 @@ import { errorMessage } from '../lib/formErrors';
 import { FormAlert } from './AuthPageShell';
 
 const buttonBase =
-  'inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60';
+  'inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold shadow-card focus-visible:ring-4 focus-visible:outline-none active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60 disabled:active:translate-y-0';
 
 export const buttonStyles = {
-  primary: `${buttonBase} bg-blue-700 text-white hover:bg-blue-800 focus-visible:ring-blue-300`,
-  secondary: `${buttonBase} border border-gray-300 bg-white text-gray-800 hover:bg-gray-100 focus-visible:ring-blue-300`,
-  danger: `${buttonBase} bg-red-700 text-white hover:bg-red-800 focus-visible:ring-red-300`,
-  dangerOutline: `${buttonBase} border border-red-300 bg-white text-red-800 hover:bg-red-50 focus-visible:ring-red-300`,
+  primary: `${buttonBase} bg-accent text-on-accent hover:bg-accent-hover focus-visible:ring-accent-ring/50`,
+  secondary: `${buttonBase} border border-line-strong bg-surface text-fg hover:bg-muted focus-visible:ring-accent-ring/50`,
+  danger: `${buttonBase} bg-danger-solid text-on-accent hover:bg-danger-solid-hover focus-visible:ring-danger-ring/50`,
+  dangerOutline: `${buttonBase} border border-danger-line bg-surface text-danger-fg hover:bg-danger-soft focus-visible:ring-danger-ring/50`,
 };
 
-export const linkStyle = 'font-medium text-blue-700 underline hover:text-blue-900';
+export const linkStyle =
+  'font-medium text-accent-fg underline decoration-accent-line underline-offset-2 hover:text-accent-strong hover:decoration-current';
 
-export const cardStyle = 'rounded-lg border border-gray-200 bg-white p-4 shadow-sm sm:p-6';
+export const cardStyle = 'rounded-xl border border-line bg-surface p-4 shadow-card sm:p-6';
 
 /**
  * A heading that takes focus when it appears, so screen-reader and keyboard users land on the
@@ -45,7 +46,7 @@ export function FocusHeading({
 
 export function Loading({ children }: { children: ReactNode }) {
   return (
-    <p role="status" className="text-sm text-gray-600">
+    <p role="status" className="text-sm text-fg-muted">
       {children}
     </p>
   );
@@ -76,7 +77,7 @@ export function LoadError({
 /** A small success note, announced politely. */
 export function SuccessNote({ children }: { children: ReactNode }) {
   return (
-    <p role="status" className="text-sm font-medium text-green-800">
+    <p role="status" className="text-sm font-medium text-success-fg">
       {children}
     </p>
   );

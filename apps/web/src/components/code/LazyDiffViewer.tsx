@@ -7,10 +7,10 @@ const DiffViewer = lazy(() => import('./DiffViewer'));
 /** A read-only diff of one file, with a loading note while the editor downloads. */
 export function LazyDiffViewer(props: DiffViewerProps) {
   return (
-    <div data-testid="diff-viewer" className="overflow-hidden rounded-md border border-gray-200">
+    <div data-testid="diff-viewer" className="overflow-hidden rounded-md border border-line">
       <Suspense
         fallback={
-          <p role="status" className="p-3 text-sm text-gray-600">
+          <p role="status" className="p-3 text-sm text-fg-muted">
             Loading the changes…
           </p>
         }

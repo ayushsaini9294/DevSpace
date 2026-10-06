@@ -5,9 +5,9 @@ import { PRESENCE_LABELS, presenceFileText, sortPresence, usePresence } from '..
 import { formatWhen, fullDate } from '../../lib/time';
 
 const DOT_STYLES: Record<PresenceState, string> = {
-  active: 'bg-green-600',
-  online: 'bg-blue-500',
-  offline: 'border border-gray-400 bg-white',
+  active: 'bg-success-solid',
+  online: 'bg-accent',
+  offline: 'border border-line-strong bg-surface',
 };
 
 /** Re-render every minute, so "last seen 3 minutes ago" stays true. */
@@ -32,7 +32,7 @@ function MemberRow({ member, me, now }: { member: PresenceView; me: boolean; now
     <li
       data-testid="presence-member"
       data-state={member.state}
-      className="flex min-w-0 items-start gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm"
+      className="flex min-w-0 items-start gap-2 rounded-md border border-line bg-surface px-3 py-2 text-sm"
     >
       <span
         aria-hidden="true"
@@ -40,26 +40,26 @@ function MemberRow({ member, me, now }: { member: PresenceView; me: boolean; now
       />
       <div className="min-w-0 flex-1">
         <p className="flex flex-wrap items-baseline gap-x-2">
-          <span className="font-medium break-words text-gray-900">
+          <span className="font-medium break-words text-fg">
             {member.user.name}
-            {me && <span className="font-normal text-gray-600"> (you)</span>}
+            {me && <span className="font-normal text-fg-muted"> (you)</span>}
           </span>
-          <span data-testid="presence-state" className="text-xs text-gray-700">
+          <span data-testid="presence-state" className="text-xs text-fg-soft">
             {PRESENCE_LABELS[member.state]}
           </span>
         </p>
         {fileText !== null && (
           <p
             data-testid="presence-file"
-            className="truncate font-mono text-xs text-gray-800"
+            className="truncate font-mono text-xs text-fg"
             title={fileText}
           >
             {fileText}
           </p>
         )}
-        {where !== null && <p className="truncate text-xs text-gray-700">{where}</p>}
+        {where !== null && <p className="truncate text-xs text-fg-soft">{where}</p>}
         {member.state === 'offline' && (
-          <p data-testid="presence-last-seen" className="text-xs text-gray-600">
+          <p data-testid="presence-last-seen" className="text-xs text-fg-muted">
             {member.lastSeenAt ? (
               <>
                 last seen{' '}
@@ -89,17 +89,17 @@ export function TeamPanel({ projectId, myId }: { projectId: string; myId: string
   let body;
   if (presence.isPending) {
     body = (
-      <p role="status" className="text-sm text-gray-600">
+      <p role="status" className="text-sm text-fg-muted">
         Loading who’s here…
       </p>
     );
   } else if (presence.isError) {
     body = (
-      <p className="text-sm text-gray-700">
+      <p className="text-sm text-fg-soft">
         Couldn’t load who’s here. {errorMessage(presence.error)}{' '}
         <button
           type="button"
-          className="font-medium text-blue-700 underline hover:text-blue-900"
+          className="font-medium text-accent-fg underline hover:text-accent-strong"
           onClick={() => presence.refetch()}
         >
           Try again
@@ -118,7 +118,7 @@ export function TeamPanel({ projectId, myId }: { projectId: string; myId: string
 
   return (
     <section aria-labelledby={headingId} className="space-y-2">
-      <h2 id={headingId} className="text-sm font-semibold text-gray-700">
+      <h2 id={headingId} className="text-sm font-semibold text-fg-soft">
         Team
       </h2>
       {body}

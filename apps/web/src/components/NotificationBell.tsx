@@ -31,9 +31,9 @@ function Item({ n, onOpen }: { n: NotificationView; onOpen: (n: NotificationView
   return (
     <li
       data-unread={unread ? 'true' : 'false'}
-      className={`space-y-0.5 px-4 py-2.5 text-sm ${unread ? 'bg-blue-50' : ''}`}
+      className={`space-y-0.5 px-4 py-2.5 text-sm ${unread ? 'bg-accent-soft' : ''}`}
     >
-      <p className="break-words text-gray-900">
+      <p className="break-words text-fg">
         {unread && <span className="sr-only">Unread: </span>}
         {url ? (
           <Link to={url} className="hover:underline" onClick={() => onOpen(n)}>
@@ -43,7 +43,7 @@ function Item({ n, onOpen }: { n: NotificationView; onOpen: (n: NotificationView
           text
         )}
       </p>
-      <p className="text-xs text-gray-600">
+      <p className="text-xs text-fg-muted">
         {n.project ? <span className="break-words">{n.project.name} · </span> : null}
         <time dateTime={n.createdAt} title={fullDate.format(new Date(n.createdAt))}>
           {formatWhen(n.createdAt)}
@@ -80,14 +80,14 @@ export function NotificationBell() {
         aria-expanded={open}
         aria-controls={panelId}
         onClick={toggle}
-        className="relative rounded-md p-1.5 text-gray-700 hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:outline-none"
+        className="relative rounded-md p-1.5 text-fg-soft hover:bg-muted hover:text-fg focus-visible:ring-2 focus-visible:ring-accent-ring focus-visible:outline-none"
       >
         <BellIcon />
         {unread > 0 && (
           <span
             data-testid="notification-count"
             aria-hidden="true"
-            className="absolute -top-1 -right-1 min-w-[1.25rem] rounded-full bg-red-700 px-1 text-center text-xs leading-5 font-semibold text-white"
+            className="absolute -top-1 -right-1 min-w-[1.25rem] rounded-full bg-danger-solid px-1 text-center text-xs leading-5 font-semibold text-on-accent"
           >
             {formatCount(unread)}
           </span>
@@ -103,7 +103,7 @@ export function NotificationBell() {
           aria-labelledby={headingId}
           className={`${popoverPanel} flex max-h-[70vh] flex-col`}
         >
-          <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-2">
+          <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-2">
             <h2 id={headingId} className="font-semibold">
               Notifications
             </h2>
@@ -123,7 +123,7 @@ export function NotificationBell() {
           )}
           <div className="min-h-0 overflow-y-auto">
             {notifications.isPending ? (
-              <p role="status" className="px-4 py-3 text-sm text-gray-600">
+              <p role="status" className="px-4 py-3 text-sm text-fg-muted">
                 Loading notifications…
               </p>
             ) : notifications.isError && list.length === 0 ? (
@@ -140,16 +140,16 @@ export function NotificationBell() {
                 </button>
               </div>
             ) : list.length === 0 ? (
-              <p className="px-4 py-3 text-sm text-gray-700">No notifications yet.</p>
+              <p className="px-4 py-3 text-sm text-fg-soft">No notifications yet.</p>
             ) : (
-              <ul aria-label="Notifications" className="divide-y divide-gray-100">
+              <ul aria-label="Notifications" className="divide-y divide-line">
                 {list.map((n) => (
                   <Item key={n.id} n={n} onOpen={openNotification} />
                 ))}
               </ul>
             )}
             {notifications.hasNextPage && (
-              <div className="border-t border-gray-100 px-4 py-2">
+              <div className="border-t border-line px-4 py-2">
                 <button
                   type="button"
                   disabled={notifications.isFetchingNextPage}

@@ -55,19 +55,19 @@ function Choice({
   const hintId = useId();
   return (
     <div>
-      <label className="flex items-start gap-2 text-gray-800">
+      <label className="flex items-start gap-2 text-fg">
         <input
           type={type}
           name={name}
           value={value}
           defaultChecked={defaultChecked}
           aria-describedby={hint ? hintId : undefined}
-          className="mt-1 h-4 w-4 shrink-0 border-gray-300"
+          className="mt-1 h-4 w-4 shrink-0 border-line-strong"
         />
         <span>{children}</span>
       </label>
       {hint && (
-        <p id={hintId} className="ml-6 text-sm text-gray-600">
+        <p id={hintId} className="ml-6 text-sm text-fg-muted">
           {hint}
         </p>
       )}
@@ -149,7 +149,7 @@ function SettingsSection({ projectId, saved }: { projectId: string; saved: Proje
           </Choice>
         </div>
         <fieldset className="space-y-1">
-          <legend className="font-medium text-gray-800">Update copies after merge</legend>
+          <legend className="font-medium text-fg">Update copies after merge</legend>
           <Choice
             type="radio"
             name="copyUpdateMode"
@@ -198,17 +198,17 @@ function DangerZone({ projectId, name }: { projectId: string; name: string }) {
   return (
     <section
       aria-labelledby="danger-heading"
-      className="space-y-3 rounded-lg border border-red-300 bg-white p-4 shadow-sm sm:p-6"
+      className="space-y-3 rounded-lg border border-danger-line bg-surface p-4 shadow-card sm:p-6"
     >
-      <h3 id="danger-heading" className="text-lg font-semibold text-red-800">
+      <h3 id="danger-heading" className="text-lg font-semibold text-danger-fg">
         Danger zone
       </h3>
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="space-y-1">
-          <label htmlFor={inputId} className="block text-sm font-medium text-gray-800">
+          <label htmlFor={inputId} className="block text-sm font-medium text-fg">
             Type the project name to confirm
           </label>
-          <p id={hintId} className="text-sm text-gray-700">
+          <p id={hintId} className="text-sm text-fg-soft">
             Deleting removes the project, its members and its activity for everyone. This can’t be
             undone. Type <strong className="break-all">{name}</strong> exactly.
           </p>
@@ -218,7 +218,7 @@ function DangerZone({ projectId, name }: { projectId: string; name: string }) {
             onChange={(event) => setTyped(event.currentTarget.value)}
             autoComplete="off"
             aria-describedby={hintId}
-            className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-base shadow-sm focus:border-red-600 focus:ring-2 focus:ring-red-200 focus:outline-none"
+            className="block w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-base shadow-card focus:border-danger-solid focus:ring-4 focus:ring-danger-ring/40 focus:outline-none"
           />
         </div>
         {remove.isError && <FormAlert>{errorMessage(remove.error)}</FormAlert>}
@@ -247,7 +247,7 @@ export function SettingsPage() {
       </FocusHeading>
       {!canOpenSettings(project) ? (
         <div className="space-y-2">
-          <p className="text-gray-700">Only the project’s leaders can change its settings.</p>
+          <p className="text-fg-soft">Only the project’s leaders can change its settings.</p>
           <Link to={`/projects/${project.id}`} className={linkStyle}>
             Back to the overview
           </Link>

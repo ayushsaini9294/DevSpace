@@ -30,7 +30,7 @@ const OPENROUTER_KEYS_URL = 'https://openrouter.ai/settings/keys';
 function FreeRequests({ connection }: { connection: AiConnectionView }) {
   const free = connection.freeRequestsToday;
   return (
-    <p data-testid="ai-free-requests" className="text-sm text-gray-800">
+    <p data-testid="ai-free-requests" className="text-sm text-fg">
       {free
         ? `${free.remaining} of ${free.limit} free requests left today (UTC).`
         : 'Couldn’t check your free requests with OpenRouter right now.'}
@@ -47,7 +47,7 @@ function Connection({ connection }: { connection: AiConnectionView }) {
       <h3 id="ai-connection-heading" className="text-lg font-semibold">
         OpenRouter account
       </h3>
-      <p className="text-sm text-gray-800">
+      <p className="text-sm text-fg">
         Status:{' '}
         <strong data-testid="ai-connection-status">
           {connection.connected ? 'Connected' : 'Not connected'}
@@ -55,13 +55,13 @@ function Connection({ connection }: { connection: AiConnectionView }) {
       </p>
       {connection.connected ? (
         <>
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-fg-soft">
             {connection.keyHint ? `Key ending in …${connection.keyHint}` : 'Key stored'}
             {connection.connectedAt &&
               ` · connected ${fullDate.format(new Date(connection.connectedAt))}`}
           </p>
           <FreeRequests connection={connection} />
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-fg-soft">
             Disconnecting deletes the key from DevSpace. You can also delete it in your{' '}
             <a href={OPENROUTER_KEYS_URL} target="_blank" rel="noreferrer" className={linkStyle}>
               OpenRouter settings
@@ -81,7 +81,7 @@ function Connection({ connection }: { connection: AiConnectionView }) {
         </>
       ) : (
         <>
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-fg-soft">
             You’ll log in on OpenRouter and allow DevSpace to use your account. DevSpace keeps the
             key encrypted and never shows it again.
           </p>
@@ -116,7 +116,7 @@ function Notice() {
       <h3 id="ai-notice-heading" className="text-lg font-semibold">
         Before you use AI
       </h3>
-      <ul className="list-disc space-y-1 pl-5 text-sm text-gray-800">
+      <ul className="list-disc space-y-1 pl-5 text-sm text-fg">
         <li>
           AI review and the IDE’s AI assistant send your code and file names to outside AI providers
           through your OpenRouter account.
@@ -129,7 +129,7 @@ function Notice() {
           AI can be wrong. Check what it writes; a person still reviews and approves the work.
         </li>
       </ul>
-      <p className="text-sm text-gray-700">You only need to accept this once.</p>
+      <p className="text-sm text-fg-soft">You only need to accept this once.</p>
       {accept.isError && <FormAlert>{aiErrorMessage(accept.error)}</FormAlert>}
       <button
         type="button"
@@ -150,13 +150,13 @@ function requestCount(n: number): string {
 
 function AssistantUsage({ usage }: { usage: AiAssistantUsage }) {
   return (
-    <div data-testid="ai-assistant-usage" className="text-sm text-gray-800">
+    <div data-testid="ai-assistant-usage" className="text-sm text-fg">
       <p>
         Assistant use today (UTC):{' '}
         {usage.requests === 0 ? 'no requests yet' : requestCount(usage.requests)}.
       </p>
       {usage.models.length > 0 && (
-        <ul className="mt-1 list-disc space-y-0.5 pl-5 text-gray-700">
+        <ul className="mt-1 list-disc space-y-0.5 pl-5 text-fg-soft">
           {usage.models.map((m) => (
             <li key={m.model}>
               <span className="font-mono text-xs break-all">{m.model}</span>:{' '}
@@ -182,12 +182,12 @@ function Assistant() {
       <h3 id="ai-assistant-heading" className="text-lg font-semibold">
         AI assistant in the IDE
       </h3>
-      <p className="text-sm text-gray-700">
+      <p className="text-sm text-fg-soft">
         Your IDE has a built-in AI assistant: click the AI icon on the left and describe what to
         build. It uses your OpenRouter account through DevSpace, so there’s no key to copy. A leader
         must allow AI in the project’s Settings first.
       </p>
-      <p data-testid="ai-helper-note" className="text-sm text-gray-700">
+      <p data-testid="ai-helper-note" className="text-sm text-fg-soft">
         When a leader or co-leader opens your copy to help you, they can use the assistant too. It
         works as you and uses your requests, but they can never see your key.
       </p>
@@ -203,10 +203,10 @@ function Assistant() {
         <>
           <div className="flex items-start justify-between gap-3">
             <div className="space-y-0.5">
-              <span id={labelId} className="block text-sm font-medium text-gray-900">
+              <span id={labelId} className="block text-sm font-medium text-fg">
                 Allow paid models in the IDE assistant (uses your OpenRouter credits)
               </span>
-              <span id={hintId} className="block text-xs text-gray-600">
+              <span id={hintId} className="block text-xs text-fg-muted">
                 When off, the assistant can only use free models. When on, it can use any model you
                 choose in it, and paid models use your OpenRouter credits.
               </span>
@@ -221,13 +221,13 @@ function Assistant() {
               disabled={update.isPending}
               aria-busy={update.isPending || undefined}
               onClick={() => update.mutate({ allowPaid: !on })}
-              className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:outline-none disabled:opacity-60 ${
-                on ? 'bg-blue-700' : 'bg-gray-300'
+              className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-accent-ring focus-visible:outline-none disabled:opacity-60 ${
+                on ? 'bg-accent' : 'bg-line-strong'
               }`}
             >
               <span
                 aria-hidden="true"
-                className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                className={`inline-block h-5 w-5 rounded-full bg-surface shadow transition-transform ${
                   on ? 'translate-x-5' : 'translate-x-0.5'
                 }`}
               />
@@ -254,7 +254,7 @@ export function AiSettingsPage() {
       <FocusHeading level={2}>
         <span id="ai-settings-heading">AI settings</span>
       </FocusHeading>
-      <p className="text-gray-700">
+      <p className="text-fg-soft">
         AI review and the IDE’s AI assistant use your own OpenRouter account. Free models are used
         by default: OpenRouter gives 50 free requests a day, and one review with three models uses
         about three of them. Paid models are only used when you choose them (for AI review) or allow

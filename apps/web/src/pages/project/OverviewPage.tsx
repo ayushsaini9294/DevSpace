@@ -18,19 +18,19 @@ export function OverviewPage() {
       <GettingStarted projectId={project.id} />
       <div className={`${cardStyle} space-y-3`}>
         <p className="font-medium">Your role: {ROLE_LABELS[project.myRole]}</p>
-        <p className="text-gray-700">
+        <p className="text-fg-soft">
           {project.memberCount === 1 ? '1 member' : `${project.memberCount} members`}
         </p>
         {isMember ? (
           <div className="space-y-1">
             <h3 className="font-medium">Your extra permissions</h3>
             {switchedOn.length === 0 ? (
-              <p className="text-gray-700">
+              <p className="text-fg-soft">
                 None switched on yet. You can still work in your copy and submit work. A leader can
                 switch on more for you, such as approving other people’s work.
               </p>
             ) : (
-              <ul className="list-inside list-disc text-gray-700">
+              <ul className="list-inside list-disc text-fg-soft">
                 {switchedOn.map((key) => (
                   <li key={key}>{PERMISSION_LABELS[key]}</li>
                 ))}
@@ -38,7 +38,7 @@ export function OverviewPage() {
             )}
           </div>
         ) : (
-          <p className="text-gray-700">
+          <p className="text-fg-soft">
             As a {ROLE_LABELS[project.myRole].toLowerCase()} you can do everything a member can, and
             you also merge work into main and manage the team.
           </p>

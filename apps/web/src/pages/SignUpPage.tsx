@@ -56,7 +56,7 @@ export function SignUpPage() {
           Already have an account?{' '}
           <Link
             to={next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`}
-            className="font-medium text-blue-700 underline hover:text-blue-900"
+            className="font-medium text-accent-fg underline hover:text-accent-strong"
           >
             Log in
           </Link>

@@ -59,7 +59,7 @@ const STEPS: Record<GettingStartedStepId, StepText> = {
 
 function CheckIcon() {
   return (
-    <svg aria-hidden="true" viewBox="0 0 20 20" className="h-5 w-5 shrink-0 text-green-700">
+    <svg aria-hidden="true" viewBox="0 0 20 20" className="h-5 w-5 shrink-0 text-success-fg">
       <circle cx="10" cy="10" r="9" fill="currentColor" />
       <path
         d="m6 10.5 2.5 2.5L14 7.5"
@@ -78,7 +78,7 @@ function OpenCircle({ current }: { current: boolean }) {
     <svg
       aria-hidden="true"
       viewBox="0 0 20 20"
-      className={`h-5 w-5 shrink-0 ${current ? 'text-blue-700' : 'text-gray-400'}`}
+      className={`h-5 w-5 shrink-0 ${current ? 'text-accent-fg' : 'text-fg-faint'}`}
     >
       <circle cx="10" cy="10" r="8.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
     </svg>
@@ -103,17 +103,17 @@ function Step({
       data-step={step.id}
       data-done={step.done ? 'true' : 'false'}
       aria-current={current ? 'step' : undefined}
-      className={`flex gap-3 rounded-md p-2 ${current ? 'bg-blue-50' : ''}`}
+      className={`flex gap-3 rounded-md p-2 ${current ? 'bg-accent-soft' : ''}`}
     >
       {step.done ? <CheckIcon /> : <OpenCircle current={current} />}
       <div className="min-w-0 flex-1 space-y-1">
-        <p className={`font-medium ${step.done ? 'text-gray-600' : 'text-gray-900'}`}>
+        <p className={`font-medium ${step.done ? 'text-fg-muted' : 'text-fg'}`}>
           {number}. {text.title}
           <span className="sr-only">{step.done ? ' (done)' : ' (not done yet)'}</span>
         </p>
         {!step.done && (
           <>
-            <p className="text-sm text-gray-700">{text.how}</p>
+            <p className="text-sm text-fg-soft">{text.how}</p>
             <Link
               to={text.action.to(projectId)}
               className={current ? `${buttonStyles.primary} py-1` : `${linkStyle} text-sm`}
@@ -166,13 +166,13 @@ export function GettingStarted({ projectId }: { projectId: string }) {
     return (
       <section
         aria-labelledby={headingId}
-        className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-green-300 bg-green-50 p-4"
+        className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-success-line bg-success-soft p-4"
       >
         <div>
-          <h3 id={headingId} className="font-semibold text-green-900">
+          <h3 id={headingId} className="font-semibold text-success-strong">
             Getting started
           </h3>
-          <p role="status" className="text-green-900">
+          <p role="status" className="text-success-strong">
             You’re all set! You’ve done every step. Keep going: change, preview, submit.
           </p>
         </div>
@@ -220,7 +220,7 @@ export function GettingStarted({ projectId }: { projectId: string }) {
               ticks itself when you really do it.
             </HelpTip>
           </div>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-fg-muted">
             {doneCount} of {steps.length} done
           </p>
         </div>

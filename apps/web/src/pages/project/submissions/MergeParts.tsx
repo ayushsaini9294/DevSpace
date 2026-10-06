@@ -47,7 +47,7 @@ export function MergeBlockerNote({
   if (blocker === 'approval_required') {
     const base = `/projects/${projectId}`;
     return (
-      <div className="space-y-1 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+      <div className="space-y-1 rounded-md border border-warning-line bg-warning-soft px-3 py-2 text-sm text-warning-strong">
         <p>{BLOCKER_TEXT[blocker]}</p>
         <p>
           Someone other than the author must approve it, because nobody can approve their own work.
@@ -65,7 +65,7 @@ export function MergeBlockerNote({
     );
   }
   return (
-    <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+    <p className="rounded-md border border-warning-line bg-warning-soft px-3 py-2 text-sm text-warning-strong">
       {BLOCKER_TEXT[blocker]}
     </p>
   );
@@ -90,7 +90,7 @@ export function MergeDialog({
       onClose={onClose}
       onSubmit={() => merge.mutate(undefined, { onSuccess: onClose })}
     >
-      <p className="text-sm text-gray-700">
+      <p className="text-sm text-fg-soft">
         Version {submission.version} is added to main (the team’s shared version) as one change,
         credited to {submission.author.name}. Everyone’s copies then get it, either automatically or
         when they click Update my copy. You can undo it later with Undo merge.
@@ -121,14 +121,14 @@ export function RevertDialog({
       onClose={onClose}
       onSubmit={() => revert.mutate(undefined, { onSuccess: onClose })}
     >
-      <p className="text-sm text-gray-700">
+      <p className="text-sm text-fg-soft">
         This takes this merge’s changes back out of main. {submission.author.name}’s files stay as
         they are in their copy, so they can fix the work and submit it again.
       </p>
       {conflict && (
         <div
           role="alert"
-          className="space-y-1 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
+          className="space-y-1 rounded-md border border-danger-line bg-danger-soft px-3 py-2 text-sm text-danger-fg"
         >
           <p>
             This merge can’t be undone: later merges changed the same lines. Main was not changed.
@@ -158,8 +158,8 @@ export function MergeInfo({ submission }: { submission: SubmissionDetail }) {
     <div
       className={`space-y-1 rounded-md border px-3 py-2 text-sm ${
         reverted
-          ? 'border-gray-300 bg-gray-50 text-gray-800'
-          : 'border-purple-200 bg-purple-50 text-purple-950'
+          ? 'border-line-strong bg-subtle text-fg'
+          : 'border-merge-line bg-merge-soft text-merge-strong'
       }`}
     >
       <p>
@@ -167,7 +167,7 @@ export function MergeInfo({ submission }: { submission: SubmissionDetail }) {
         {mergedSha && (
           <>
             {' '}
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-fg-muted">
               (id <code className="font-mono">{shortSha(mergedSha)}</code>)
             </span>
           </>
@@ -186,7 +186,7 @@ export function MergeInfo({ submission }: { submission: SubmissionDetail }) {
             {revertedSha && (
               <>
                 {' '}
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-fg-muted">
                   (id <code className="font-mono">{shortSha(revertedSha)}</code>)
                 </span>
               </>
@@ -222,15 +222,15 @@ export function NeedsUpdatePanel({
   return (
     <section
       aria-labelledby="needs-update-heading"
-      className="space-y-3 rounded-md border border-amber-300 bg-amber-50 p-3"
+      className="space-y-3 rounded-md border border-warning-line bg-warning-soft p-3"
     >
       <div className="flex items-center gap-2">
-        <h3 id="needs-update-heading" className="font-semibold text-amber-950">
+        <h3 id="needs-update-heading" className="font-semibold text-warning-strong">
           Needs update
         </h3>
         <HelpTip term="clash" />
       </div>
-      <p className="text-sm text-gray-800">
+      <p className="text-sm text-fg">
         Main (the team’s shared version) has changed since this was submitted, and these files now
         clash with it (a “conflict”): the same lines were changed in both.
       </p>
@@ -243,7 +243,7 @@ export function NeedsUpdatePanel({
       </ul>
       {isAuthor ? (
         <>
-          <ol className="list-inside list-decimal space-y-1 text-sm text-gray-800">
+          <ol className="list-inside list-decimal space-y-1 text-sm text-fg">
             <li>
               <strong>Update my copy</strong> to bring main’s changes in. The clashing lines are
               marked in your files.
@@ -263,7 +263,7 @@ export function NeedsUpdatePanel({
           <AuthorCopy projectId={projectId} />
         </>
       ) : (
-        <p className="text-sm text-gray-800">
+        <p className="text-sm text-fg">
           Waiting for {submission.author.name} to update their copy and this submission.
         </p>
       )}

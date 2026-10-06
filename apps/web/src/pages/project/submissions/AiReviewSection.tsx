@@ -45,10 +45,10 @@ const STATUS_LABELS: Record<AiReviewStatus, string> = {
 };
 
 const STATUS_STYLES: Record<AiReviewStatus, string> = {
-  queued: 'border-gray-300 bg-gray-100 text-gray-700',
-  running: 'border-blue-200 bg-blue-50 text-blue-800',
-  done: 'border-green-300 bg-green-50 text-green-800',
-  failed: 'border-red-200 bg-red-50 text-red-800',
+  queued: 'border-line-strong bg-muted text-fg-soft',
+  running: 'border-accent-line bg-accent-soft text-accent-fg',
+  done: 'border-success-line bg-success-soft text-success-fg',
+  failed: 'border-danger-line bg-danger-soft text-danger-fg',
 };
 
 const SEVERITY_LABELS: Record<AiSeverity, string> = {
@@ -58,9 +58,9 @@ const SEVERITY_LABELS: Record<AiSeverity, string> = {
 };
 
 const SEVERITY_STYLES: Record<AiSeverity, string> = {
-  high: 'border-red-300 bg-red-50 text-red-800',
-  medium: 'border-amber-300 bg-amber-50 text-amber-900',
-  low: 'border-gray-300 bg-gray-100 text-gray-700',
+  high: 'border-danger-line bg-danger-soft text-danger-fg',
+  medium: 'border-warning-line bg-warning-soft text-warning-strong',
+  low: 'border-line-strong bg-muted text-fg-soft',
 };
 
 function Pill({ className, children }: { className: string; children: string }) {
@@ -97,7 +97,7 @@ function ModelStatus({ review }: { review: AiReviewView }) {
     <li
       data-testid="ai-model-status"
       data-status={review.status}
-      className="space-y-1 rounded-md border border-gray-200 bg-white p-3"
+      className="space-y-1 rounded-lg border border-line bg-surface p-3"
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className="min-w-0 font-mono text-sm font-semibold break-all">{review.model}</span>
@@ -106,7 +106,7 @@ function ModelStatus({ review }: { review: AiReviewView }) {
         {review.isFree === false && <Tag tone="amber">Paid</Tag>}
         {review.source === 'ide' && <Tag>From the IDE</Tag>}
       </div>
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-fg-muted">
         Asked by {review.requestedBy.name}
         {fellBack && (
           <>
@@ -118,25 +118,25 @@ function ModelStatus({ review }: { review: AiReviewView }) {
         )}
       </p>
       {review.status === 'failed' && (
-        <div className="space-y-1 text-sm text-red-800">
+        <div className="space-y-1 text-sm text-danger-fg">
           <p>{reviewFailureMessage(review)}</p>
           {review.error && <p className="break-words whitespace-pre-wrap">{review.error}</p>}
         </div>
       )}
       {review.status === 'done' &&
         (review.parseError ? (
-          <p className="text-sm text-amber-900">
+          <p className="text-sm text-warning-strong">
             The answer wasn’t in the expected format, so no findings could be read from it.
           </p>
         ) : (
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-fg-soft">
             {plural(review.findings.length, 'finding', 'findings')}
           </p>
         ))}
       {review.raw !== null && review.parseError && (
         <details className="text-sm">
-          <summary className="cursor-pointer text-gray-700">Show the model’s answer</summary>
-          <pre className="mt-1 max-h-64 overflow-auto rounded bg-gray-50 p-2 font-mono text-xs whitespace-pre-wrap text-gray-900">
+          <summary className="cursor-pointer text-fg-soft">Show the model’s answer</summary>
+          <pre className="mt-1 max-h-64 overflow-auto rounded bg-subtle p-2 font-mono text-xs whitespace-pre-wrap text-fg">
             {review.raw}
           </pre>
         </details>
@@ -154,14 +154,14 @@ function FindingGroup({ group }: { group: AiFindingGroup }) {
       data-testid="ai-finding-group"
       data-agreed={agreed ? 'true' : 'false'}
       className={`space-y-2 rounded-md border p-3 ${
-        agreed ? 'border-l-4 border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'
+        agreed ? 'border-l-4 border-accent bg-accent-soft' : 'border-line bg-surface'
       }`}
     >
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <Severity severity={group.severity} />
-        <span className="font-medium text-gray-800">{linesLabel(group)}</span>
+        <span className="font-medium text-fg">{linesLabel(group)}</span>
         {agreed && (
-          <span className="font-semibold text-blue-900">
+          <span className="font-semibold text-accent-strong">
             Agreed by {group.agreedBy.length} models:{' '}
             <span className="font-mono font-normal break-all">{group.agreedBy.join(', ')}</span>
           </span>
@@ -171,21 +171,19 @@ function FindingGroup({ group }: { group: AiFindingGroup }) {
         {group.findings.map((finding, index) => (
           <li
             key={`${finding.reviewId}:${index}`}
-            className="space-y-1 border-t border-gray-200 pt-2 first:border-t-0 first:pt-0"
+            className="space-y-1 border-t border-line pt-2 first:border-t-0 first:pt-0"
           >
             <p className="flex flex-wrap items-center gap-2">
-              <strong className="break-words text-gray-900">{finding.title || '(no title)'}</strong>
+              <strong className="break-words text-fg">{finding.title || '(no title)'}</strong>
               {finding.severity !== group.severity && <Severity severity={finding.severity} />}
               {finding.line !== null && group.startLine !== group.endLine && (
-                <span className="text-sm text-gray-600">line {finding.line}</span>
+                <span className="text-sm text-fg-muted">line {finding.line}</span>
               )}
             </p>
             {finding.detail && (
-              <p className="text-sm break-words whitespace-pre-wrap text-gray-800">
-                {finding.detail}
-              </p>
+              <p className="text-sm break-words whitespace-pre-wrap text-fg">{finding.detail}</p>
             )}
-            <p className="text-xs text-gray-600">
+            <p className="text-xs text-fg-muted">
               From <span className="font-mono break-all">{finding.model}</span>
             </p>
           </li>
@@ -205,7 +203,7 @@ function Findings({ groups }: { groups: AiFindingGroup[] }) {
 
   return (
     <div data-testid="ai-findings" className="space-y-3">
-      <p className="text-sm text-gray-700">
+      <p className="text-sm text-fg-soft">
         {plural(groups.length, 'place', 'places')} flagged
         {agreed > 0 && `, ${agreed} of them by 2 or more models (highlighted)`}. AI findings can be
         wrong: check each one yourself.
@@ -262,14 +260,14 @@ function AdvancedPicker({
 
   return (
     <details
-      className="rounded-md border border-gray-200 bg-gray-50 p-3"
+      className="rounded-md border border-line bg-subtle p-3"
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
-      <summary className="cursor-pointer text-sm font-medium text-gray-800">
+      <summary className="cursor-pointer text-sm font-medium text-fg">
         Advanced: choose models
       </summary>
       <div className="mt-3 space-y-3">
-        <p className="text-sm text-gray-700">
+        <p className="text-sm text-fg-soft">
           Pick up to {MAX_AI_MODELS_PER_REVIEW} models instead of the free defaults. Paid models use
           your OpenRouter credits.
         </p>
@@ -289,7 +287,7 @@ function AdvancedPicker({
         ) : (
           <>
             <div className="space-y-1">
-              <label htmlFor={findId} className="block text-sm font-medium text-gray-800">
+              <label htmlFor={findId} className="block text-sm font-medium text-fg">
                 Find a model
               </label>
               <input
@@ -297,25 +295,25 @@ function AdvancedPicker({
                 type="search"
                 value={query}
                 onChange={(event) => setQuery(event.currentTarget.value)}
-                className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-base shadow-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+                className="block w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-base shadow-card focus:border-accent focus:ring-4 focus:ring-accent-ring/40 focus:outline-none"
               />
             </div>
             <fieldset className="max-h-72 space-y-1 overflow-y-auto">
               <legend className="sr-only">Models</legend>
-              {shown.length === 0 && <p className="text-sm text-gray-700">No model matches.</p>}
+              {shown.length === 0 && <p className="text-sm text-fg-soft">No model matches.</p>}
               {shown.map((model) => {
                 const checked = picked.includes(model.id);
                 return (
-                  <label key={model.id} className="flex items-start gap-2 text-sm text-gray-800">
+                  <label key={model.id} className="flex items-start gap-2 text-sm text-fg">
                     <input
                       type="checkbox"
                       checked={checked}
                       disabled={!checked && full}
                       onChange={(event) => toggle(model.id, event.currentTarget.checked)}
-                      className="mt-0.5 h-4 w-4 shrink-0 border-gray-300"
+                      className="mt-0.5 h-4 w-4 shrink-0 border-line-strong"
                     />
                     <span className="min-w-0 break-all">
-                      {model.name} <span className="font-mono text-gray-600">({model.id})</span>{' '}
+                      {model.name} <span className="font-mono text-fg-muted">({model.id})</span>{' '}
                       {model.isFree ? 'Free' : 'Paid'}
                     </span>
                   </label>
@@ -323,17 +321,17 @@ function AdvancedPicker({
               })}
             </fieldset>
             {anyPaid && (
-              <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3">
-                <p className="text-sm text-amber-950">
+              <div className="space-y-2 rounded-md border border-warning-line bg-warning-soft p-3">
+                <p className="text-sm text-warning-strong">
                   You picked a paid model. This review uses your OpenRouter credits, and OpenRouter
                   charges you for it.
                 </p>
-                <label className="flex items-start gap-2 text-sm font-medium text-amber-950">
+                <label className="flex items-start gap-2 text-sm font-medium text-warning-strong">
                   <input
                     type="checkbox"
                     checked={confirmPaid}
                     onChange={(event) => setConfirmPaid(event.currentTarget.checked)}
-                    className="mt-0.5 h-4 w-4 shrink-0 border-gray-300"
+                    className="mt-0.5 h-4 w-4 shrink-0 border-line-strong"
                   />
                   I understand this uses my OpenRouter credits
                 </label>
@@ -378,7 +376,7 @@ function NoticeDialog({
       onClose={onClose}
       onSubmit={onAccept}
     >
-      <ul className="list-disc space-y-1 pl-5 text-sm text-gray-800">
+      <ul className="list-disc space-y-1 pl-5 text-sm text-fg">
         <li>
           AI review sends this submission’s changes (the code and its file names) to outside AI
           providers through your OpenRouter account.
@@ -389,7 +387,7 @@ function NoticeDialog({
         </li>
         <li>AI findings can be wrong. A person still reviews and approves the work.</li>
       </ul>
-      <p className="text-sm text-gray-700">You’ll only see this once.</p>
+      <p className="text-sm text-fg-soft">You’ll only see this once.</p>
     </Dialog>
   );
 }
@@ -457,7 +455,7 @@ function AiActions({
   return (
     <div className="space-y-4">
       <div className="space-y-2">
-        <h4 className="font-semibold text-gray-900">Cross-review with AI</h4>
+        <h4 className="font-semibold text-fg">Cross-review with AI</h4>
         {connection.isPending ? (
           <Loading>Checking your OpenRouter connection…</Loading>
         ) : connection.isError ? (
@@ -465,7 +463,7 @@ function AiActions({
             Couldn’t check your OpenRouter connection. {aiErrorMessage(connection.error)}
           </FormAlert>
         ) : !connected ? (
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-fg-soft">
             To use AI review, first{' '}
             <Link to={AI_SETTINGS_URL} className={linkStyle}>
               connect your OpenRouter account
@@ -474,7 +472,7 @@ function AiActions({
           </p>
         ) : (
           <>
-            <p className="text-sm text-gray-700">
+            <p className="text-sm text-fg-soft">
               Up to three free AI models review this version’s changes on their own, and places
               where they agree are highlighted.
               <FreeLeft connection={connection.data} />
@@ -489,7 +487,7 @@ function AiActions({
               Cross-review with AI
             </button>
             {running && (
-              <p role="status" className="text-sm text-gray-700">
+              <p role="status" className="text-sm text-fg-soft">
                 Your cross-review is running. Results appear below as each model finishes.
               </p>
             )}
@@ -499,8 +497,8 @@ function AiActions({
       </div>
 
       <div className="space-y-2">
-        <h4 className="font-semibold text-gray-900">Review with my IDE AI</h4>
-        <ol className="list-decimal space-y-1 pl-5 text-sm text-gray-800">
+        <h4 className="font-semibold text-fg">Review with my IDE AI</h4>
+        <ol className="list-decimal space-y-1 pl-5 text-sm text-fg">
           <li>
             DevSpace puts the changes and a review instruction into your own copy, in{' '}
             <code className="font-mono break-all">
@@ -565,7 +563,7 @@ function Reviews({
   if (reviews.isPending) return <Loading>Loading AI reviews…</Loading>;
   if (reviews.isError) {
     if (errorCode(reviews.error) === 'ai_disabled') {
-      return <p className="text-sm text-gray-700">{aiErrorMessage(reviews.error)}</p>;
+      return <p className="text-sm text-fg-soft">{aiErrorMessage(reviews.error)}</p>;
     }
     return (
       <LoadError what="the AI reviews" error={reviews.error} onRetry={() => reviews.refetch()} />
@@ -582,9 +580,9 @@ function Reviews({
       {canRequest && <AiActions projectId={projectId} submission={submission} running={running} />}
 
       <div className="space-y-2">
-        <h4 className="font-semibold text-gray-900">Models on version {version}</h4>
+        <h4 className="font-semibold text-fg">Models on version {version}</h4>
         {current.length === 0 ? (
-          <p className="text-sm text-gray-700">No AI reviews of this version yet.</p>
+          <p className="text-sm text-fg-soft">No AI reviews of this version yet.</p>
         ) : (
           <ul aria-label="AI review status per model" className="space-y-2">
             {current.map((review) => (
@@ -594,7 +592,7 @@ function Reviews({
         )}
         {older.length > 0 && (
           <details className="text-sm">
-            <summary className="cursor-pointer text-gray-700">
+            <summary className="cursor-pointer text-fg-soft">
               {plural(older.length, 'review', 'reviews')} of earlier versions
             </summary>
             <ul className="mt-2 space-y-2">
@@ -608,12 +606,12 @@ function Reviews({
 
       {groups.length > 0 ? (
         <div className="space-y-2">
-          <h4 className="font-semibold text-gray-900">Findings</h4>
+          <h4 className="font-semibold text-fg">Findings</h4>
           <Findings groups={groups} />
         </div>
       ) : (
         anyDone && (
-          <p className="text-sm text-gray-700">The models found no problems in this version.</p>
+          <p className="text-sm text-fg-soft">The models found no problems in this version.</p>
         )
       )}
     </div>
@@ -638,7 +636,7 @@ export function AiReviewSection({
         AI review
       </h3>
       {!enabled ? (
-        <p className="text-sm text-gray-700">
+        <p className="text-sm text-fg-soft">
           AI review is off for this project.{' '}
           {project.allowedActions.includes('project.updateSettings') ? (
             <>
@@ -655,13 +653,13 @@ export function AiReviewSection({
       ) : (
         <>
           {!allowed && (
-            <p className="text-sm text-gray-700">
+            <p className="text-sm text-fg-soft">
               You don’t have permission to ask for AI reviews in this project, but you can read
               them.
             </p>
           )}
           {allowed && !reviewable && (
-            <p className="text-sm text-gray-700">
+            <p className="text-sm text-fg-soft">
               This submission is {submission.status === 'closed' ? 'closed' : 'rejected'}, so it
               can’t be reviewed by AI any more.
             </p>

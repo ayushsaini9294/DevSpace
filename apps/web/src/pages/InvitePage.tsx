@@ -28,7 +28,7 @@ function DeadInvite({ title }: { title: string }) {
   return (
     <section className="space-y-4">
       <FocusHeading>{title}</FocusHeading>
-      <p className="text-gray-700">Ask the project’s leader to send you a new invite link.</p>
+      <p className="text-fg-soft">Ask the project’s leader to send you a new invite link.</p>
       <Link to="/" className={linkStyle}>
         Go to your projects
       </Link>
@@ -44,8 +44,8 @@ function AlreadyMember({ preview }: { preview: InvitationPreviewResponse }) {
   );
   const project = matches.length === 1 ? matches[0] : undefined;
   return (
-    <div role="alert" className="space-y-1 rounded-md border border-blue-200 bg-blue-50 p-3">
-      <p className="text-gray-900">You’re already a member of {preview.projectName}.</p>
+    <div role="alert" className="space-y-1 rounded-md border border-accent-line bg-accent-soft p-3">
+      <p className="text-fg">You’re already a member of {preview.projectName}.</p>
       {project ? (
         <Link to={`/projects/${project.id}`} className={linkStyle}>
           Open {project.name}
@@ -75,12 +75,12 @@ function WrongAccount({
     <section className="space-y-4">
       <FocusHeading>This invite is for a different account</FocusHeading>
       <div className={`${cardStyle} space-y-3`}>
-        <p className="text-gray-800">
+        <p className="text-fg">
           {preview.invitedByName} invited <strong className="break-all">{preview.email}</strong> to
           join {preview.projectName} in {preview.teamName}, but you’re logged in as{' '}
           <strong className="break-all">{myEmail}</strong>.
         </p>
-        <p className="text-gray-700">
+        <p className="text-fg-soft">
           Log out, then log in or sign up with {preview.email} to join.
         </p>
         {logOut.isError && <FormAlert>{errorMessage(logOut.error)}</FormAlert>}
@@ -131,14 +131,14 @@ export function InvitePage() {
     <section className="space-y-4">
       <FocusHeading>Join {invite.projectName}</FocusHeading>
       <div className={`${cardStyle} space-y-3`}>
-        <p className="text-gray-800">
+        <p className="text-fg">
           {invite.invitedByName} invited you to join {invite.projectName} in {invite.teamName}
         </p>
         {alreadyMember ? (
           <AlreadyMember preview={invite} />
         ) : (
           <>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-fg-muted">
               You’ll join as a member. The leader can give you more permissions later.
             </p>
             {accept.isError && <FormAlert>{errorMessage(accept.error)}</FormAlert>}

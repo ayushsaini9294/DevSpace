@@ -117,7 +117,7 @@ export function TaskFormDialog({
     assigneePicker = <Loading>Loading members…</Loading>;
   } else if (members.isError) {
     assigneePicker = (
-      <p className="text-sm text-red-700">
+      <p className="text-sm text-danger-fg">
         Could not load the members. {errorMessage(members.error)}{' '}
         <button type="button" className={linkStyle} onClick={() => members.refetch()}>
           Try again
@@ -126,14 +126,14 @@ export function TaskFormDialog({
     );
   } else {
     assigneePicker = (
-      <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-gray-200 p-2">
+      <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-line p-2">
         {members.data.map((m) => (
-          <label key={m.userId} className="flex items-center gap-2 text-sm text-gray-900">
+          <label key={m.userId} className="flex items-center gap-2 text-sm text-fg">
             <input
               type="checkbox"
               checked={assigneeIds.includes(m.userId)}
               onChange={() => toggle(m.userId)}
-              className="h-4 w-4 border-gray-300"
+              className="h-4 w-4 border-line-strong"
             />
             {m.name}
           </label>
@@ -169,10 +169,10 @@ export function TaskFormDialog({
         className="space-y-1"
         aria-describedby={assigneeError ? assigneeErrorId : undefined}
       >
-        <legend className="text-sm font-medium text-gray-800">Assignees</legend>
+        <legend className="text-sm font-medium text-fg">Assignees</legend>
         {assigneePicker}
         {assigneeError && (
-          <p id={assigneeErrorId} className="text-sm text-red-700">
+          <p id={assigneeErrorId} className="text-sm text-danger-fg">
             {assigneeError}
           </p>
         )}
@@ -212,7 +212,7 @@ export function DeleteTaskDialog({
       onClose={onClose}
       onSubmit={() => remove.mutate(task.id, { onSuccess: onDeleted })}
     >
-      <p className="text-sm text-gray-700">
+      <p className="text-sm text-fg-soft">
         “{task.title}” is removed from the board. Submissions linked to it stay as they are, without
         a task.
       </p>
@@ -266,7 +266,7 @@ export function TaskDetailsDialog({
         onKeyDown={(event) => {
           if (event.key === 'Escape') onClose();
         }}
-        className="max-h-full w-full max-w-lg space-y-4 overflow-y-auto rounded-lg bg-white p-4 shadow-lg focus:outline-none sm:p-6"
+        className="max-h-full w-full max-w-lg space-y-4 overflow-y-auto rounded-xl border border-line bg-surface p-4 shadow-pop focus:outline-none sm:p-6"
       >
         <div className="flex flex-wrap items-start gap-2">
           <h2 id={titleId} className="min-w-0 flex-1 text-lg font-semibold break-words">
@@ -275,25 +275,25 @@ export function TaskDetailsDialog({
           <TaskStatusBadge status={task.status} />
         </div>
         {task.reopenNote && (
-          <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+          <p className="rounded-md border border-warning-line bg-warning-soft px-3 py-2 text-sm text-warning-strong">
             Reopened: {task.reopenNote}
           </p>
         )}
         {task.doneConfirmPending && (
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-fg-soft">
             Linked work was merged. Waiting for a leader to mark this task done.
           </p>
         )}
         {task.description ? (
-          <p className="break-words whitespace-pre-wrap text-gray-900">{task.description}</p>
+          <p className="break-words whitespace-pre-wrap text-fg">{task.description}</p>
         ) : (
-          <p className="text-sm text-gray-600">No description.</p>
+          <p className="text-sm text-fg-muted">No description.</p>
         )}
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-          <dt className="text-gray-600">Assignees</dt>
-          <dd className="text-gray-900">{task.assignees.map((a) => a.name).join(', ') || '—'}</dd>
-          <dt className="text-gray-600">Due</dt>
-          <dd className={overdue ? 'font-semibold text-red-700' : 'text-gray-900'}>
+          <dt className="text-fg-muted">Assignees</dt>
+          <dd className="text-fg">{task.assignees.map((a) => a.name).join(', ') || '—'}</dd>
+          <dt className="text-fg-muted">Due</dt>
+          <dd className={overdue ? 'font-semibold text-danger-fg' : 'text-fg'}>
             {task.dueDate ? (
               <>
                 <time dateTime={task.dueDate}>{formatDueDate(task.dueDate)}</time>
@@ -303,25 +303,25 @@ export function TaskDetailsDialog({
               'No due date'
             )}
           </dd>
-          <dt className="text-gray-600">Created</dt>
-          <dd className="text-gray-900">
+          <dt className="text-fg-muted">Created</dt>
+          <dd className="text-fg">
             by {task.createdBy.name} <When iso={task.createdAt} />
           </dd>
           {task.completedAt && (
             <>
-              <dt className="text-gray-600">Done</dt>
-              <dd className="text-gray-900">
+              <dt className="text-fg-muted">Done</dt>
+              <dd className="text-fg">
                 <When iso={task.completedAt} />
               </dd>
             </>
           )}
         </dl>
         <section aria-labelledby={`${titleId}-subs`} className="space-y-1">
-          <h3 id={`${titleId}-subs`} className="font-medium text-gray-900">
+          <h3 id={`${titleId}-subs`} className="font-medium text-fg">
             Linked submissions
           </h3>
           {task.linkedSubmissions.length === 0 ? (
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-fg-muted">
               None yet. Pick this task when you submit work to link it.
             </p>
           ) : (

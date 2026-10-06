@@ -65,14 +65,14 @@ function EntryRow({ projectId, entry }: { projectId: string; entry: TreeEntry })
               {entry.name}
             </Link>
           ) : (
-            <span className="break-all text-gray-800">{entry.name}</span>
+            <span className="break-all text-fg">{entry.name}</span>
           )}
           {label && (
-            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-700">{label}</span>
+            <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-fg-soft">{label}</span>
           )}
         </span>
       </td>
-      <td className="py-2 text-right text-sm whitespace-nowrap text-gray-600">
+      <td className="py-2 text-right text-sm whitespace-nowrap text-fg-muted">
         {entry.type === 'file' && entry.size !== null ? formatBytes(entry.size) : ''}
       </td>
     </tr>
@@ -88,7 +88,7 @@ function Readme({ projectId, entry }: { projectId: string; entry: TreeEntry }) {
       <h3 id="readme-heading" className="font-medium break-all">
         {entry.name}
       </h3>
-      <pre className="overflow-x-auto font-mono text-sm break-words whitespace-pre-wrap text-gray-800">
+      <pre className="overflow-x-auto font-mono text-sm break-words whitespace-pre-wrap text-fg">
         {file.data.content}
       </pre>
     </section>
@@ -121,7 +121,7 @@ function Folder({ repository, path }: { repository: RepositoryStatus; path: stri
       <>
         <div className={cardStyle}>
           {tree.data.entries.length === 0 ? (
-            <p className="text-gray-700">This folder is empty.</p>
+            <p className="text-fg-soft">This folder is empty.</p>
           ) : (
             <table className="w-full table-fixed border-collapse text-left">
               <caption className="sr-only">
@@ -133,7 +133,7 @@ function Folder({ repository, path }: { repository: RepositoryStatus; path: stri
                   <th scope="col">Size</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-line">
                 {tree.data.entries.map((entry) => (
                   <EntryRow key={entry.path} projectId={project.id} entry={entry} />
                 ))}
@@ -166,7 +166,7 @@ export function FilesPage() {
           <FocusHeading level={2}>
             <span id="files-heading">Files</span>
           </FocusHeading>
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-fg-soft">
             These are the files in main (the team’s shared version) <HelpTip term="main" />. You can
             read them here. To change them, open your copy in the IDE from the Overview.
           </p>

@@ -37,8 +37,8 @@ export function SubmissionsPage() {
       onClick={() => setParams(value === 'active' ? {} : { status: value }, { replace: true })}
       className={`rounded-md px-3 py-1.5 text-sm font-medium ${
         filter === value
-          ? 'bg-gray-900 text-white'
-          : 'border border-gray-300 bg-white text-gray-800 hover:bg-gray-100'
+          ? 'bg-accent text-on-accent'
+          : 'border border-line-strong bg-surface text-fg hover:bg-muted'
       }`}
     >
       {label}
@@ -58,7 +58,7 @@ export function SubmissionsPage() {
     );
   } else if (submissions.data.length === 0) {
     body = (
-      <p className={`${cardStyle} text-gray-700`}>
+      <p className={`${cardStyle} text-fg-soft`}>
         {filter === 'active'
           ? 'Nothing is waiting for review. To send your own work: open the IDE from the Overview, change some files in your copy, then click Submit work.'
           : 'No submissions yet. When someone clicks Submit work, their changes show up here for review.'}
@@ -66,7 +66,7 @@ export function SubmissionsPage() {
     );
   } else {
     body = (
-      <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white shadow-sm">
+      <ul className="divide-y divide-line rounded-xl border border-line bg-surface shadow-card">
         {submissions.data.map((s) => (
           <li key={s.id} className="space-y-1 p-4">
             <div className="flex flex-wrap items-center gap-2">
@@ -75,7 +75,7 @@ export function SubmissionsPage() {
               </Link>
               <StatusBadge status={s.status} />
             </div>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-fg-muted">
               {s.author.name} · version {s.version} · {plural(s.fileCount, 'file', 'files')} ·{' '}
               {plural(s.commentCount, 'comment', 'comments')} ·{' '}
               {plural(s.approvals, 'approval', 'approvals')} · updated{' '}
@@ -84,12 +84,12 @@ export function SubmissionsPage() {
               </time>
             </p>
             {s.task && (
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-fg-muted">
                 Task:{' '}
                 <Link to={taskUrl(project.id, s.task.id)} className={`${linkStyle} break-words`}>
                   {s.task.title}
                 </Link>{' '}
-                <span className="text-gray-500">({TASK_STATUS_LABELS[s.task.status]})</span>
+                <span className="text-fg-muted">({TASK_STATUS_LABELS[s.task.status]})</span>
               </p>
             )}
           </li>

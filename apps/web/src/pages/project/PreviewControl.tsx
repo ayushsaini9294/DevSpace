@@ -87,7 +87,7 @@ export function PreviewControl({
   return (
     <div className="relative flex shrink-0 items-center gap-2">
       {showPort && (
-        <label htmlFor={id} className="flex items-center gap-1 text-sm text-gray-700">
+        <label htmlFor={id} className="flex items-center gap-1 text-sm text-fg-soft">
           Port
           <input
             ref={inputRef}
@@ -102,7 +102,7 @@ export function PreviewControl({
               if (event.key === 'Enter') openPreview();
             }}
             aria-invalid={problem ? true : undefined}
-            className="w-20 rounded-md border border-gray-300 bg-white px-2 py-1 text-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+            className="w-20 rounded-lg border border-line-strong bg-surface px-2 py-1 text-sm focus:border-accent focus:ring-4 focus:ring-accent-ring/40 focus:outline-none"
           />
         </label>
       )}
@@ -122,14 +122,14 @@ export function PreviewControl({
         correctly here; the starter templates are set up to work.
       </HelpTip>
       {(problem || fallbackUrl) && (
-        <div className="absolute top-full right-0 z-20 mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-md border border-gray-200 bg-white p-3 text-sm shadow-lg">
+        <div className="absolute top-full right-0 z-20 mt-2 w-[min(20rem,calc(100vw-2rem))] rounded-lg border border-line bg-surface p-3 text-sm shadow-pop">
           {problem && (
-            <p role="alert" className="text-red-800">
+            <p role="alert" className="text-danger-fg">
               {problem}
             </p>
           )}
           {fallbackUrl && (
-            <p role="status" className="text-gray-800">
+            <p role="status" className="text-fg">
               Your browser blocked the new tab.{' '}
               <a
                 href={fallbackUrl}

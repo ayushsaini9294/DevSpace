@@ -33,7 +33,7 @@ export function AssigneeInitials({ assignees }: { assignees: TaskView['assignees
           key={a.id}
           aria-hidden="true"
           title={a.name}
-          className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-gray-200 px-1 text-xs font-semibold text-gray-800"
+          className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-emphasis px-1 text-xs font-semibold text-fg"
         >
           {initials(a.name)}
         </span>
@@ -47,7 +47,7 @@ export function DueDate({ task }: { task: Pick<TaskView, 'dueDate' | 'status'> }
   if (!task.dueDate) return null;
   const overdue = isOverdue(task);
   return (
-    <span className={`text-xs ${overdue ? 'font-semibold text-red-700' : 'text-gray-600'}`}>
+    <span className={`text-xs ${overdue ? 'font-semibold text-danger-fg' : 'text-fg-muted'}`}>
       Due <time dateTime={task.dueDate}>{formatDueDate(task.dueDate)}</time>
       {overdue && ' (overdue)'}
     </span>
@@ -76,7 +76,7 @@ export function ConfirmDonePrompt({
     confirm.mutate({ id: taskId, done }, { onError: (error) => onError(taskErrorMessage(error)) });
   };
   return (
-    <div className="space-y-2 rounded-md border border-green-300 bg-green-50 p-2 text-sm text-green-950">
+    <div className="space-y-2 rounded-md border border-success-line bg-success-soft p-2 text-sm text-success-strong">
       <p className="font-medium">Mark this task done?</p>
       {children}
       <div className="flex flex-wrap gap-2">
@@ -186,7 +186,7 @@ export function MoveMenu({
           role="menu"
           aria-label={`Move ${title} to`}
           onKeyDown={onMenuKey}
-          className="absolute right-0 z-20 mt-1 min-w-36 rounded-md border border-gray-200 bg-white py-1 shadow-lg"
+          className="absolute right-0 z-20 mt-1 min-w-36 rounded-lg border border-line bg-surface py-1 shadow-pop"
         >
           {targets.map((status) => (
             <button
@@ -198,7 +198,7 @@ export function MoveMenu({
                 close();
                 onMove(status);
               }}
-              className="block w-full px-3 py-1.5 text-left text-sm text-gray-900 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+              className="block w-full px-3 py-1.5 text-left text-sm text-fg hover:bg-muted focus:bg-muted focus:outline-none"
             >
               {TASK_STATUS_LABELS[status]}
             </button>

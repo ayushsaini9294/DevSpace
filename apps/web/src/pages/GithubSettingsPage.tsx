@@ -24,7 +24,7 @@ import {
 /** The link that installs the DevSpace app on my GitHub account, with why it's needed. */
 export function InstallAppLink({ installUrl }: { installUrl: string }) {
   return (
-    <p className="text-sm text-gray-700">
+    <p className="text-sm text-fg-soft">
       DevSpace also needs its app installed on your GitHub account, so it can send your projects to
       the repositories it creates and read the ones you choose to import.{' '}
       <a
@@ -49,7 +49,7 @@ function Account({ account }: { account: GithubAccountView }) {
       <h3 id="github-account-heading" className="text-lg font-semibold">
         GitHub account
       </h3>
-      <p className="text-sm text-gray-800">
+      <p className="text-sm text-fg">
         Status:{' '}
         <strong data-testid="github-connection-status">
           {account.connected ? 'Connected' : 'Not connected'}
@@ -63,17 +63,17 @@ function Account({ account }: { account: GithubAccountView }) {
       </p>
       {account.connected ? (
         <>
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-fg-soft">
             Commits DevSpace makes for you now use your private GitHub address, so they show on your
             GitHub profile without showing your real email.
           </p>
           {account.appInstalled === true && (
-            <p data-testid="github-app-installed" className="text-sm text-gray-800">
+            <p data-testid="github-app-installed" className="text-sm text-fg">
               The DevSpace app is installed on your GitHub account.
             </p>
           )}
           {account.installUrl && <InstallAppLink installUrl={account.installUrl} />}
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-fg-soft">
             Disconnecting deletes your GitHub sign-in from DevSpace. Projects already on GitHub stay
             there.
           </p>
@@ -90,7 +90,7 @@ function Account({ account }: { account: GithubAccountView }) {
         </>
       ) : (
         <>
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-fg-soft">
             You’ll sign in on GitHub and allow DevSpace to create repositories for you. DevSpace
             keeps your sign-in encrypted and never shows it.
           </p>
@@ -124,7 +124,7 @@ export function GithubSettingsPage() {
       <FocusHeading level={2}>
         <span id="github-settings-heading">GitHub settings</span>
       </FocusHeading>
-      <p className="text-gray-700">
+      <p className="text-fg-soft">
         GitHub is a website where people keep and share code. Connect your account to put your
         DevSpace projects on GitHub, for example for your portfolio, or to start a project from one
         of your GitHub repositories.
@@ -139,7 +139,7 @@ export function GithubSettingsPage() {
           onRetry={() => account.refetch()}
         />
       ) : !account.data.configured ? (
-        <p data-testid="github-not-configured" className={`${cardStyle} text-gray-700`}>
+        <p data-testid="github-not-configured" className={`${cardStyle} text-fg-soft`}>
           {NOT_CONFIGURED_MESSAGE} The person who runs this DevSpace needs to set it up first.
         </p>
       ) : (

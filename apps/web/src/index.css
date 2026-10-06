@@ -1,8 +1,188 @@
+@import '@fontsource-variable/inter';
 @import 'tailwindcss';
+
+/*
+ * DevSpace design tokens. Components use these names (bg-surface, text-fg-muted, border-line,
+ * bg-accent, text-danger-fg, ...) instead of raw palette colours, so light and dark mode are
+ * decided here only. Dark mode follows the system setting.
+ */
+@theme inline {
+  --font-sans:
+    'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  --color-canvas: var(--ds-canvas);
+  --color-surface: var(--ds-surface);
+  --color-subtle: var(--ds-subtle);
+  --color-muted: var(--ds-muted);
+  --color-emphasis: var(--ds-emphasis);
+  --color-line: var(--ds-line);
+  --color-line-strong: var(--ds-line-strong);
+  --color-fg: var(--ds-fg);
+  --color-fg-soft: var(--ds-fg-soft);
+  --color-fg-muted: var(--ds-fg-muted);
+  --color-fg-faint: var(--ds-fg-faint);
+  --color-on-accent: #ffffff;
+
+  --color-accent: var(--ds-accent);
+  --color-accent-hover: var(--ds-accent-hover);
+  --color-accent-fg: var(--ds-accent-fg);
+  --color-accent-strong: var(--ds-accent-strong);
+  --color-accent-soft: var(--ds-accent-soft);
+  --color-accent-line: var(--ds-accent-line);
+  --color-accent-ring: var(--ds-accent-ring);
+
+  --color-danger-solid: var(--ds-danger-solid);
+  --color-danger-solid-hover: var(--ds-danger-solid-hover);
+  --color-danger-fg: var(--ds-danger-fg);
+  --color-danger-strong: var(--ds-danger-strong);
+  --color-danger-soft: var(--ds-danger-soft);
+  --color-danger-line: var(--ds-danger-line);
+  --color-danger-ring: var(--ds-danger-ring);
+
+  --color-success-solid: var(--ds-success-solid);
+  --color-success-fg: var(--ds-success-fg);
+  --color-success-strong: var(--ds-success-strong);
+  --color-success-soft: var(--ds-success-soft);
+  --color-success-line: var(--ds-success-line);
+
+  --color-warning-fg: var(--ds-warning-fg);
+  --color-warning-strong: var(--ds-warning-strong);
+  --color-warning-soft: var(--ds-warning-soft);
+  --color-warning-line: var(--ds-warning-line);
+
+  --color-merge-fg: var(--ds-merge-fg);
+  --color-merge-strong: var(--ds-merge-strong);
+  --color-merge-soft: var(--ds-merge-soft);
+  --color-merge-line: var(--ds-merge-line);
+
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 3px rgb(16 24 40 / 0.06);
+  --shadow-pop: 0 12px 32px -8px rgb(16 24 40 / 0.18), 0 2px 6px rgb(16 24 40 / 0.06);
+}
+
+:root {
+  color-scheme: light;
+  --ds-canvas: #f6f7f9;
+  --ds-surface: #ffffff;
+  --ds-subtle: #f8f9fb;
+  --ds-muted: #f0f2f5;
+  --ds-emphasis: #e4e7ec;
+  --ds-line: #e4e7ec;
+  --ds-line-strong: #cdd2da;
+  --ds-fg: #111827;
+  --ds-fg-soft: #374151;
+  --ds-fg-muted: #5b6474;
+  --ds-fg-faint: #98a2b3;
+
+  --ds-accent: #4f46e5;
+  --ds-accent-hover: #4338ca;
+  --ds-accent-fg: #4338ca;
+  --ds-accent-strong: #312e81;
+  --ds-accent-soft: #eef2ff;
+  --ds-accent-line: #c7d2fe;
+  --ds-accent-ring: #a5b4fc;
+
+  --ds-danger-solid: #dc2626;
+  --ds-danger-solid-hover: #b91c1c;
+  --ds-danger-fg: #b42318;
+  --ds-danger-strong: #7a271a;
+  --ds-danger-soft: #fef3f2;
+  --ds-danger-line: #fecdca;
+  --ds-danger-ring: #fda29b;
+
+  --ds-success-solid: #16a34a;
+  --ds-success-fg: #067647;
+  --ds-success-strong: #054f31;
+  --ds-success-soft: #ecfdf3;
+  --ds-success-line: #abefc6;
+
+  --ds-warning-fg: #93370d;
+  --ds-warning-strong: #6b2a0a;
+  --ds-warning-soft: #fffaeb;
+  --ds-warning-line: #fedf89;
+
+  --ds-merge-fg: #6b21a8;
+  --ds-merge-strong: #4a1772;
+  --ds-merge-soft: #f8f3ff;
+  --ds-merge-line: #e1cffd;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --ds-canvas: #0b0d12;
+    --ds-surface: #13161d;
+    --ds-subtle: #171b23;
+    --ds-muted: #1e232d;
+    --ds-emphasis: #272d39;
+    --ds-line: #262b36;
+    --ds-line-strong: #363d4b;
+    --ds-fg: #eceef2;
+    --ds-fg-soft: #c9ced8;
+    --ds-fg-muted: #9aa3b2;
+    --ds-fg-faint: #687284;
+
+    --ds-accent: #5b5ef0;
+    --ds-accent-hover: #6f72f4;
+    --ds-accent-fg: #a5b4fc;
+    --ds-accent-strong: #c7d2fe;
+    --ds-accent-soft: #1c1e3d;
+    --ds-accent-line: #34387a;
+    --ds-accent-ring: #4f53b8;
+
+    --ds-danger-solid: #dc2626;
+    --ds-danger-solid-hover: #ef4444;
+    --ds-danger-fg: #fca5a5;
+    --ds-danger-strong: #fecaca;
+    --ds-danger-soft: #2a1414;
+    --ds-danger-line: #5c2323;
+    --ds-danger-ring: #7f2a2a;
+
+    --ds-success-solid: #22c55e;
+    --ds-success-fg: #86efac;
+    --ds-success-strong: #bbf7d0;
+    --ds-success-soft: #0f2419;
+    --ds-success-line: #1f4d33;
+
+    --ds-warning-fg: #fcd34d;
+    --ds-warning-strong: #fde68a;
+    --ds-warning-soft: #261d0b;
+    --ds-warning-line: #5a4314;
+
+    --ds-merge-fg: #d8b4fe;
+    --ds-merge-strong: #e9d5ff;
+    --ds-merge-soft: #1f1430;
+    --ds-merge-line: #4a2f73;
+  }
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    background: var(--ds-canvas);
+    color: var(--ds-fg);
+  }
+  ::selection {
+    background: var(--ds-accent-soft);
+    color: var(--ds-accent-strong);
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--ds-fg-faint);
+  }
+  button,
+  a {
+    transition-property: color, background-color, border-color, box-shadow, opacity;
+    transition-duration: 120ms;
+    transition-timing-function: ease-out;
+  }
+}
 
 /* A line with review comments, marked in the diff's gutter (see DiffViewer). */
 .devspace-commented-line {
-  background: #1d4ed8;
+  background: var(--ds-accent);
   width: 4px !important;
   margin-left: 3px;
 }

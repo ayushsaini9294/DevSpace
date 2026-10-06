@@ -22,7 +22,7 @@ export function LinkedTaskPanel({
   const asking = submission.viewerActions.includes('confirmTaskDone');
   return (
     <div className="space-y-2">
-      <p className="flex flex-wrap items-center gap-2 text-sm text-gray-700">
+      <p className="flex flex-wrap items-center gap-2 text-sm text-fg-soft">
         <span>
           Task:{' '}
           <Link to={taskUrl(projectId, task.id)} className={`${linkStyle} break-words`}>

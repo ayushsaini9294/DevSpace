@@ -3,13 +3,14 @@ import { Link, Outlet, useNavigate } from 'react-router';
 import { NotificationBell } from '../components/NotificationBell';
 import { ShareFileSwitch } from '../components/ShareFileSwitch';
 import { popoverPanel, usePopover } from '../components/usePopover';
+import { LogoMark } from '../components/LogoMark';
 import { linkStyle } from '../components/ui';
 import { AI_SETTINGS_URL } from '../lib/ai';
 import { useCurrentUser, useLogOut } from '../lib/auth';
 import { GITHUB_SETTINGS_URL } from '../lib/github';
 
 const navLink =
-  'rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900';
+  'rounded-lg px-3 py-1.5 text-sm font-medium text-fg-soft hover:bg-muted hover:text-fg focus-visible:ring-4 focus-visible:ring-accent-ring/50 focus-visible:outline-none';
 
 function AccountMenu() {
   const currentUser = useCurrentUser();
@@ -27,7 +28,7 @@ function AccountMenu() {
         </Link>
         <Link
           to="/signup"
-          className="rounded-md bg-blue-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-800"
+          className="rounded-lg bg-accent px-3 py-1.5 text-sm font-semibold text-on-accent shadow-card hover:bg-accent-hover focus-visible:ring-4 focus-visible:ring-accent-ring/50 focus-visible:outline-none"
         >
           Sign up
         </Link>
@@ -43,7 +44,7 @@ function AccountMenu() {
         type="button"
         disabled={logOut.isPending}
         onClick={() => logOut.mutate(undefined, { onSuccess: () => navigate('/login') })}
-        className={`${navLink} shrink-0 border border-gray-300 disabled:opacity-60`}
+        className={`${navLink} shrink-0 border border-line-strong disabled:opacity-60`}
       >
         Log out
       </button>
@@ -65,9 +66,15 @@ function UserMenu({ name, email }: { name: string; email: string }) {
         aria-controls={panelId}
         title={email}
         onClick={toggle}
-        className="block max-w-full truncate rounded-md px-2 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:outline-none"
+        className="flex max-w-full items-center gap-2 rounded-lg py-1 pr-2 pl-1 text-sm font-medium text-fg hover:bg-muted focus-visible:ring-4 focus-visible:ring-accent-ring/50 focus-visible:outline-none"
       >
-        {name}
+        {/* The initial is drawn by CSS so the button's text stays exactly the name. */}
+        <span
+          aria-hidden="true"
+          data-initial={name.trim().charAt(0).toUpperCase()}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-soft text-xs font-bold text-accent-fg ring-1 ring-accent-line before:content-[attr(data-initial)]"
+        />
+        <span className="truncate">{name}</span>
       </button>
       {open && (
         <div
@@ -76,7 +83,7 @@ function UserMenu({ name, email }: { name: string; email: string }) {
           aria-label="Your settings"
           className={`${popoverPanel} space-y-3 p-4`}
         >
-          <p className="truncate text-xs text-gray-600" title={email}>
+          <p className="truncate text-xs text-fg-muted" title={email}>
             {email}
           </p>
           <ShareFileSwitch />
@@ -99,19 +106,23 @@ function UserMenu({ name, email }: { name: string; email: string }) {
 
 export function Layout() {
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
-      <header className="border-b border-gray-200 bg-white">
+    <div className="min-h-screen bg-canvas text-fg">
+      <header className="sticky top-0 z-40 border-b border-line bg-surface/80 backdrop-blur-md supports-[backdrop-filter]:bg-surface/70">
         <nav
           aria-label="Main"
-          className="mx-auto flex max-w-4xl items-center justify-between gap-4 px-4 py-3"
+          className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-2.5"
         >
-          <Link to="/" className="shrink-0 text-lg font-semibold">
+          <Link
+            to="/"
+            className="flex shrink-0 items-center gap-2 rounded-lg text-lg font-bold tracking-tight focus-visible:ring-4 focus-visible:ring-accent-ring/50 focus-visible:outline-none"
+          >
+            <LogoMark />
             DevSpace
           </Link>
           <AccountMenu />
         </nav>
       </header>
-      <main className="mx-auto max-w-4xl px-4 py-8">
+      <main className="mx-auto max-w-5xl px-4 py-8 sm:py-10">
         <Outlet />
       </main>
     </div>

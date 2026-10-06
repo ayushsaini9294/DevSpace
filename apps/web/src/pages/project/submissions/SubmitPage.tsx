@@ -73,17 +73,17 @@ function FileRow({
         disabled={locked}
         onChange={onToggle}
         aria-describedby={locked ? noteId : undefined}
-        className="h-4 w-4 shrink-0 border-gray-300"
+        className="h-4 w-4 shrink-0 border-line-strong"
       />
       <label
         htmlFor={id}
-        className={`min-w-0 flex-1 font-mono text-sm break-all ${locked ? 'text-gray-500' : 'text-gray-900'}`}
+        className={`min-w-0 flex-1 font-mono text-sm break-all ${locked ? 'text-fg-muted' : 'text-fg'}`}
       >
         {file.path}
       </label>
       <ChangeLabel change={file.change} />
       {locked && file.openSubmissionId && (
-        <p id={noteId} className="w-full pl-7 text-sm text-gray-600">
+        <p id={noteId} className="w-full pl-7 text-sm text-fg-muted">
           Locked: already in{' '}
           <Link to={submissionUrl(projectId, file.openSubmissionId)} className={linkStyle}>
             another open submission
@@ -171,8 +171,8 @@ function PickerForm({
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-4">
       <fieldset className="space-y-2">
-        <legend className="font-medium text-gray-900">Files to submit</legend>
-        <p className="text-sm text-gray-600">
+        <legend className="font-medium text-fg">Files to submit</legend>
+        <p className="text-sm text-fg-muted">
           The files you changed in your copy (your own space to work in), compared with main (the
           team’s shared version). Only the ticked ones are sent for review; the rest stay in your
           copy.
@@ -195,7 +195,7 @@ function PickerForm({
             </button>
           </div>
         )}
-        <ul className="divide-y divide-gray-200 rounded-md border border-gray-200 bg-white">
+        <ul className="divide-y divide-line rounded-md border border-line bg-surface">
           {files.map((file) => (
             <FileRow
               key={file.path}
@@ -207,12 +207,12 @@ function PickerForm({
             />
           ))}
         </ul>
-        <p role="status" className="text-sm text-gray-700">
+        <p role="status" className="text-sm text-fg-soft">
           {picked.size === 1 ? '1 file picked' : `${picked.size} files picked`}
         </p>
-        {errors.paths && <p className="text-sm text-red-700">{errors.paths}</p>}
+        {errors.paths && <p className="text-sm text-danger-fg">{errors.paths}</p>}
         {noLongerChanged.length > 0 && (
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-fg-soft">
             No longer changed in your copy, so they will leave this submission:{' '}
             <span className="font-mono break-all">{noLongerChanged.join(', ')}</span>
           </p>
@@ -238,7 +238,7 @@ function PickerForm({
         current={existing?.task ?? null}
       />
       {existing && (
-        <p className="text-sm text-gray-700">
+        <p className="text-sm text-fg-soft">
           Updating makes version {existing.version + 1}. Earlier approvals and change requests stop
           counting, so reviewers need to look again.
         </p>
@@ -280,7 +280,7 @@ function ChangesLoader({
     if (errorCode(changes.error) === 'no_copy') {
       return (
         <div className={`${cardStyle} space-y-2`}>
-          <p className="text-gray-700">
+          <p className="text-fg-soft">
             You don’t have a copy of this project yet. Open the IDE to make one, change some files,
             then come back here.
           </p>
@@ -302,11 +302,11 @@ function ChangesLoader({
   if (changes.data.files.length === 0) {
     return (
       <div className={`${cardStyle} space-y-2`}>
-        <p className="text-gray-700">
+        <p className="text-fg-soft">
           Nothing to submit yet: every file in your copy is the same as in main. Open the IDE,
           change a file and save it, then come back here.
         </p>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-fg-muted">
           Changed something already? DevSpace only sees saved files. A tab with a dot (●) instead of
           ✕ isn’t saved yet: click it and press Ctrl+S.
         </p>
@@ -322,7 +322,7 @@ function ChangesLoader({
   if (!existing && changes.data.files.every((f) => f.openSubmissionId !== null)) {
     return (
       <div className={`${cardStyle} space-y-2`}>
-        <p className="text-gray-700">
+        <p className="text-fg-soft">
           Nothing new to submit: every changed file in your copy is already in one of your open
           submissions, and a file can be in only one at a time. To send newer edits of those files,
           open the submission and click Update. To start a new submission, change other files in the
@@ -363,7 +363,7 @@ export function NewSubmissionPage() {
         </FocusHeading>
         <HelpTip term="submit" />
       </div>
-      <p className="text-gray-700">
+      <p className="text-fg-soft">
         Send your changes for review. After a teammate approves them, a leader merges them (adds
         them to main).
       </p>
@@ -398,7 +398,7 @@ export function UpdateSubmissionPage() {
   } else if (!submission.data.viewerActions.includes('update')) {
     body = (
       <div className="space-y-2">
-        <p className="text-gray-700">
+        <p className="text-fg-soft">
           Only the author can update this submission, and only while it’s open.
         </p>
         <Link to={submissionUrl(project.id, submissionId)} className={linkStyle}>

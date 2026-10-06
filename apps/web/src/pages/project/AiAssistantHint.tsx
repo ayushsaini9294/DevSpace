@@ -72,7 +72,7 @@ export function AiAssistantHint({
       data-testid="ide-ai-hint"
       data-ready={status.ready ? 'true' : 'false'}
       data-reason={status.reason ?? undefined}
-      className="shrink-0 border-b border-gray-200 bg-white px-4 py-1.5 text-sm text-gray-800"
+      className="shrink-0 border-b border-line bg-surface px-4 py-1.5 text-sm text-fg"
     >
       <strong className="font-semibold">AI assistant:</strong> {text}
     </p>

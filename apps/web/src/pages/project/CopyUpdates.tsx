@@ -50,7 +50,7 @@ function Preview({ projectId, copy }: { projectId: string; copy: CopyView }) {
   if (preview.isPending) return <Loading>Checking whether your changes clash with main…</Loading>;
   if (preview.isError) {
     return (
-      <p className="text-sm text-gray-700">
+      <p className="text-sm text-fg-soft">
         Couldn’t check for clashes: {copyUpdateErrorMessage(preview.error)}
       </p>
     );
@@ -58,13 +58,13 @@ function Preview({ projectId, copy }: { projectId: string; copy: CopyView }) {
   const { conflictPaths } = preview.data;
   if (conflictPaths.length === 0) {
     return (
-      <p className="text-sm text-gray-800">
+      <p className="text-sm text-fg">
         No clashes: your changes are kept and main’s changes are added.
       </p>
     );
   }
   return (
-    <div className="space-y-1 text-sm text-gray-800">
+    <div className="space-y-1 text-sm text-fg">
       <p>
         {plural(conflictPaths.length, 'file clashes', 'files clash')} with main. Updating keeps your
         version of each and marks the clashing lines for you to fix:
@@ -90,20 +90,20 @@ function BehindPanel({
   return (
     <section
       aria-labelledby={headingId}
-      className="space-y-2 rounded-md border border-blue-200 bg-blue-50 p-3"
+      className="space-y-2 rounded-md border border-accent-line bg-accent-soft p-3"
     >
       <div className="flex items-center gap-2">
-        <h3 id={headingId} className="font-medium text-blue-950">
+        <h3 id={headingId} className="font-medium text-accent-strong">
           Main has changed
         </h3>
         <HelpTip term="main" />
       </div>
-      <p className="text-sm text-gray-800">
+      <p className="text-sm text-fg">
         Someone’s work was merged into main (the team’s shared version), or a merge was undone,
         since your copy was last updated. Update your copy to get those changes.
       </p>
       {copy.pendingConflictPaths.length > 0 && (
-        <p className="text-sm text-gray-800">
+        <p className="text-sm text-fg">
           Your copy wasn’t updated automatically because your changes clash with main.
         </p>
       )}
@@ -120,7 +120,7 @@ function BehindPanel({
       >
         Update my copy
       </button>
-      <p className="text-xs text-gray-600">
+      <p className="text-xs text-fg-muted">
         Updating writes main’s changes into your files. VS Code’s Source Control panel may then list
         them as your own edits. That’s expected and harmless: DevSpace always compares your copy
         with main for you, so only your real changes are offered in Submit work.
@@ -135,15 +135,15 @@ function Unresolved({ paths }: { paths: string[] }) {
   return (
     <section
       aria-labelledby={headingId}
-      className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3"
+      className="space-y-2 rounded-md border border-warning-line bg-warning-soft p-3"
     >
       <div className="flex items-center gap-2">
-        <h3 id={headingId} className="font-medium text-amber-950">
+        <h3 id={headingId} className="font-medium text-warning-strong">
           Clashes to fix
         </h3>
         <HelpTip term="clash" />
       </div>
-      <p className="text-sm text-gray-800">
+      <p className="text-sm text-fg">
         These files still have clash markers, where your changes and main’s changed the same lines.
         In the IDE, look between <code>&lt;&lt;&lt;&lt;&lt;&lt;&lt; your copy</code> and{' '}
         <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt; main</code>, keep the lines you want, and delete the
@@ -158,7 +158,7 @@ function Unresolved({ paths }: { paths: string[] }) {
 /** "<Leader> opened your copy <time>", one line per lead in the last 24 hours. */
 function Helpers({ copy }: { copy: CopyView }) {
   return (
-    <ul className="space-y-1 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800">
+    <ul className="space-y-1 rounded-md border border-line bg-subtle p-3 text-sm text-fg">
       {copy.helpers.map((helper) => (
         <li key={helper.user.id}>
           <span className="font-medium">{helper.user.name}</span> opened your copy{' '}
@@ -175,9 +175,9 @@ function Helpers({ copy }: { copy: CopyView }) {
 function PackagesReminder({ projectId }: { projectId: string }) {
   const dismiss = useDismissPackagesReminder(projectId);
   return (
-    <div className="space-y-2 rounded-md border border-blue-200 bg-blue-50 p-3">
+    <div className="space-y-2 rounded-md border border-accent-line bg-accent-soft p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p role="status" className="text-sm font-medium text-blue-950">
+        <p role="status" className="text-sm font-medium text-accent-strong">
           Packages changed in main: run <code>npm install</code> in the terminal
         </p>
         <button
@@ -217,7 +217,7 @@ export function CopyUpdates({ projectId, copy }: { projectId: string; copy: Copy
         (result.length === 0 ? (
           <SuccessNote>Your copy is up to date with main.</SuccessNote>
         ) : (
-          <p role="status" className="text-sm font-medium text-amber-900">
+          <p role="status" className="text-sm font-medium text-warning-strong">
             Your copy is updated. {plural(result.length, 'file has', 'files have')} clash markers to
             fix.
           </p>

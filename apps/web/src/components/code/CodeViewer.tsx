@@ -42,7 +42,7 @@ export default function CodeViewer({ path, value }: CodeViewerProps) {
       language={languageForPath(path)}
       theme={theme}
       onMount={onMount}
-      loading={<p className="p-3 text-sm text-gray-600">Loading editor…</p>}
+      loading={<p className="p-3 text-sm text-fg-muted">Loading editor…</p>}
       options={{
         readOnly: true,
         domReadOnly: true,

@@ -79,7 +79,7 @@ function ModeChoices({
 }) {
   return (
     <fieldset className="space-y-1">
-      <legend className="flex items-center gap-2 font-medium text-gray-800">
+      <legend className="flex items-center gap-2 font-medium text-fg">
         <span>After publishing</span>
         <HelpTip term="keepUpdated" />
       </legend>
@@ -110,7 +110,7 @@ function ModeChoice({
   const hintId = useId();
   return (
     <div>
-      <label className="flex items-start gap-2 text-gray-800">
+      <label className="flex items-start gap-2 text-fg">
         <input
           type="radio"
           name={name}
@@ -118,11 +118,11 @@ function ModeChoice({
           checked={checked}
           onChange={onChange}
           aria-describedby={hintId}
-          className="mt-1 h-4 w-4 shrink-0 border-gray-300"
+          className="mt-1 h-4 w-4 shrink-0 border-line-strong"
         />
         <span>{MODE_LABELS[mode]}</span>
       </label>
-      <p id={hintId} className="ml-6 text-sm text-gray-600">
+      <p id={hintId} className="ml-6 text-sm text-fg-muted">
         {MODE_HINTS[mode]}
       </p>
     </div>
@@ -173,7 +173,7 @@ function PublishForm({ project, view }: { project: ProjectDetail; view: ProjectG
 
   return (
     <form noValidate onSubmit={onSubmit} className="space-y-4" data-testid="github-publish-form">
-      <p className="text-sm text-gray-700">
+      <p className="text-sm text-fg-soft">
         DevSpace creates a new repository on your GitHub account and sends main there, with its
         whole history.
       </p>
@@ -192,18 +192,18 @@ function PublishForm({ project, view }: { project: ProjectDetail; view: ProjectG
         errorIsAlert={!nameError && repoExists}
       />
       <div>
-        <label className="flex items-start gap-2 text-gray-800">
+        <label className="flex items-start gap-2 text-fg">
           <input
             type="checkbox"
             name="makePublic"
             checked={makePublic}
             onChange={(event) => setMakePublic(event.target.checked)}
             aria-describedby={publicHintId}
-            className="mt-1 h-4 w-4 shrink-0 border-gray-300"
+            className="mt-1 h-4 w-4 shrink-0 border-line-strong"
           />
           <span>Make it public</span>
         </label>
-        <p id={publicHintId} className="ml-6 text-sm text-gray-600">
+        <p id={publicHintId} className="ml-6 text-sm text-fg-muted">
           {makePublic
             ? 'Anyone on the internet will be able to see the code and its history.'
             : 'Left unticked, the repository is private: only you, and people you invite on GitHub, can see it.'}
@@ -213,22 +213,22 @@ function PublishForm({ project, view }: { project: ProjectDetail; view: ProjectG
       {names.length > 0 && (
         <div
           data-testid="github-email-warning"
-          className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3"
+          className="space-y-2 rounded-md border border-warning-line bg-warning-soft p-3"
         >
-          <p className="text-sm text-gray-900">
+          <p className="text-sm text-fg">
             Older commits in main show the real email address of{' '}
             {names.length === 1 ? 'this person' : 'these people'}:
           </p>
-          <ul className="list-disc pl-5 text-sm text-gray-900">
+          <ul className="list-disc pl-5 text-sm text-fg">
             {names.map((person) => (
               <li key={person}>{person}</li>
             ))}
           </ul>
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-fg-soft">
             Commits can’t be changed after they are made, so these addresses will be visible on
             GitHub. New commits use private addresses.
           </p>
-          <label className="flex items-start gap-2 text-sm font-medium text-gray-900">
+          <label className="flex items-start gap-2 text-sm font-medium text-fg">
             <input
               type="checkbox"
               name="acceptEmailWarning"
@@ -239,12 +239,12 @@ function PublishForm({ project, view }: { project: ProjectDetail; view: ProjectG
               }}
               aria-invalid={acceptError ? true : undefined}
               aria-describedby={acceptError ? acceptErrorId : undefined}
-              className="mt-0.5 h-4 w-4 shrink-0 border-gray-300"
+              className="mt-0.5 h-4 w-4 shrink-0 border-line-strong"
             />
             <span>I understand these addresses will be public on GitHub</span>
           </label>
           {acceptError && (
-            <p id={acceptErrorId} className="text-sm text-red-700">
+            <p id={acceptErrorId} className="text-sm text-danger-fg">
               {acceptError}
             </p>
           )}
@@ -268,7 +268,7 @@ function PublishForm({ project, view }: { project: ProjectDetail; view: ProjectG
 function NotPublished({ project, view }: { project: ProjectDetail; view: ProjectGithubView }) {
   if (!view.canPublish) {
     return (
-      <p className="text-sm text-gray-700">
+      <p className="text-sm text-fg-soft">
         This project isn’t on GitHub yet. A leader, or a member allowed to publish, can put it
         there.
       </p>
@@ -276,7 +276,7 @@ function NotPublished({ project, view }: { project: ProjectDetail; view: Project
   }
   if (!view.connected) {
     return (
-      <p data-testid="github-connect-first" className="text-sm text-gray-700">
+      <p data-testid="github-connect-first" className="text-sm text-fg-soft">
         To publish, first connect your GitHub account on the{' '}
         <Link to={GITHUB_SETTINGS_URL} className={linkStyle}>
           GitHub settings
@@ -296,7 +296,7 @@ function StatusLine({ link }: { link: GithubLinkView }) {
   let tone: string;
   switch (link.status) {
     case 'ok':
-      tone = 'text-green-800';
+      tone = 'text-success-fg';
       label = link.behind ? 'Main has newer changes' : 'Up to date';
       detail = link.behind
         ? 'Main has changes that aren’t on GitHub yet.'
@@ -305,35 +305,35 @@ function StatusLine({ link }: { link: GithubLinkView }) {
           : null;
       break;
     case 'pushing':
-      tone = 'text-blue-800';
+      tone = 'text-accent-fg';
       label = 'Sending to GitHub…';
       break;
     case 'paused':
-      tone = 'text-amber-800';
+      tone = 'text-warning-fg';
       label = 'Paused';
       detail =
         'DevSpace never overwrites changes made directly on GitHub. Undo those changes on GitHub, then choose Try again.';
       break;
     case 'failed':
-      tone = 'text-red-800';
+      tone = 'text-danger-fg';
       label = 'Failed';
       detail = 'DevSpace tries again by itself from time to time, or you can try again now.';
       break;
   }
   return (
     <div className="space-y-1">
-      <p className="text-sm text-gray-800" role={link.status === 'pushing' ? 'status' : undefined}>
+      <p className="text-sm text-fg" role={link.status === 'pushing' ? 'status' : undefined}>
         Status:{' '}
         <strong data-testid="github-status" data-status={link.status} className={tone}>
           {label}
         </strong>
       </p>
       {link.statusReason && (link.status === 'paused' || link.status === 'failed') && (
-        <p data-testid="github-status-reason" className="text-sm text-gray-900">
+        <p data-testid="github-status-reason" className="text-sm text-fg">
           Why: {link.statusReason}
         </p>
       )}
-      {detail && <p className="text-sm text-gray-700">{detail}</p>}
+      {detail && <p className="text-sm text-fg-soft">{detail}</p>}
     </div>
   );
 }
@@ -370,8 +370,8 @@ function Unlink({ projectId }: { projectId: string }) {
   const unlink = useUnlinkGithub(projectId);
   const [confirming, setConfirming] = useState(false);
   return (
-    <div className="space-y-2 border-t border-gray-200 pt-3">
-      <p className="text-sm text-gray-700">
+    <div className="space-y-2 border-t border-line pt-3">
+      <p className="text-sm text-fg-soft">
         Unlinking stops DevSpace from sending main to GitHub. The repository stays on GitHub.
       </p>
       {unlink.isError && <GithubErrorAlert error={unlink.error} installUrl={null} />}
@@ -427,7 +427,7 @@ function Published({
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-gray-800">
+      <p className="text-sm text-fg">
         On GitHub:{' '}
         <a
           href={link.htmlUrl}
@@ -441,7 +441,7 @@ function Published({
         ({link.private ? 'private' : 'public'})
       </p>
       {link.setUpBy && (
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-fg-muted">
           Published by {link.setUpBy.name} on {fullDate.format(new Date(link.createdAt))}.
         </p>
       )}
@@ -463,7 +463,7 @@ function Published({
       {canChangeMode ? (
         <ChangeMode key={link.mode} project={project} link={link} />
       ) : (
-        <p className="text-sm text-gray-800">
+        <p className="text-sm text-fg">
           Mode: <strong>{MODE_LABELS[link.mode]}</strong>
         </p>
       )}
@@ -495,7 +495,7 @@ export function GithubSection({ project }: { project: ProjectDetail }) {
     );
   } else if (!github.data.configured) {
     body = (
-      <p data-testid="github-not-configured" className="text-sm text-gray-700">
+      <p data-testid="github-not-configured" className="text-sm text-fg-soft">
         {NOT_CONFIGURED_MESSAGE}
       </p>
     );

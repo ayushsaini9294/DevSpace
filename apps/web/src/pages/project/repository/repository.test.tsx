@@ -522,7 +522,7 @@ describe('file view', () => {
         .map((c) => c.textContent),
     ).toEqual(['Website', 'src']);
     expect(within(breadcrumb()).getByText('app main.ts')).toHaveAttribute('aria-current', 'page');
-    expect(within(nav()).getByRole('link', { name: 'Files' })).toHaveClass('bg-blue-700');
+    expect(within(nav()).getByRole('link', { name: 'Files' })).toHaveClass('bg-accent-soft');
   });
 
   it('explains binary and too-large files instead of showing them', async () => {

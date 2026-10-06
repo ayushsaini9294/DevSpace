@@ -55,11 +55,11 @@ function Centered({ children }: { children: ReactNode }) {
 function Waiting({ children }: { children: ReactNode }) {
   return (
     <Centered>
-      <p role="status" className="flex items-center gap-2 text-gray-800">
+      <p role="status" className="flex items-center gap-2 text-fg">
         <Spinner />
         {children}
       </p>
-      <p className="text-sm text-gray-600">This usually takes a few seconds.</p>
+      <p className="text-sm text-fg-muted">This usually takes a few seconds.</p>
     </Centered>
   );
 }
@@ -142,7 +142,7 @@ function IdeFrame({
       // VS Code needs the clipboard. No sandbox: it would break VS Code, and the IDE is already
       // isolated on its own site.
       allow="clipboard-read; clipboard-write"
-      className="block min-h-0 w-full flex-1 border-0 bg-white"
+      className="block min-h-0 w-full flex-1 border-0 bg-surface"
     />
   );
 }
@@ -150,7 +150,7 @@ function IdeFrame({
 /** My copy's updates, as a strip under the IDE toolbar (nothing when all is quiet). */
 function OwnCopyStrip({ projectId, copy }: { projectId: string; copy: CopyView }) {
   return (
-    <div className="max-h-[40vh] shrink-0 overflow-y-auto border-b border-gray-200 bg-white px-4 py-2 empty:hidden">
+    <div className="max-h-[40vh] shrink-0 overflow-y-auto border-b border-line bg-surface px-4 py-2 empty:hidden">
       <CopyUpdates projectId={projectId} copy={copy} />
     </div>
   );
@@ -254,8 +254,8 @@ export function IdePage() {
   else heading = memberName ? `${memberName}’s copy` : 'Member’s copy';
 
   return (
-    <div className="flex h-dvh flex-col bg-gray-50 text-gray-900">
-      <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-gray-200 bg-white px-4 py-2">
+    <div className="flex h-dvh flex-col bg-subtle text-fg">
+      <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-line bg-surface px-4 py-2">
         <Link to={back} className={`${linkStyle} shrink-0 text-sm`}>
           {own ? '← Back to the project' : '← Back to members'}
         </Link>
@@ -292,7 +292,7 @@ export function IdePage() {
         )}
       </header>
       {!own && (
-        <p className="shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-950">
+        <p className="shrink-0 border-b border-warning-line bg-warning-soft px-4 py-2 text-sm text-warning-strong">
           You’re working in {memberName ?? 'this member'}’s copy (their own space to work in) to
           help them. Changes you make here are theirs, and they are told you opened it.
         </p>

@@ -62,8 +62,8 @@ function ChoiceCard({
       htmlFor={id}
       data-testid="template-card"
       data-template={value}
-      className={`flex cursor-pointer gap-3 rounded-lg border p-3 hover:border-blue-400 ${
-        checked ? 'border-blue-600 bg-blue-50 ring-1 ring-blue-600' : 'border-gray-200 bg-white'
+      className={`flex cursor-pointer gap-3 rounded-lg border p-3 hover:border-accent ${
+        checked ? 'border-accent bg-accent-soft ring-1 ring-accent' : 'border-line bg-surface'
       }`}
     >
       <input
@@ -79,20 +79,20 @@ function ChoiceCard({
       />
       <span className="min-w-0 space-y-1">
         <span className="flex flex-wrap items-center gap-2">
-          <span id={`${id}-name`} className="font-medium text-gray-900">
+          <span id={`${id}-name`} className="font-medium text-fg">
             {name}
           </span>
           {recommended && (
-            <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+            <span className="rounded-full bg-success-soft px-2 py-0.5 text-xs font-medium text-success-fg">
               Good first choice
             </span>
           )}
         </span>
-        <span id={`${id}-details`} className="block space-y-1 text-sm text-gray-700">
+        <span id={`${id}-details`} className="block space-y-1 text-sm text-fg-soft">
           <span className="block">{description}</span>{' '}
           {runHint && (
-            <span className="block text-gray-600">
-              <span className="font-medium text-gray-800">How to run:</span> {runHint}
+            <span className="block text-fg-muted">
+              <span className="font-medium text-fg">How to run:</span> {runHint}
             </span>
           )}
         </span>
@@ -191,12 +191,10 @@ function SetUpForm({ projectId, repository }: { projectId: string; repository: R
         </FormAlert>
       )}
       <fieldset className="space-y-3">
-        <legend className="mb-1 text-sm font-medium text-gray-800">
-          How do you want to start?
-        </legend>
+        <legend className="mb-1 text-sm font-medium text-fg">How do you want to start?</legend>
         {templates.isPending && <Loading>Loading the starter templates…</Loading>}
         {templates.isError && (
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-fg-soft">
             The starter templates couldn’t be loaded. You can still start empty or import, or{' '}
             <button type="button" className={linkStyle} onClick={() => void templates.refetch()}>
               try loading them again
@@ -278,7 +276,7 @@ function SetUpForm({ projectId, repository }: { projectId: string; repository: R
               installUrl={github.data.installUrl}
             />
           ) : (
-            <p className="text-sm text-gray-700">
+            <p className="text-sm text-fg-soft">
               First connect your GitHub account on the{' '}
               <Link to={GITHUB_SETTINGS_URL} className={linkStyle}>
                 GitHub settings
@@ -303,11 +301,11 @@ function SetUpForm({ projectId, repository }: { projectId: string; repository: R
 function Importing({ importUrl }: { importUrl: string | null }) {
   return (
     <div className={cardStyle}>
-      <p role="status" className="flex items-center gap-2 break-all text-gray-800">
+      <p role="status" className="flex items-center gap-2 break-all text-fg">
         <Spinner />
         Importing from {importUrl ?? 'the Git link'}…
       </p>
-      <p className="mt-2 text-sm text-gray-600">
+      <p className="mt-2 text-sm text-fg-muted">
         This can take a few minutes for large projects. The files appear here when it’s done.
       </p>
     </div>
@@ -335,7 +333,7 @@ export function RepositoryNotReady({ repository }: { repository: RepositoryStatu
         <FocusHeading level={2}>
           <span id="files-heading">Files</span>
         </FocusHeading>
-        <p className={`${cardStyle} text-gray-700`}>{NOT_SET_UP_MESSAGE}</p>
+        <p className={`${cardStyle} text-fg-soft`}>{NOT_SET_UP_MESSAGE}</p>
       </section>
     );
   }
@@ -345,7 +343,7 @@ export function RepositoryNotReady({ repository }: { repository: RepositoryStatu
       <FocusHeading level={2}>
         <span id="setup-heading">Set up the repository</span>
       </FocusHeading>
-      <p className="text-gray-700">
+      <p className="text-fg-soft">
         Pick what the project starts with. A starter template gives you a small working app with a
         README that explains how to run it. What you pick becomes the project’s main (the team’s
         shared version) <HelpTip term="main" />

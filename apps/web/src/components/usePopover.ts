@@ -40,4 +40,4 @@ export function usePopover() {
 }
 
 export const popoverPanel =
-  'absolute right-0 z-20 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-lg border border-gray-200 bg-white shadow-lg';
+  'absolute right-0 z-20 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-xl border border-line bg-surface shadow-pop';

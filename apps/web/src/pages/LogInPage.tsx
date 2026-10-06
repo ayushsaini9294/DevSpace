@@ -56,7 +56,7 @@ export function LogInPage() {
           New to DevSpace?{' '}
           <Link
             to={next === '/' ? '/signup' : `/signup?next=${encodeURIComponent(next)}`}
-            className="font-medium text-blue-700 underline hover:text-blue-900"
+            className="font-medium text-accent-fg underline hover:text-accent-strong"
           >
             Sign up
           </Link>

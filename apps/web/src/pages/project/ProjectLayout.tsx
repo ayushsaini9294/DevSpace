@@ -27,7 +27,7 @@ function ProjectNotFound() {
   return (
     <section className="space-y-4">
       <FocusHeading>Project not found</FocusHeading>
-      <p className="text-gray-700">There is no project you can open at this address.</p>
+      <p className="text-fg-soft">There is no project you can open at this address.</p>
       <Link to="/" className={linkStyle}>
         Go to your projects
       </Link>
@@ -36,8 +36,10 @@ function ProjectNotFound() {
 }
 
 const tabClass = ({ isActive }: { isActive: boolean }) =>
-  `rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap ${
-    isActive ? 'bg-blue-700 text-white' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+  `rounded-lg px-3 py-1.5 text-sm font-medium whitespace-nowrap focus-visible:ring-4 focus-visible:ring-accent-ring/50 focus-visible:outline-none ${
+    isActive
+      ? 'bg-accent-soft text-accent-fg ring-1 ring-accent-line ring-inset'
+      : 'text-fg-soft hover:bg-muted hover:text-fg'
   }`;
 
 export function ProjectLayout() {
@@ -65,7 +67,7 @@ export function ProjectLayout() {
     <div className="space-y-6">
       <header className="space-y-3">
         <div className="space-y-1">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-fg-muted">
             Team{' '}
             <Link to={`/teams/${project.data.teamId}`} className={linkStyle}>
               {project.data.teamName}
@@ -73,7 +75,10 @@ export function ProjectLayout() {
           </p>
           <h1 className="text-2xl font-bold tracking-tight break-words">{project.data.name}</h1>
         </div>
-        <nav aria-label="Project" className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1">
+        <nav
+          aria-label="Project"
+          className="flex gap-1 overflow-x-auto rounded-xl border border-line bg-surface p-1 shadow-card"
+        >
           <NavLink to={base} end className={tabClass}>
             Overview
           </NavLink>

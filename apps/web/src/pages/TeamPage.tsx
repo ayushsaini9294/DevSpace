@@ -10,7 +10,7 @@ export function TeamNotFound() {
   return (
     <section className="space-y-4">
       <FocusHeading>Team not found</FocusHeading>
-      <p className="text-gray-700">This team doesn’t exist, or you aren’t a member of it.</p>
+      <p className="text-fg-soft">This team doesn’t exist, or you aren’t a member of it.</p>
       <Link to="/" className={linkStyle}>
         Go to your teams and projects
       </Link>
@@ -34,7 +34,7 @@ export function TeamPage() {
   return (
     <section className="space-y-6">
       <div className="space-y-1">
-        <p className="text-sm text-gray-600">Team</p>
+        <p className="text-sm text-fg-muted">Team</p>
         <FocusHeading>{team.data.team.name}</FocusHeading>
       </div>
 
@@ -43,12 +43,12 @@ export function TeamPage() {
           Your projects in this team
         </h2>
         {projects.length === 0 ? (
-          <p className="text-gray-700">
+          <p className="text-fg-soft">
             You aren’t in any of this team’s projects yet. Create one below and you’ll be its
             leader.
           </p>
         ) : (
-          <ul className="divide-y divide-gray-200">
+          <ul className="divide-y divide-line">
             {projects.map((project) => (
               <li
                 key={project.id}
@@ -57,7 +57,7 @@ export function TeamPage() {
                 <Link to={`/projects/${project.id}`} className={`${linkStyle} break-words`}>
                   {project.name}
                 </Link>
-                <span className="text-sm text-gray-600">{ROLE_LABELS[project.myRole]}</span>
+                <span className="text-sm text-fg-muted">{ROLE_LABELS[project.myRole]}</span>
               </li>
             ))}
           </ul>

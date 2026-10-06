@@ -17,10 +17,10 @@ export function ShareFileSwitch() {
     <div className="space-y-2">
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-0.5">
-          <span id={labelId} className="block text-sm font-medium text-gray-900">
+          <span id={labelId} className="block text-sm font-medium text-fg">
             Share my open file
           </span>
-          <span id={hintId} className="block text-xs text-gray-600">
+          <span id={hintId} className="block text-xs text-fg-muted">
             Teammates see which file you have open in the IDE. When off, they only see that you are
             active.
           </span>
@@ -33,13 +33,13 @@ export function ShareFileSwitch() {
           aria-describedby={hintId}
           disabled={busy || preferences.isError}
           onClick={() => update.mutate({ shareOpenFile: !on })}
-          className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:outline-none disabled:opacity-60 ${
-            on ? 'bg-blue-700' : 'bg-gray-300'
+          className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-accent-ring focus-visible:outline-none disabled:opacity-60 ${
+            on ? 'bg-accent' : 'bg-line-strong'
           }`}
         >
           <span
             aria-hidden="true"
-            className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+            className={`inline-block h-5 w-5 rounded-full bg-surface shadow transition-transform ${
               on ? 'translate-x-5' : 'translate-x-0.5'
             }`}
           />

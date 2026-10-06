@@ -74,29 +74,29 @@ function CardBody({ task, board }: { task: TaskView; board: Board | null }) {
         <button
           type="button"
           onClick={() => board.open(task.id)}
-          className="block w-full text-left font-medium break-words text-gray-900 hover:text-blue-800 hover:underline focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:outline-none"
+          className="block w-full text-left font-medium break-words text-fg hover:text-accent-fg hover:underline focus-visible:ring-2 focus-visible:ring-accent-ring focus-visible:outline-none"
         >
           {task.title}
         </button>
       ) : (
-        <p className="font-medium break-words text-gray-900">{task.title}</p>
+        <p className="font-medium break-words text-fg">{task.title}</p>
       )}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <AssigneeInitials assignees={task.assignees} />
         <DueDate task={task} />
         {task.linkedSubmissions.length > 0 && (
-          <span className="text-xs text-gray-600">
+          <span className="text-xs text-fg-muted">
             {plural(task.linkedSubmissions.length, 'submission', 'submissions')}
           </span>
         )}
       </div>
       {task.reopenNote && (
-        <p className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-950">
+        <p className="rounded border border-warning-line bg-warning-soft px-2 py-1 text-xs text-warning-strong">
           Reopened: {task.reopenNote}
         </p>
       )}
       {waiting && (
-        <p className="text-xs text-gray-700">Merged. Waiting for a leader to mark it done.</p>
+        <p className="text-xs text-fg-soft">Merged. Waiting for a leader to mark it done.</p>
       )}
     </div>
   );
@@ -123,7 +123,7 @@ function TaskCard({ task, board }: { task: TaskView; board: Board }) {
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={`rounded-md border border-gray-200 bg-white p-3 shadow-sm ${isDragging ? 'opacity-40' : ''}`}
+      className={`rounded-lg border border-line bg-surface p-3 shadow-card ${isDragging ? 'opacity-40' : ''}`}
     >
       <div className="flex items-start gap-2">
         {canDrag && (
@@ -133,7 +133,7 @@ function TaskCard({ task, board }: { task: TaskView; board: Board }) {
             {...attributes}
             {...listeners}
             aria-label={`Drag ${task.title}`}
-            className="mt-0.5 cursor-grab touch-none rounded px-1 text-gray-500 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-blue-300 focus-visible:outline-none"
+            className="mt-0.5 cursor-grab touch-none rounded px-1 text-fg-muted hover:bg-muted focus-visible:ring-2 focus-visible:ring-accent-ring focus-visible:outline-none"
           >
             <span aria-hidden="true">⠿</span>
           </button>
@@ -177,17 +177,17 @@ function Column({
   return (
     <section
       aria-label={label}
-      className={`flex min-w-0 flex-col rounded-lg border bg-gray-50 p-3 ${
+      className={`flex min-w-0 flex-col rounded-lg border bg-subtle p-3 ${
         isOver && highlight
-          ? 'border-blue-500 ring-2 ring-blue-200'
+          ? 'border-accent ring-2 ring-accent-ring'
           : highlight
-            ? 'border-blue-300'
-            : 'border-gray-200'
+            ? 'border-accent-line'
+            : 'border-line'
       }`}
     >
-      <h3 className="mb-2 flex items-center justify-between text-sm font-semibold text-gray-800">
+      <h3 className="mb-2 flex items-center justify-between text-sm font-semibold text-fg">
         <span>{label}</span>
-        <span className="rounded-full bg-gray-200 px-2 text-xs text-gray-700">
+        <span className="rounded-full bg-emphasis px-2 text-xs text-fg-soft">
           <span className="sr-only">{plural(tasks.length, 'task', 'tasks')}</span>
           <span aria-hidden="true">{tasks.length}</span>
         </span>
@@ -199,7 +199,7 @@ function Column({
           ))}
         </ul>
       </SortableContext>
-      {tasks.length === 0 && <p className="text-xs text-gray-500">No tasks.</p>}
+      {tasks.length === 0 && <p className="text-xs text-fg-muted">No tasks.</p>}
     </section>
   );
 }
@@ -343,14 +343,14 @@ function BoardView({ tasks }: { tasks: TaskView[] }) {
         </div>
         <DragOverlay>
           {dragging && (
-            <div className="rounded-md border border-blue-300 bg-white p-3 shadow-lg">
+            <div className="rounded-md border border-accent-line bg-surface p-3 shadow-pop">
               <CardBody task={dragging} board={null} />
             </div>
           )}
         </DragOverlay>
       </DndContext>
       {openId && !openTask && !editing && !deleting && (
-        <p className="text-sm text-gray-700">That task no longer exists.</p>
+        <p className="text-sm text-fg-soft">That task no longer exists.</p>
       )}
       {openTask && !editing && !deleting && (
         <TaskDetailsDialog
@@ -408,7 +408,7 @@ export function TasksPage() {
           </button>
         )}
       </div>
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-fg-muted">
         Drag a card, or use its Move menu. A task goes to In review when work linked to it is
         submitted; after the merge a leader marks it Done.
       </p>

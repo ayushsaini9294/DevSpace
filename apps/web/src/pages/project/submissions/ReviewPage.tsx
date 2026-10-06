@@ -152,23 +152,23 @@ function Suggestion({ ctx, comment }: { ctx: Ctx; comment: Comment }) {
   const canRespond = status === 'pending' && can(ctx.submission, 'respondSuggestion');
 
   return (
-    <div className="space-y-2 rounded-md border border-blue-200 bg-blue-50 p-3">
-      <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-blue-900">
+    <div className="space-y-2 rounded-md border border-accent-line bg-accent-soft p-3">
+      <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-accent-strong">
         Suggested change
         <Tag tone={status === 'pending' ? 'amber' : 'gray'}>
           {status === 'pending' ? 'Pending' : status === 'accepted' ? 'Accepted' : 'Rejected'}
         </Tag>
       </div>
       {comment.suggestion === '' ? (
-        <p className="text-sm text-gray-800">Remove these lines.</p>
+        <p className="text-sm text-fg">Remove these lines.</p>
       ) : (
-        <pre className="overflow-x-auto rounded bg-white p-2 font-mono text-sm whitespace-pre text-gray-900">
+        <pre className="overflow-x-auto rounded bg-surface p-2 font-mono text-sm whitespace-pre text-fg">
           {comment.suggestion}
         </pre>
       )}
       {canRespond && (
         <>
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-fg-soft">
             Accepting writes this into your copy and updates the submission, so earlier approvals
             stop counting.
           </p>
@@ -200,11 +200,11 @@ function Suggestion({ ctx, comment }: { ctx: Ctx; comment: Comment }) {
 function CommentBody({ comment }: { comment: Comment }) {
   return (
     <>
-      <p className="text-sm text-gray-600">
-        <span className="font-medium text-gray-900">{comment.author.name}</span> ·{' '}
+      <p className="text-sm text-fg-muted">
+        <span className="font-medium text-fg">{comment.author.name}</span> ·{' '}
         <When iso={comment.createdAt} /> · on version {comment.version}
       </p>
-      <p className="break-words whitespace-pre-wrap text-gray-900">{comment.body}</p>
+      <p className="break-words whitespace-pre-wrap text-fg">{comment.body}</p>
     </>
   );
 }
@@ -215,10 +215,10 @@ function Thread({ ctx, comment, replies }: { ctx: Ctx; comment: Comment; replies
     <article
       data-testid="comment-thread"
       aria-label={where ? `Comment on ${where}` : 'Comment'}
-      className="space-y-2 rounded-md border border-gray-200 bg-white p-3"
+      className="space-y-2 rounded-lg border border-line bg-surface p-3"
     >
       {(where || comment.outdated) && (
-        <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-gray-800">
+        <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-fg">
           {where}
           {comment.outdated && <Tag tone="amber">Outdated</Tag>}
         </div>
@@ -226,7 +226,7 @@ function Thread({ ctx, comment, replies }: { ctx: Ctx; comment: Comment; replies
       <CommentBody comment={comment} />
       <Suggestion ctx={ctx} comment={comment} />
       {replies.length > 0 && (
-        <ul className="space-y-2 border-l-2 border-gray-200 pl-3">
+        <ul className="space-y-2 border-l-2 border-line pl-3">
           {replies.map((reply) => (
             <li key={reply.id}>
               <CommentBody comment={reply} />
@@ -308,7 +308,7 @@ function NumberField({
   hint?: string;
 }) {
   return (
-    <label className="block space-y-1 text-sm font-medium text-gray-800">
+    <label className="block space-y-1 text-sm font-medium text-fg">
       <span>{label}</span>
       <input
         type="number"
@@ -316,9 +316,9 @@ function NumberField({
         min={1}
         value={value}
         onChange={(event) => onChange(event.currentTarget.value)}
-        className="block w-28 rounded-md border border-gray-300 bg-white px-3 py-2 text-base shadow-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+        className="block w-28 rounded-lg border border-line-strong bg-surface px-3 py-2 text-base shadow-card focus:border-accent focus:ring-4 focus:ring-accent-ring/40 focus:outline-none"
       />
-      {hint && <span className="block font-normal text-gray-600">{hint}</span>}
+      {hint && <span className="block font-normal text-fg-muted">{hint}</span>}
     </label>
   );
 }
@@ -388,15 +388,15 @@ function LineCommentForm({
       onSubmit={handleSubmit}
       noValidate
       aria-label={`Comment on ${path}`}
-      className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3"
+      className="space-y-3 rounded-md border border-line bg-subtle p-3"
     >
       <div className="flex flex-wrap items-end gap-3">
-        <label className="block space-y-1 text-sm font-medium text-gray-800">
+        <label className="block space-y-1 text-sm font-medium text-fg">
           <span>Side</span>
           <select
             value={side}
             onChange={(event) => setSide(event.currentTarget.value as DiffSide)}
-            className="block rounded-md border border-gray-300 bg-white px-3 py-2 text-base shadow-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+            className="block rounded-lg border border-line-strong bg-surface px-3 py-2 text-base shadow-card focus:border-accent focus:ring-4 focus:ring-accent-ring/40 focus:outline-none"
           >
             <option value="head">New version</option>
             <option value="base">Old version</option>
@@ -405,11 +405,11 @@ function LineCommentForm({
         <NumberField label="Range starts at" value={startLine} onChange={setStartLine} />
         <NumberField label="Line" value={line} onChange={setLine} />
       </div>
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-fg-muted">
         Tip: click a line number in the changes above to pick it, or select several lines. Leave
         “Range starts at” empty for one line.
       </p>
-      {fieldError && <p className="text-sm text-red-700">{fieldError}</p>}
+      {fieldError && <p className="text-sm text-danger-fg">{fieldError}</p>}
       <TextArea
         label="Comment"
         value={body}
@@ -420,12 +420,12 @@ function LineCommentForm({
       />
       {canSuggest && side === 'head' && (
         <div className="space-y-2">
-          <label className="flex items-center gap-2 text-sm text-gray-800">
+          <label className="flex items-center gap-2 text-sm text-fg">
             <input
               type="checkbox"
               checked={suggesting}
               onChange={(event) => startSuggesting(event.currentTarget.checked)}
-              className="h-4 w-4 border-gray-300"
+              className="h-4 w-4 border-line-strong"
             />
             Suggest a change to these lines
           </label>
@@ -495,15 +495,13 @@ function FileDiff({
   const { base, head } = diff.data;
   if (base.kind === 'binary' || head.kind === 'binary') {
     return (
-      <p className="text-sm text-gray-700">
+      <p className="text-sm text-fg-soft">
         This file isn’t text (for example an image), so it can’t be shown here.
       </p>
     );
   }
   if (base.kind === 'too_large' || head.kind === 'too_large') {
-    return (
-      <p className="text-sm text-gray-700">This file is too large to show here (over 1 MB).</p>
-    );
+    return <p className="text-sm text-fg-soft">This file is too large to show here (over 1 MB).</p>;
   }
   return (
     <LazyDiffViewer
@@ -558,7 +556,7 @@ function FileSection({
     <section
       id={`file-${index}`}
       aria-label={file.path}
-      className="scroll-mt-4 space-y-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+      className="scroll-mt-4 space-y-3 rounded-xl border border-line bg-surface p-3 shadow-card"
     >
       <header className="flex flex-wrap items-center gap-2">
         <h3 className="min-w-0 flex-1 font-mono text-sm font-semibold break-all">{file.path}</h3>
@@ -631,7 +629,7 @@ function ReviewDialog({
         review.mutate({ decision, ...(body.trim() ? { body } : {}) }, { onSuccess: onClose })
       }
     >
-      <p className="text-sm text-gray-700">
+      <p className="text-sm text-fg-soft">
         {approving
           ? `You approve version ${ctx.submission.version}. If the author updates it, your approval stops counting.`
           : 'Tell the author what to change. They can update the submission when they’re done.'}
@@ -663,7 +661,7 @@ function RejectDialog({ ctx, onClose }: { ctx: Ctx; onClose: () => void }) {
         reject.mutate(checked.data.reason, { onSuccess: onClose });
       }}
     >
-      <p className="text-sm text-gray-700">
+      <p className="text-sm text-fg-soft">
         The submission ends. The work stays in the author’s copy.
       </p>
       <TextArea label="Reason" value={reason} onChange={setReason} error={error} />
@@ -682,7 +680,7 @@ function CloseDialog({ ctx, onClose }: { ctx: Ctx; onClose: () => void }) {
       onClose={onClose}
       onSubmit={() => close.mutate(undefined, { onSuccess: onClose })}
     >
-      <p className="text-sm text-gray-700">
+      <p className="text-sm text-fg-soft">
         The submission ends without merging. The work stays in the author’s copy, and its files can
         be submitted again.
       </p>
@@ -809,7 +807,7 @@ function Actions({ ctx }: { ctx: Ctx }) {
 function Reviews({ submission }: { submission: SubmissionDetail }) {
   if (submission.reviews.length === 0) {
     return (
-      <p className="text-sm text-gray-700">
+      <p className="text-sm text-fg-soft">
         No reviews yet. A leader, or a member allowed to approve, will look at it and approve it or
         ask for changes.
       </p>
@@ -818,16 +816,14 @@ function Reviews({ submission }: { submission: SubmissionDetail }) {
   return (
     <ul className="space-y-2">
       {submission.reviews.map((review) => (
-        <li key={review.id} className="space-y-1 rounded-md border border-gray-200 bg-white p-3">
-          <p className="flex flex-wrap items-center gap-2 text-sm text-gray-700">
-            <span className="font-medium text-gray-900">{review.reviewer.name}</span>
+        <li key={review.id} className="space-y-1 rounded-lg border border-line bg-surface p-3">
+          <p className="flex flex-wrap items-center gap-2 text-sm text-fg-soft">
+            <span className="font-medium text-fg">{review.reviewer.name}</span>
             {review.decision === 'approved' ? 'approved' : 'requested changes'} on version{' '}
             {review.version} · <When iso={review.createdAt} />
             {review.stale && <Tag>Out of date: given before the latest update</Tag>}
           </p>
-          {review.body && (
-            <p className="break-words whitespace-pre-wrap text-gray-900">{review.body}</p>
-          )}
+          {review.body && <p className="break-words whitespace-pre-wrap text-fg">{review.body}</p>}
         </li>
       ))}
     </ul>
@@ -885,16 +881,16 @@ function Review({
           </FocusHeading>
           <StatusBadge status={submission.status} testId="submission-status" />
         </div>
-        <p className="text-sm text-gray-600">
-          By <span className="font-medium text-gray-900">{submission.author.name}</span> · version{' '}
+        <p className="text-sm text-fg-muted">
+          By <span className="font-medium text-fg">{submission.author.name}</span> · version{' '}
           {submission.version} · opened <When iso={submission.createdAt} /> · updated{' '}
           <When iso={submission.updatedAt} />
         </p>
         {submission.description && (
-          <p className="break-words whitespace-pre-wrap text-gray-900">{submission.description}</p>
+          <p className="break-words whitespace-pre-wrap text-fg">{submission.description}</p>
         )}
         {submission.status === 'rejected' && submission.rejectReason && (
-          <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+          <p className="rounded-md border border-danger-line bg-danger-soft px-3 py-2 text-sm text-danger-strong">
             Rejected: <span className="whitespace-pre-wrap">{submission.rejectReason}</span>
           </p>
         )}
@@ -932,7 +928,7 @@ function Review({
                   </a>
                   <ChangeLabel change={file.change} />
                   {count > 0 && (
-                    <span className="text-xs text-gray-600">
+                    <span className="text-xs text-fg-muted">
                       {count === 1 ? '1 comment' : `${count} comments`}
                     </span>
                   )}
@@ -969,7 +965,7 @@ function Review({
           Conversation
         </h3>
         {general.length === 0 ? (
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-fg-soft">
             No general comments yet. Comments about the work as a whole go here; comments on a line
             go with its file above.
           </p>
@@ -994,7 +990,7 @@ export function ReviewPage() {
       return (
         <section className="space-y-3">
           <FocusHeading level={2}>Submission not found</FocusHeading>
-          <p className="text-gray-700">There is no submission at this address.</p>
+          <p className="text-fg-soft">There is no submission at this address.</p>
           <Link to={submissionsUrl(project.id)} className={linkStyle}>
             All submissions
           </Link>

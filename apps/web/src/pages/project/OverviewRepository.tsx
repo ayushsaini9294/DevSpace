@@ -42,7 +42,7 @@ export function OverviewRepository() {
             </Link>
           </div>
           {canOpenIde(project, repository.data) && (
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-fg-muted">
               Open IDE opens your copy (your own space to work in) in VS Code, right in the browser.{' '}
               <HelpTip term="copy" />
             </p>
@@ -51,17 +51,17 @@ export function OverviewRepository() {
       );
     } else if (status === 'importing') {
       body = (
-        <p role="status" className="flex items-center gap-2 break-all text-gray-700">
+        <p role="status" className="flex items-center gap-2 break-all text-fg-soft">
           <Spinner />
           Importing from {importUrl ?? 'the Git link'}…
         </p>
       );
     } else if (!canSetUp) {
-      body = <p className="text-gray-700">{NOT_SET_UP_MESSAGE}</p>;
+      body = <p className="text-fg-soft">{NOT_SET_UP_MESSAGE}</p>;
     } else {
       body = (
         <>
-          <p className="text-gray-700">
+          <p className="text-fg-soft">
             {status === 'failed'
               ? 'The last import didn’t finish.'
               : 'The repository hasn’t been set up yet.'}

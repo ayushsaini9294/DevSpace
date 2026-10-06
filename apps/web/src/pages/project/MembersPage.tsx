@@ -66,8 +66,8 @@ function InviteLink({ link, email }: { link: string; email: string }) {
   }
 
   return (
-    <div className="space-y-2 rounded-md border border-blue-200 bg-blue-50 p-3">
-      <label htmlFor={inputId} className="block text-sm font-medium text-gray-800">
+    <div className="space-y-2 rounded-md border border-accent-line bg-accent-soft p-3">
+      <label htmlFor={inputId} className="block text-sm font-medium text-fg">
         Invite link
       </label>
       <div className="flex flex-col gap-2 sm:flex-row">
@@ -77,7 +77,7 @@ function InviteLink({ link, email }: { link: string; email: string }) {
           readOnly
           value={link}
           onFocus={(event) => event.currentTarget.select()}
-          className="block w-full min-w-0 rounded-md border border-gray-300 bg-white px-3 py-2 font-mono text-sm"
+          className="block w-full min-w-0 rounded-lg border border-line-strong bg-surface px-3 py-2 font-mono text-sm"
         />
         <button type="button" className={buttonStyles.secondary} onClick={handleCopy}>
           Copy link
@@ -87,7 +87,7 @@ function InviteLink({ link, email }: { link: string; email: string }) {
       {copy === 'failed' && (
         <FormAlert>Couldn’t copy automatically. The link is selected; copy it yourself.</FormAlert>
       )}
-      <p className="text-sm text-gray-700">
+      <p className="text-sm text-fg-soft">
         Send this link to {email}. It works only for that email address and expires in{' '}
         {INVITATION_TTL_DAYS} days.
       </p>
@@ -133,7 +133,7 @@ function InviteForm({ projectId }: { projectId: string }) {
       <h3 id="invite-heading" className="text-lg font-semibold">
         Invite someone
       </h3>
-      <p className="text-sm text-gray-700">
+      <p className="text-sm text-fg-soft">
         Create a link for one email address, then send it to them yourself.
       </p>
       <form noValidate onSubmit={handleSubmit} className="space-y-3">
@@ -180,9 +180,9 @@ function PendingInvitations({ projectId }: { projectId: string }) {
           onRetry={() => invitations.refetch()}
         />
       ) : invitations.data.length === 0 ? (
-        <p className="text-gray-700">No pending invitations.</p>
+        <p className="text-fg-soft">No pending invitations.</p>
       ) : (
-        <ul className="divide-y divide-gray-200">
+        <ul className="divide-y divide-line">
           {invitations.data.map((invitation) => (
             <li
               key={invitation.id}
@@ -192,7 +192,7 @@ function PendingInvitations({ projectId }: { projectId: string }) {
                 <p id={`invitation-${invitation.id}`} className="font-medium break-all">
                   {invitation.email}
                 </p>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-fg-muted">
                   Invited by {invitation.invitedByName} · expires{' '}
                   {dateFormat.format(new Date(invitation.expiresAt))}
                 </p>
@@ -235,16 +235,16 @@ function PermissionToggles({
 }) {
   return (
     <fieldset className="space-y-1">
-      <legend className="text-sm font-medium text-gray-800">Permissions for {member.name}</legend>
+      <legend className="text-sm font-medium text-fg">Permissions for {member.name}</legend>
       <div className="grid gap-1 sm:grid-cols-2">
         {PERMISSION_KEYS.map((key) => (
-          <label key={key} className="flex items-center gap-2 text-sm text-gray-800">
+          <label key={key} className="flex items-center gap-2 text-sm text-fg">
             <input
               type="checkbox"
               checked={member.permissions[key]}
               disabled={disabled}
               onChange={(event) => onChange(key, event.currentTarget.checked)}
-              className="h-4 w-4 rounded border-gray-300"
+              className="h-4 w-4 rounded border-line-strong"
             />
             {PERMISSION_LABELS[key]}
           </label>
@@ -288,15 +288,15 @@ function MemberRow({
         <div className="min-w-0">
           <p className="font-medium break-words">
             {member.name}
-            {isMe && <span className="text-gray-600"> (you)</span>}
+            {isMe && <span className="text-fg-muted"> (you)</span>}
           </p>
-          <p className="text-sm break-all text-gray-600">{member.email}</p>
+          <p className="text-sm break-all text-fg-muted">{member.email}</p>
         </div>
-        <span className="text-sm font-medium text-gray-800">{ROLE_LABELS[member.role]}</span>
+        <span className="text-sm font-medium text-fg">{ROLE_LABELS[member.role]}</span>
       </div>
 
       {member.role === 'member' && !showPermissions && (
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-fg-muted">
           Extra permissions:{' '}
           {switchedOn.length === 0
             ? 'none'
@@ -420,7 +420,7 @@ export function MembersPage() {
         ) : members.isError ? (
           <LoadError what="the members" error={members.error} onRetry={() => members.refetch()} />
         ) : (
-          <ul className="divide-y divide-gray-200">
+          <ul className="divide-y divide-line">
             {members.data.map((member) => (
               <MemberRow key={member.userId} member={member} project={project} me={me} />
             ))}

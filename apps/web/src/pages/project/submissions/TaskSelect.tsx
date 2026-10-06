@@ -26,11 +26,11 @@ export function TaskSelect({
 
   if (tasks.isError) {
     return (
-      <p className="text-sm text-gray-700">
+      <p className="text-sm text-fg-soft">
         Could not load the tasks, so this can’t be linked to one now. {errorMessage(tasks.error)}{' '}
         <button
           type="button"
-          className="font-medium text-blue-700 underline hover:text-blue-900"
+          className="font-medium text-accent-fg underline hover:text-accent-strong"
           onClick={() => tasks.refetch()}
         >
           Try again
@@ -47,10 +47,10 @@ export function TaskSelect({
 
   return (
     <div className="space-y-1">
-      <label htmlFor={id} className="block text-sm font-medium text-gray-800">
+      <label htmlFor={id} className="block text-sm font-medium text-fg">
         Task
       </label>
-      <p id={hintId} className="text-sm text-gray-600">
+      <p id={hintId} className="text-sm text-fg-muted">
         Optional. The task moves to In review when this is submitted.
       </p>
       <select
@@ -59,7 +59,7 @@ export function TaskSelect({
         disabled={tasks.isPending}
         aria-describedby={hintId}
         onChange={(event) => onChange(event.currentTarget.value)}
-        className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-base shadow-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-200 focus:outline-none"
+        className="block w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-base shadow-card focus:border-accent focus:ring-4 focus:ring-accent-ring/40 focus:outline-none"
       >
         <option value="">No task</option>
         {keepCurrent && (
@@ -86,7 +86,7 @@ export function TaskSelect({
           </optgroup>
         )}
       </select>
-      {tasks.isPending && <p className="text-sm text-gray-600">Loading tasks…</p>}
+      {tasks.isPending && <p className="text-sm text-fg-muted">Loading tasks…</p>}
     </div>
   );
 }

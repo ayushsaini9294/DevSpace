@@ -16,9 +16,9 @@ export function StatusBadge({ status, testId }: { status: SubmissionStatus; test
 }
 
 const CHANGE_STYLES: Record<FileChange, string> = {
-  added: 'text-green-800',
-  modified: 'text-amber-800',
-  deleted: 'text-red-800',
+  added: 'text-success-fg',
+  modified: 'text-warning-fg',
+  deleted: 'text-danger-fg',
 };
 
 export function ChangeLabel({ change }: { change: FileChange }) {
@@ -33,8 +33,8 @@ export function ChangeLabel({ change }: { change: FileChange }) {
 export function Tag({ children, tone = 'gray' }: { children: ReactNode; tone?: 'gray' | 'amber' }) {
   const style =
     tone === 'amber'
-      ? 'border-amber-300 bg-amber-50 text-amber-900'
-      : 'border-gray-300 bg-gray-100 text-gray-700';
+      ? 'border-warning-line bg-warning-soft text-warning-strong'
+      : 'border-line-strong bg-muted text-fg-soft';
   return (
     <span className={`inline-flex items-center rounded border px-1.5 text-xs font-medium ${style}`}>
       {children}
@@ -43,7 +43,7 @@ export function Tag({ children, tone = 'gray' }: { children: ReactNode; tone?: '
 }
 
 export const textAreaStyle =
-  'block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-base shadow-sm focus:border-blue-600 focus:ring-2 focus:ring-blue-200 focus:outline-none';
+  'block w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-base shadow-card focus:border-accent focus:ring-4 focus:ring-accent-ring/40 focus:outline-none';
 
 /** A labelled multi-line field. */
 export function TextArea({
@@ -67,7 +67,7 @@ export function TextArea({
   const errorId = `${id}-error`;
   return (
     <div className="space-y-1">
-      <label htmlFor={id} className="block text-sm font-medium text-gray-800">
+      <label htmlFor={id} className="block text-sm font-medium text-fg">
         {label}
       </label>
       <textarea
@@ -81,7 +81,7 @@ export function TextArea({
         className={`${textAreaStyle} ${mono ? 'font-mono text-sm' : ''}`}
       />
       {error && (
-        <p id={errorId} className="text-sm text-red-700">
+        <p id={errorId} className="text-sm text-danger-fg">
           {error}
         </p>
       )}
@@ -137,7 +137,7 @@ export function Dialog({
         onKeyDown={(event) => {
           if (event.key === 'Escape') onClose();
         }}
-        className="w-full max-w-lg rounded-lg bg-white p-4 shadow-lg sm:p-6"
+        className="w-full max-w-lg rounded-xl border border-line bg-surface p-4 shadow-pop sm:p-6"
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <h2 id={titleId} className="text-lg font-semibold">

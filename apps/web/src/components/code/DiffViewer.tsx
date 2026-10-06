@@ -120,7 +120,7 @@ export default function DiffViewer({
       modifiedModelPath={`head/${path}`}
       theme={theme}
       onMount={onMount}
-      loading={<p className="p-3 text-sm text-gray-600">Loading the changes…</p>}
+      loading={<p className="p-3 text-sm text-fg-muted">Loading the changes…</p>}
       options={{
         readOnly: true,
         originalEditable: false,

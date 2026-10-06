@@ -29,11 +29,11 @@ export function TextField({
   const describedBy = [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ');
   return (
     <div className="space-y-1">
-      <label htmlFor={inputId} className="block text-sm font-medium text-gray-800">
+      <label htmlFor={inputId} className="block text-sm font-medium text-fg">
         {label}
       </label>
       {hint && (
-        <p id={hintId} className="text-sm text-gray-600">
+        <p id={hintId} className="text-sm text-fg-muted">
           {hint}
         </p>
       )}
@@ -43,15 +43,19 @@ export function TextField({
         type={type}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy || undefined}
-        className={`block w-full rounded-md border bg-white px-3 py-2 text-base shadow-sm focus:ring-2 focus:outline-none ${
+        className={`block w-full rounded-lg border bg-surface px-3 py-2 text-base shadow-card focus:outline-none ${
           error
-            ? 'border-red-600 focus:border-red-600 focus:ring-red-200'
-            : 'border-gray-300 focus:border-blue-600 focus:ring-blue-200'
+            ? 'border-danger-solid focus:border-danger-solid focus:ring-4 focus:ring-danger-ring/40'
+            : 'border-line-strong focus:border-accent focus:ring-4 focus:ring-accent-ring/40'
         }`}
         {...inputProps}
       />
       {error && (
-        <p id={errorId} role={errorIsAlert ? 'alert' : undefined} className="text-sm text-red-700">
+        <p
+          id={errorId}
+          role={errorIsAlert ? 'alert' : undefined}
+          className="text-sm text-danger-fg"
+        >
           {error}
         </p>
       )}
