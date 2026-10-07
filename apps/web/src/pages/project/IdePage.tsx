@@ -4,7 +4,14 @@ import type { CopyView } from '@devspace/shared';
 import { FormAlert } from '../../components/AuthPageShell';
 import { FocusHeading, buttonStyles, linkStyle } from '../../components/ui';
 import { HelpTip } from '../../components/HelpTip';
-import { httpOrigin, useCopy, useLaunchIde, useStartIde, type CopyOwner } from '../../lib/copies';
+import {
+  httpOrigin,
+  safeLaunchUrl,
+  useCopy,
+  useLaunchIde,
+  useStartIde,
+  type CopyOwner,
+} from '../../lib/copies';
 import { errorCode, errorMessage, isNotFound } from '../../lib/formErrors';
 import { usePollInterval, useProjectRoom } from '../../lib/liveStore';
 import { useMembers, useProject } from '../../lib/projects';
@@ -90,6 +97,7 @@ function Problem({
 function IdeFrame({
   projectId,
   owner,
+  copyId,
   words,
   title,
   onRelaunch,
@@ -98,16 +106,19 @@ function IdeFrame({
 }: {
   projectId: string;
   owner: CopyOwner;
+  /** The copy whose IDE this is: its launch URL must be on this copy's own address. */
+  copyId: string;
   words: Words;
   title: string;
   /** Remount this frame, which asks for a new launch URL. */
   onRelaunch: () => void;
   /** Start the container again (it stopped before the IDE opened). */
   onRestart: () => void;
-  /** The IDE's launch URL arrived (its origin is the IDE's site, for Preview). */
+  /** The IDE's launch URL arrived (its origin is this copy's IDE address, for Preview). */
   onLaunched: (url: string) => void;
 }) {
   const { mutate, data, error, isError, isSuccess } = useLaunchIde(projectId, owner);
+  const src = data ? safeLaunchUrl(data, copyId) : null;
 
   // Once per mount (the ref keeps StrictMode's second effect from using up another ticket).
   const launched = useRef(false);
@@ -118,8 +129,8 @@ function IdeFrame({
   }, [mutate]);
 
   useEffect(() => {
-    if (data) onLaunched(data);
-  }, [data, onLaunched]);
+    if (src) onLaunched(src);
+  }, [src, onLaunched]);
 
   if (isError) {
     if (errorCode(error) === 'ide_not_running') {
@@ -134,10 +145,18 @@ function IdeFrame({
     return <Problem message={failureMessage(error, words, 'open')} onRetry={onRelaunch} />;
   }
   if (!isSuccess) return <Waiting>Opening {words.ide}…</Waiting>;
+  if (src === null) {
+    return (
+      <Problem
+        message={`Could not open ${words.ide}: the server sent an address that isn’t this copy’s IDE address.`}
+        onRetry={onRelaunch}
+      />
+    );
+  }
 
   return (
     <iframe
-      src={data}
+      src={src}
       title={title}
       // VS Code needs the clipboard. No sandbox: it would break VS Code, and the IDE is already
       // isolated on its own site.
@@ -177,11 +196,19 @@ export function IdePage() {
   const templates = useTemplates(Boolean(repository.data?.template));
   const previewPort =
     findTemplate(templates.data, repository.data?.template ?? null)?.previewPort ?? null;
-  // The IDE's site, taken from its launch URL: Preview URLs must be on it.
-  const [ideOrigin, setIdeOrigin] = useState<string | null>(null);
-  const onLaunched = useCallback((url: string) => setIdeOrigin(httpOrigin(url)), []);
   const ownRefresh = usePollInterval(OWN_COPY_REFRESH_MS);
   const copy = useCopy(projectId, owner, startIde.isSuccess, own ? ownRefresh : false);
+  const copyId = copy.data?.id ?? null;
+  // This copy's IDE address, taken from its launch URL: Preview URLs must be on it. Each copy has
+  // its own address, so one learnt for another copy (before a route change) is never used.
+  const [launched, setLaunched] = useState<{ copyId: string; origin: string | null } | null>(null);
+  const onLaunched = useCallback(
+    (url: string) => {
+      if (copyId) setLaunched({ copyId, origin: httpOrigin(url) });
+    },
+    [copyId],
+  );
+  const ideOrigin = launched && launched.copyId === copyId ? launched.origin : null;
   const { mutate } = startIde;
   // Changing this remounts the frame, which asks for a fresh launch URL.
   const [launchKey, setLaunchKey] = useState(0);
@@ -230,6 +257,7 @@ export function IdePage() {
           key={launchKey}
           projectId={projectId}
           owner={owner}
+          copyId={copyId ?? ''}
           words={words}
           title={target ? `VS Code for ${target}` : 'VS Code'}
           onRelaunch={relaunch}

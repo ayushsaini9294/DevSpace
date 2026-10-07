@@ -43,13 +43,14 @@ jobs:
     env:
       CI: true
       DATABASE_URL: postgresql://devspace:devspace@localhost:5432/devspace
-      # The API's two listeners (Phase 5, IDE on its own site). These equal the API's defaults and
-      # are set here so CI states them: the app on localhost, the IDE on 127.0.0.1 (another site).
+      # The API's two listeners (Phase 5, IDE on its own site; Phase 14, every copy's IDE on its
+      # own address <copyId>.ide.localhost:3100, which Chromium resolves to 127.0.0.1 itself).
+      # These equal the API's defaults and are set here so CI states them.
       PORT: 3000
       APP_ORIGIN: http://localhost:5173
       IDE_PORT: 3100
       IDE_HOST: 127.0.0.1
-      IDE_ORIGIN: http://127.0.0.1:3100
+      IDE_BASE_URL: http://ide.localhost:3100
       # AI (Phase 10): in the e2e tests the API and worker call the stand-in OpenRouter (a test
       # double, e2e/stubs/openrouter.ts) on this port, never the real one: playwright.config.ts
       # starts it and sets OPENROUTER_BASE_URL for `npm run dev`.
@@ -169,3 +170,28 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
+
+  # Phase 14: the production stack (deploy/), separate from the app checks above.
+  deploy:
+    name: Production stack (backups, smoke test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # The API binds its AI gateway on the IDE network's bridge, so the network must exist.
+      - name: Create IDE network
+        run: bash scripts/ide-network.sh
+
+      - name: Apply IDE firewall
+        run: sudo bash scripts/ide-firewall.sh
+
+      # Backs up a throwaway database and data folder, wipes them, restores, checks it's all back.
+      - name: Backups and restore
+        run: bash deploy/test-backup.sh
+
+      # Builds the production images and runs the whole stack behind Caddy in LOCAL mode
+      # (http://app.localhost:8088), then checks health, headers, sign up and the IDE hosts.
+      - name: Production smoke test
+        run: bash deploy/smoke.sh

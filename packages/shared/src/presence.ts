@@ -48,7 +48,7 @@ export function sanitizePresenceFile(value: unknown): string | null {
 }
 
 /**
- * POST <IDE_ORIGIN>/ide/<copyId>/__devspace/presence — sent by the `devspace-tracker` web
+ * POST <copy IDE origin>/ide/<copyId>/__devspace/presence — sent by the `devspace-tracker` web
  * extension from VS Code's page on the IDE site, with `Content-Type: application/json` and the
  * browser's `devspace_ide` cookie (`credentials: 'include'`). The API handles it itself (never
  * forwarded to the container) and always answers 204 with no body, whatever the outcome.

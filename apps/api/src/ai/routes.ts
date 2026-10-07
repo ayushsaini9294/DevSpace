@@ -1,4 +1,5 @@
 import { Router, type Request } from 'express';
+import { limits } from '../lib/rate-limit.ts';
 import {
   AiConnectFinishRequestSchema,
   AiConnectStartResponseSchema,
@@ -95,13 +96,13 @@ aiSubmissionRouter.get('/submissions/:id/ai-reviews', async (req, res) => {
   res.json(await listAiReviews(access, param(req, 'id')));
 });
 
-aiSubmissionRouter.post('/submissions/:id/ai-reviews', async (req, res) => {
+aiSubmissionRouter.post('/submissions/:id/ai-reviews', limits.aiReview, async (req, res) => {
   const access = await requireProjectAction(req);
   const body = parseBody(CreateAiReviewRequestSchema, req.body ?? {});
   res.status(201).json(await requestCrossReview(access, param(req, 'id'), body));
 });
 
-aiSubmissionRouter.post('/submissions/:id/ide-review', async (req, res) => {
+aiSubmissionRouter.post('/submissions/:id/ide-review', limits.aiReview, async (req, res) => {
   const access = await requireProjectAction(req);
   const user = req.user as AuthUser;
   const result = await writeIdeReview(

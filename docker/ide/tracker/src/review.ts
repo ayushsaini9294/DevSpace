@@ -1,7 +1,7 @@
 // "DevSpace: Send review findings" (Phase 10 contract, section 4), kept free of the `vscode` module
 // so it can be unit tested. "Review with my IDE AI" writes `.devspace/reviews/<submissionId>/` into
 // the reviewer's own copy; the reviewer's AI fills in `findings.md`, and this command sends it to
-// `<IDE_ORIGIN>/ide/<copyId>/__devspace/review-findings`.
+// `<copy IDE origin>/ide/<copyId>/__devspace/review-findings`.
 
 import { presenceEndpoint, WORKSPACE_ROOT, type UriLike } from './tracker';
 

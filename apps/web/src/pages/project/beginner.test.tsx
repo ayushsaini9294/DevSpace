@@ -11,6 +11,7 @@ import {
   requestBody,
   stubApi,
   testCopy,
+  TEST_IDE_ORIGIN,
   testProject,
   testRepository,
   type StubReply,
@@ -23,7 +24,7 @@ afterEach(() => {
 });
 
 const P = '/api/projects/project-1';
-const IDE_ORIGIN = 'http://127.0.0.1:3100';
+const IDE_ORIGIN = TEST_IDE_ORIGIN;
 
 // ---------- Help tips ----------
 
@@ -367,6 +368,10 @@ describe('safePreviewUrl', () => {
     expect(safePreviewUrl('/ide-launch?ticket=x', IDE_ORIGIN)).toBeNull();
     expect(safePreviewUrl('javascript:alert(1)', IDE_ORIGIN)).toBeNull();
     expect(safePreviewUrl('http://127.0.0.1:3101/ide-launch', IDE_ORIGIN)).toBeNull();
+    // Each copy has its own IDE address: another copy's (or the bare base host) is refused.
+    const other = 'http://0b9d2c1e-1111-4222-8333-944445555666.ide.localhost:3100';
+    expect(safePreviewUrl(`${other}/ide-launch?ticket=x`, IDE_ORIGIN)).toBeNull();
+    expect(safePreviewUrl('http://ide.localhost:3100/ide-launch?ticket=x', IDE_ORIGIN)).toBeNull();
     // Never the app's own origin, even if the IDE were (wrongly) set up there.
     expect(safePreviewUrl(`${window.location.origin}/x`, window.location.origin)).toBeNull();
   });

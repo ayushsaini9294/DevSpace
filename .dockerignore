@@ -1,0 +1,23 @@
+# The production image (deploy/Dockerfile) is built from the repository root. Only what it needs
+# goes in: never local settings (.env files), data, secrets, Git history or installed packages.
+*
+!package.json
+!package-lock.json
+!tsconfig.base.json
+!packages/shared/
+!apps/api/
+!apps/worker/
+!apps/web/
+!docker/ide/tracker/
+!deploy/Caddyfile
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+**/*.pem
+**/coverage
+**/*.tsbuildinfo
+apps/api/src/generated
+apps/*/test
+**/*.test.ts
+**/*.test.tsx

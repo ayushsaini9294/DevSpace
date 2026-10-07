@@ -10,10 +10,11 @@ import {
   type PresenceView,
 } from '@devspace/shared';
 import { invalidationsFor, type ActivityAction } from '../src/activity/log.ts';
-import { env } from '../src/config/env.ts';
 import { transaction } from '../src/lib/transaction.ts';
 import { createLaunchUrl } from '../src/ide/access.ts';
 import { createIdeServer } from '../src/ide/proxy.ts';
+import { ideOriginFor } from '../src/ide/origin.ts';
+import { ideRequest } from './ide-host.ts';
 import { prisma } from '../src/lib/prisma.ts';
 import { closeEmitter, invalidateAfterCommit, realtimeKey } from '../src/realtime/emitter.ts';
 import { getRedis } from '../src/realtime/redis.ts';
@@ -98,7 +99,7 @@ describe('socket handshake', () => {
     await expect(connect(s, null, { cookie: 'devspace_session=nope' })).rejects.toThrow(
       'unauthenticated',
     );
-    await expect(connect(s, leader, { origin: env.IDE_ORIGIN })).rejects.toThrow(
+    await expect(connect(s, leader, { origin: ideOriginFor(crypto.randomUUID()) })).rejects.toThrow(
       'forbidden_origin',
     );
     await expect(connect(s, leader, { origin: null })).rejects.toThrow('forbidden_origin');
@@ -197,7 +198,7 @@ describe('project rooms', () => {
 /** An IDE session for `user` in `copyId` (like opening the IDE), via the real launch flow. */
 async function ideCookie(user: TestUser, copyId: string): Promise<string> {
   const url = new URL(await createLaunchUrl(user.id, copyId));
-  const res = await request(ideServer).get(`${url.pathname}${url.search}`);
+  const res = await ideRequest(ideServer).get(url.href);
   expect(res.status).toBe(303);
   const raw = res.headers['set-cookie'] as unknown as string[];
   return raw.find((c) => c.startsWith('devspace_ide='))!.split(';')[0]!;
@@ -215,9 +216,9 @@ function report(
   body: unknown,
   headers: Record<string, string> = {},
 ) {
-  let req = request(ideServer)
+  let req = ideRequest(ideServer)
     .post(`/ide/${copyId}/__devspace/presence`)
-    .set('Origin', env.IDE_ORIGIN)
+    .set('Origin', ideOriginFor(copyId))
     .set('Content-Type', 'application/json');
   if (cookie) req = req.set('Cookie', cookie);
   for (const [k, v] of Object.entries(headers)) req = req.set(k, v);
@@ -294,7 +295,8 @@ describe('presence', () => {
         Origin: 'http://localhost:5173',
       },
     );
-    expect(wrongOrigin.status).toBe(204);
+    // Phase 14: a request from another origin is refused outright.
+    expect(wrongOrigin.status).toBe(403);
     const wrongType = await report(
       copyId,
       cookie,

@@ -8,7 +8,8 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      // No /ide here: the IDE runs on its own site (IDE_ORIGIN), never on the app's origin.
+      // No /ide here: each copy's IDE runs on its own address (<copyId>.<IDE_BASE_URL host>),
+      // never on the app's origin.
       '/api': 'http://localhost:3000',
       // Live updates (Phase 9): Socket.io on the API's port, WebSocket included. The Origin
       // header is kept (no changeOrigin), because the API only accepts sockets from APP_ORIGIN.

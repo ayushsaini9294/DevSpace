@@ -17,6 +17,8 @@ import { runAiReview } from '../src/ai/run.ts';
 import { env } from '../src/config/env.ts';
 import { createLaunchUrl } from '../src/ide/access.ts';
 import { createIdeServer } from '../src/ide/proxy.ts';
+import { ideOriginFor } from '../src/ide/origin.ts';
+import { ideRequest } from './ide-host.ts';
 import { takeQueuedAiReviews } from '../src/jobs/ai-reviews.ts';
 import { prisma } from '../src/lib/prisma.ts';
 import { closeEmitter } from '../src/realtime/emitter.ts';
@@ -518,7 +520,7 @@ describe('review with my IDE AI', () => {
 describe('review findings from the IDE', () => {
   async function ideCookie(user: TestUser, copyId: string): Promise<string> {
     const u = new URL(await createLaunchUrl(user.id, copyId));
-    const res = await request(ideServer).get(`${u.pathname}${u.search}`);
+    const res = await ideRequest(ideServer).get(u.href);
     expect(res.status).toBe(303);
     const raw = res.headers['set-cookie'] as unknown as string[];
     return raw.find((c) => c.startsWith('devspace_ide='))!.split(';')[0]!;
@@ -530,9 +532,9 @@ describe('review findings from the IDE', () => {
     body: unknown,
     headers: Record<string, string> = {},
   ) {
-    let req = request(ideServer)
+    let req = ideRequest(ideServer)
       .post(`/ide/${copyId}/__devspace/review-findings`)
-      .set('Origin', env.IDE_ORIGIN)
+      .set('Origin', ideOriginFor(copyId))
       .set('Content-Type', 'application/json');
     if (cookie) req = req.set('Cookie', cookie);
     for (const [k, v] of Object.entries(headers)) req = req.set(k, v);

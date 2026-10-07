@@ -1,0 +1,6 @@
+# The backup image (backup.Dockerfile) is built from this folder: only its scripts go in, never
+# deploy/.env or anything else.
+*
+!backup.sh
+!backup-cron.sh
+!restore-inside.sh

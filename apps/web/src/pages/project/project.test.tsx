@@ -13,6 +13,7 @@ import {
   emptyDashboard,
   healthOk,
   loggedIn,
+  rateLimited,
   renderApp,
   requestBody,
   stubApi,
@@ -331,6 +332,36 @@ describe('members page', () => {
     const pending = await screen.findByRole('region', { name: 'Pending invitations' });
     expect(await within(pending).findByText('new@example.com')).toBeInTheDocument();
     expect(within(pending).getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+  });
+
+  it('shows the API’s message when too many invitations were made (429)', async () => {
+    const user = userEvent.setup();
+    stubApi(
+      membersRoutes(testProject('leader'), [me('leader')], {
+        [`POST ${P}/invitations`]: rateLimited,
+      }),
+    );
+    renderApp('/projects/project-1/members');
+    await user.type(await screen.findByLabelText('Email'), 'new@example.com');
+    await user.click(screen.getByRole('button', { name: 'Create invite link' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Too many tries. Please wait a minute and try again.',
+    );
+    expect(screen.getByLabelText('Email')).not.toHaveAttribute('aria-invalid', 'true');
+    expect(screen.queryByLabelText('Invite link')).not.toBeInTheDocument();
+  });
+
+  it('shows the API’s message in the error banner when loading hits the limit (429)', async () => {
+    stubApi(
+      membersRoutes(testProject('leader'), [me('leader')], {
+        [`GET ${P}/members`]: rateLimited,
+      }),
+    );
+    renderApp('/projects/project-1/members');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Too many tries. Please wait a minute and try again.',
+    );
   });
 
   it('shows a clear message when copying fails', async () => {

@@ -324,9 +324,9 @@ export const IdeReviewResponseSchema = z.object({
 });
 
 /**
- * POST <IDE_ORIGIN>/ide/<copyId>/__devspace/review-findings — the tracker's "DevSpace: Send
+ * POST <copy IDE origin>/ide/<copyId>/__devspace/review-findings — the tracker's "DevSpace: Send
  * review findings" command, with the `devspace_ide` cookie, `Content-Type: application/json`
- * and Origin = IDE_ORIGIN. The IDE session's user must own the copy. `findings` is the text of
+ * and Origin = the copy's IDE origin. The IDE session's user must own the copy. `findings` is the text of
  * findings.md (a JSON array, parsed tolerantly). → 201 IdeFindingsResponse, or an error
  * `{ error, message }` (400 validation_error / 403 forbidden / 404 not_found / 409 as above /
  * 413 payload_too_large / 415 unsupported_media_type).

@@ -15,7 +15,7 @@ import {
   sendFindings,
 } from './review';
 
-/** Set by VS Code's extension host worker: `<IDE_ORIGIN>/ide/<copyId>/<version>/static/out/`. */
+/** Set by VS Code's extension host worker: `<copy IDE origin>/ide/<copyId>/<version>/static/out/`. */
 type WorkerGlobals = { _VSCODE_FILE_ROOT?: unknown; location?: { origin: string } };
 
 export const SEND_FINDINGS_COMMAND = 'devspace.sendReviewFindings';

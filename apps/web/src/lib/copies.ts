@@ -99,8 +99,8 @@ export function useLaunchPreview(projectId: string, owner: CopyOwner = null) {
 }
 
 /**
- * The preview URL if it's safe to open: an absolute http(s) URL on the IDE's site (the origin
- * the IDE itself was launched from), never the app's own origin. Null otherwise.
+ * The preview URL if it's safe to open: an absolute http(s) URL on this copy's IDE address (the
+ * origin the copy's IDE itself was launched from), never the app's own origin. Null otherwise.
  */
 export function safePreviewUrl(url: string, ideOrigin: string | null): string | null {
   if (ideOrigin === null) return null;
@@ -112,6 +112,25 @@ export function safePreviewUrl(url: string, ideOrigin: string | null): string | 
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
   if (parsed.origin !== ideOrigin || parsed.origin === window.location.origin) return null;
+  return parsed.href;
+}
+
+/**
+ * The IDE launch URL if it's safe to frame: an absolute http(s) URL on this copy's own IDE
+ * address, `http(s)://<copyId>.<IDE base host>[:port]` (each copy has its own), never the app's
+ * own origin. Null otherwise.
+ */
+export function safeLaunchUrl(url: string, copyId: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+  if (parsed.origin === window.location.origin) return null;
+  const [firstLabel, ...rest] = parsed.hostname.split('.');
+  if (rest.length === 0 || firstLabel !== copyId.toLowerCase()) return null;
   return parsed.href;
 }
 

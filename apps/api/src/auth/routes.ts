@@ -22,6 +22,7 @@ import {
   type AuthUser,
 } from './session.ts';
 import { disconnectSession } from '../realtime/emitter.ts';
+import { limits } from '../lib/rate-limit.ts';
 
 export const authRouter = Router();
 
@@ -48,7 +49,7 @@ function sendAuth(res: Response, status: number, user: AuthUser, token: string):
   res.status(status).json(toAuthResponse(user));
 }
 
-authRouter.post('/signup', async (req, res) => {
+authRouter.post('/signup', limits.signup, async (req, res) => {
   const { name, email, password } = parseBody(SignUpRequestSchema, req.body);
 
   if (await prisma.user.findUnique({ where: { email }, select: { id: true } })) {
@@ -74,7 +75,7 @@ authRouter.post('/signup', async (req, res) => {
   sendAuth(res, 201, user, token);
 });
 
-authRouter.post('/login', async (req, res) => {
+authRouter.post('/login', limits.login, async (req, res) => {
   const { email, password } = parseBody(LogInRequestSchema, req.body);
 
   const found = await prisma.user.findUnique({

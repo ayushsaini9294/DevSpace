@@ -4,11 +4,26 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./housekeeping": "./src/housekeeping/index.ts",
-    "./prisma": "./src/lib/prisma.ts",
-    "./copy-updates": "./src/jobs/worker-exports.ts",
-    "./ai-reviews": "./src/jobs/ai-worker-exports.ts",
-    "./github-sync": "./src/jobs/github-worker-exports.ts"
+    "./housekeeping": {
+      "production": "./dist/housekeeping/index.js",
+      "default": "./src/housekeeping/index.ts"
+    },
+    "./prisma": {
+      "production": "./dist/lib/prisma.js",
+      "default": "./src/lib/prisma.ts"
+    },
+    "./copy-updates": {
+      "production": "./dist/jobs/worker-exports.js",
+      "default": "./src/jobs/worker-exports.ts"
+    },
+    "./ai-reviews": {
+      "production": "./dist/jobs/ai-worker-exports.js",
+      "default": "./src/jobs/ai-worker-exports.ts"
+    },
+    "./github-sync": {
+      "production": "./dist/jobs/github-worker-exports.js",
+      "default": "./src/jobs/github-worker-exports.ts"
+    }
   },
   "scripts": {
     "predev": "npm run db:generate",
@@ -37,6 +52,7 @@
     "ignore": "^7.0.10",
     "ioredis": "^6.0.0",
     "pg": "^8.23.0",
+    "prisma": "^7.10.0",
     "socket.io": "^4.8.4",
     "zod": "^4.6.5"
   },
@@ -47,7 +63,6 @@
     "@types/node": "^26.6.3",
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.2.1",
-    "prisma": "^7.10.0",
     "socket.io-client": "^4.8.4",
     "supertest": "^7.3.0",
     "tsx": "^4.23.15",

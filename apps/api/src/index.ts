@@ -53,14 +53,18 @@ await new Promise<void>((resolve, reject) => {
     resolve();
   });
 });
-console.log(`IDE site listening on ${env.IDE_HOST}:${env.IDE_PORT} (public: ${env.IDE_ORIGIN})`);
+console.log(
+  `IDE site listening on ${env.IDE_HOST}:${env.IDE_PORT} (public: <copyId>.${new URL(env.IDE_BASE_URL).host})`,
+);
 
 // The app's API and its live connection (Socket.io at /socket.io) share the main port.
 const server = createServer(app);
 const realtime = await attachRealtime(server);
-server.listen(env.PORT, () => {
-  console.log(`API listening on http://localhost:${env.PORT} (${env.NODE_ENV})`);
-});
+const onListening = () => {
+  console.log(`API listening on ${env.API_HOST ?? '*'}:${env.PORT} (${env.NODE_ENV})`);
+};
+if (env.API_HOST) server.listen(env.PORT, env.API_HOST, onListening);
+else server.listen(env.PORT, onListening);
 
 // The AI gateway for IDE assistants (Phase 12), only on the IDE network's host address. If that
 // address doesn't exist yet it logs why and keeps retrying; nothing else waits for it.

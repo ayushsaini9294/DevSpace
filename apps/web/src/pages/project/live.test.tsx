@@ -80,7 +80,7 @@ describe('the live connection', () => {
       ...projectRoutes(),
       'GET /api/projects': { status: 200, body: { projects: [] } },
       'GET /api/teams': { status: 200, body: { teams: [] } },
-      'GET /api/health': { status: 200, body: { status: 'ok', database: 'ok' } },
+      'GET /api/health': { status: 200, body: { ok: true, db: true, redis: true } },
     });
     await router.navigate('/');
     await waitFor(() =>
@@ -91,7 +91,7 @@ describe('the live connection', () => {
   it('opens no socket when logged out', async () => {
     stubApi({
       'GET /api/auth/me': { status: 401, body: { error: 'unauthenticated', message: 'No' } },
-      'GET /api/health': { status: 200, body: { status: 'ok', database: 'ok' } },
+      'GET /api/health': { status: 200, body: { ok: true, db: true, redis: true } },
     });
     renderApp('/login');
     await screen.findByRole('heading', { name: 'Log in' });

@@ -1,0 +1,90 @@
+# DevSpace's web server (Caddy). deploy/compose.prod.yml sets every {$VARIABLE} below from
+# deploy/.env; deploy/compose.local.yml sets them for the local proof (http://app.localhost and
+# http://*.ide.localhost, no certificates).
+#
+#   APP_SITE / IDE_SITE / IDE_BARE_SITE   the site addresses (https://… in production)
+#   IDE_BARE_HOST                         the IDE domain itself, which only answers 404
+#   IDE_TLS                               cloudflare (wildcard certificate by DNS) or none
+#   CSP_CONNECT / CSP_FRAME               the app's WebSocket origin and the IDEs' address pattern
+#   API_PORT / IDE_PORT                   the API's two listeners on 127.0.0.1
+{
+	# No admin API: config changes happen by restarting the container.
+	admin off
+	email {$ACME_EMAIL}
+}
+
+# The IDEs' wildcard certificate comes from Let's Encrypt through Cloudflare's DNS (a DNS challenge
+# is the only way to get a wildcard). The token needs Zone - DNS - Edit and Zone - Zone - Read on
+# the IDE domain.
+(tls_cloudflare) {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+		resolvers 1.1.1.1 1.0.0.1
+	}
+}
+
+# Local proof: plain http, nothing to do.
+(tls_none) {
+}
+
+(common_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+# ---- The app: the API and live updates go to the API, everything else is the web build ----
+{$APP_SITE} {
+	import common_headers
+	encode zstd gzip
+
+	@api path /api/* /socket.io/*
+	handle @api {
+		# WebSockets (Socket.io) included. The API sees the real client address through
+		# X-Forwarded-For (TRUST_PROXY=loopback).
+		reverse_proxy 127.0.0.1:{$API_PORT}
+	}
+
+	handle {
+		root * /srv/web
+		header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' {$CSP_CONNECT}; frame-src {$CSP_FRAME}; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+
+		@missingAsset {
+			path /assets/*
+			not file
+		}
+
+		# In this order (route keeps it as written).
+		route {
+			# A hashed build file that doesn't exist is a 404, not the app's page.
+			respond @missingAsset "Not found" 404
+			# Any other path is a page of the app (single-page app): serve index.html.
+			try_files {path} /index.html
+			# Hashed build files never change; index.html must always be fetched fresh.
+			header /assets/* Cache-Control "public, max-age=31536000, immutable"
+			header /index.html Cache-Control "no-cache"
+			file_server
+		}
+	}
+}
+
+# ---- The IDEs: every copy has its own address, <copyId>.<IDE domain> ----
+{$IDE_SITE}, {$IDE_BARE_SITE} {
+	import tls_{$IDE_TLS}
+	import common_headers
+
+	# The IDE domain itself serves nothing.
+	@bare host {$IDE_BARE_HOST}
+	handle @bare {
+		respond "Not found" 404
+	}
+
+	handle {
+		# Host is passed unchanged: the API reads the copy id from it and checks it on every
+		# request. The API sets the IDE's own security headers (frame-ancestors, CORP, nosniff).
+		reverse_proxy 127.0.0.1:{$IDE_PORT}
+	}
+}

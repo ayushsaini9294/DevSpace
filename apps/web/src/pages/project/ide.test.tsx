@@ -7,6 +7,7 @@ import {
   renderApp,
   stubApi,
   testCopy,
+  TEST_IDE_ORIGIN,
   testProject,
   testRepository,
   type StubReply,
@@ -22,7 +23,7 @@ const P = '/api/projects/project-1';
 const LAUNCH = `POST ${P}/copy/ide/launch`;
 const readyRepository = testRepository({ status: 'ready', source: 'empty' });
 const running = testCopy({ containerStatus: 'running' });
-const launchUrl = (ticket: string) => `http://127.0.0.1:3100/ide-launch?ticket=${ticket}`;
+const launchUrl = (ticket: string) => `${TEST_IDE_ORIGIN}/ide-launch?ticket=${ticket}`;
 
 /** A launch endpoint that hands out a new ticket each call, like the real single-use one. */
 function freshTickets(): () => StubReply {
@@ -303,6 +304,45 @@ describe('IDE page', () => {
       expect(screen.queryByTitle(/VS Code/)).not.toBeInTheDocument();
     },
   );
+
+  it.each([
+    [
+      'another copy’s address',
+      'http://0b9d2c1e-1111-4222-8333-944445555666.ide.localhost:3100/ide-launch?ticket=x',
+    ],
+    ['the bare IDE base host', 'http://ide.localhost:3100/ide-launch?ticket=x'],
+    ['the old shared address', 'http://127.0.0.1:3100/ide-launch?ticket=x'],
+    ['the app’s own origin', `${window.location.origin}/ide-launch?ticket=x`],
+  ])('never frames a launch URL on %s', async (_what, url) => {
+    stubApi(
+      ideRoutes({
+        [`POST ${P}/copy/ide`]: { status: 200, body: { copy: running } },
+        [LAUNCH]: { status: 200, body: { url } },
+      }),
+    );
+    renderApp('/projects/project-1/ide');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'the server sent an address that isn’t this copy’s IDE address',
+    );
+    expect(screen.queryByTitle(/VS Code/)).not.toBeInTheDocument();
+    // No Preview from an address the IDE didn't open on.
+    expect(screen.queryByRole('button', { name: 'Preview' })).toBeDisabled();
+  });
+
+  it('frames this copy’s own address on any IDE base host, http or https', async () => {
+    const url = `https://${running.id.toUpperCase()}.devspace-ide.example/ide-launch?ticket=x`;
+    stubApi(
+      ideRoutes({
+        [`POST ${P}/copy/ide`]: { status: 200, body: { copy: running } },
+        [LAUNCH]: { status: 200, body: { url } },
+      }),
+    );
+    renderApp('/projects/project-1/ide');
+    expect(await screen.findByTitle('VS Code for Website')).toHaveAttribute(
+      'src',
+      `https://${running.id}.devspace-ide.example/ide-launch?ticket=x`,
+    );
+  });
 
   it('explains that the repository is not ready (409)', async () => {
     stubApi(

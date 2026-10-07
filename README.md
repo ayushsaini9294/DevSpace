@@ -71,14 +71,14 @@ You need Linux (on Windows, WSL 2 Ubuntu), Node.js 24 and Docker Engine. From Ph
 
 ### Ports
 
-| Address                 | What                                                                             |
-| ----------------------- | -------------------------------------------------------------------------------- |
-| `http://localhost:5173` | The web app (`APP_ORIGIN`); Vite forwards `/api` to the API                      |
-| `http://localhost:3000` | The API (`PORT`)                                                                 |
-| `http://127.0.0.1:3100` | The IDE listener (`IDE_PORT`, `IDE_HOST`, `IDE_ORIGIN`), bound to 127.0.0.1 only |
-| `http://127.0.0.1:4010` | e2e tests only: the stand-in OpenRouter (`OPENROUTER_STUB_PORT`), a test double  |
+| Address                              | What                                                                                                               |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `http://localhost:5173`              | The web app (`APP_ORIGIN`); Vite forwards `/api` to the API                                                        |
+| `http://localhost:3000`              | The API (`PORT`)                                                                                                   |
+| `http://<copyId>.ide.localhost:3100` | The IDE listener (`IDE_PORT`, `IDE_HOST`, `IDE_BASE_URL`), bound to 127.0.0.1 only; every copy has its own address |
+| `http://127.0.0.1:4010`              | e2e tests only: the stand-in OpenRouter (`OPENROUTER_STUB_PORT`), a test double                                    |
 
-The IDE is served from `127.0.0.1` on purpose. The browser treats it as a different site from `localhost`, so code running in a member's IDE can never act as the app. Open the app at `localhost` and never at `127.0.0.1`. The IDE listener binds IPv4 `127.0.0.1` because WSL forwards Windows' `127.0.0.1` only to IPv4 listeners. Run `npm run ports:check` to see whether something else already holds 3000, 3100, 5173 or 4010.
+Each copy's IDE is served from its own address, `http://<copyId>.ide.localhost:3100`, on purpose. The browser treats `ide.localhost` as a different site from `localhost`, so code running in a member's IDE can never act as the app, and one copy's IDE can't use another's. Browsers send every `*.localhost` name to this computer by themselves, so nothing needs to go in a hosts file. Open the app at `http://localhost:5173`. The IDE listener binds IPv4 `127.0.0.1` because WSL forwards Windows' `127.0.0.1` only to IPv4 listeners. Run `npm run ports:check` to see whether something else already holds 3000, 3100, 5173 or 4010.
 
 ## Commands
 
@@ -96,3 +96,13 @@ The IDE is served from `127.0.0.1` on purpose. The browser treats it as a differ
 | `npm run templates:smoke` | Runs every starter template inside the IDE image (needs the image and network) |
 
 The e2e tests never call OpenRouter. Playwright starts a stand-in OpenRouter (`e2e/stubs/openrouter.ts`, a test double that hands out fake keys and canned findings), points the API and the worker at it with `OPENROUTER_BASE_URL`, and gives them a throwaway `AI_SECRETS_KEY`. Outside CI Playwright reuses a dev server that is already running, which keeps its own settings, so stop `npm run dev` first (or run `CI=1 npx playwright test`).
+
+## Going live
+
+[docs/deploy.md](docs/deploy.md) walks through putting DevSpace on your own server, step by step. The production files are in `deploy/`:
+
+| Command                                                      | What it does                                                                                                                         |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `bash deploy/smoke.sh`                                       | Builds the production images, runs the whole stack locally on `http://app.localhost:8088` and checks it (`--keep` leaves it running) |
+| `npx playwright test -c deploy/journey/playwright.config.ts` | The full journey (sign up to merge) against a running production stack                                                               |
+| `bash deploy/test-backup.sh`                                 | Proves backups and restore work, on a throwaway database                                                                             |

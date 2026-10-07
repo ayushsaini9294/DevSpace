@@ -92,7 +92,7 @@ export const CopyResponseSchema = z.object({ copy: CopyViewSchema.nullable() });
  * POST /api/projects/:projectId/copy/ide/launch (no body) — the copy's owner, while its IDE is
  * `running` (else 409 `ide_not_running`; 404 `not_found` for non-members, and when the caller
  * has no copy). `url` is an absolute link on the IDE's own site,
- * `<IDE_ORIGIN>/ide-launch?ticket=<ticket>`, for the iframe. The ticket works once, within 60 s,
+ * `<copy IDE origin>/ide-launch?ticket=<ticket>`, for the iframe. The ticket works once, within 60 s,
  * so ask for a fresh URL on every load or retry.
  */
 export const IdeLaunchResponseSchema = z.object({ url: z.url({ protocol: /^https?$/ }) });
@@ -122,9 +122,9 @@ export const PreviewPortSchema = z
 /**
  * POST /api/projects/:projectId/copy/preview/launch — the copy's owner, while its IDE is
  * `running` (else 409 `ide_not_running`; 404 `not_found` with no copy or for non-members).
- * → IdeLaunchResponse whose `url` is `<IDE_ORIGIN>/ide-launch?ticket=…&next=__preview/<port>/`.
+ * → IdeLaunchResponse whose `url` is `<copy IDE origin>/ide-launch?ticket=…&next=__preview/<port>/`.
  * Open it in a new tab (the ticket works once, within 60 s). It lands on
- * `<IDE_ORIGIN>/ide/<copyId>/__preview/<port>/`, which shows the app running on that port in
+ * `<copy IDE origin>/ide/<copyId>/__preview/<port>/`, which shows the app running on that port in
  * the container, or a plain "Nothing is running on port N yet" page. Also records that you
  * previewed (getting-started step `preview`).
  *

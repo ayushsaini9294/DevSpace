@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { Router } from 'express';
+import { limits } from '../lib/rate-limit.ts';
 import {
   AcceptInvitationResponseSchema,
   CreateInvitationRequestSchema,
@@ -63,7 +64,7 @@ const invitationSelect = {
 
 export const projectInvitationsRouter = Router({ mergeParams: true });
 
-projectInvitationsRouter.post('/', async (req, res) => {
+projectInvitationsRouter.post('/', limits.invite, async (req, res) => {
   const access = await requireProjectAction(req, 'members.invite');
   const { email } = parseBody(CreateInvitationRequestSchema, req.body);
   const projectId = access.project.id;

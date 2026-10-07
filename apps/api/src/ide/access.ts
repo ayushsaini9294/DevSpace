@@ -1,11 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { env } from '../config/env.ts';
 import { Prisma } from '../generated/prisma/client.ts';
 import { prisma } from '../lib/prisma.ts';
+import { ideOriginFor } from './origin.ts';
 
 /**
  * Getting into the IDE site, which never sees the app's session cookie:
- * 1. The app asks POST …/copy/ide/launch → a one-time ticket in a URL on IDE_ORIGIN.
+ * 1. The app asks POST …/copy/ide/launch → a one-time ticket in a URL on the copy's own IDE
+ *    origin (`<scheme>://<copyId>.<base host>[:port]`, Phase 14).
  * 2. GET /ide-launch?ticket= on the IDE listener uses the ticket up and sets `devspace_ide`,
  *    an opaque id valid for one user in one copy (12 h), scoped to `/ide/<copyId>/`.
  * Tickets and cookie ids are random 32-byte values, stored only as SHA-256 hashes.
@@ -79,7 +80,7 @@ export async function createLaunchUrl(
       expiresAt: new Date(now.getTime() + TICKET_TTL_MS),
     },
   });
-  const url = new URL('/ide-launch', env.IDE_ORIGIN);
+  const url = new URL('/ide-launch', ideOriginFor(copyId));
   url.searchParams.set('ticket', ticket);
   // Slashes are fine in a query; written as-is so the link reads like the contract says.
   const next = previewPort === undefined ? '' : `&next=__preview/${previewPort}/`;
@@ -89,15 +90,18 @@ export async function createLaunchUrl(
 /**
  * Uses a ticket up (deleting it, so it works exactly once) and, if it was still valid and its
  * user still owns the copy, starts an IDE session. Returns the cookie value and copy id.
+ * `hostCopyId` is the copy the request's Host names (Phase 14): a ticket for another copy is
+ * left alone (not used up) and gets null.
  */
 export async function redeemTicket(
   ticket: string,
+  hostCopyId: string,
 ): Promise<{ cookieValue: string; copyId: string } | null> {
   if (ticket.length < 20 || ticket.length > 200) return null;
   let row: { userId: string; copyId: string; expiresAt: Date };
   try {
     row = await prisma.ideTicket.delete({
-      where: { id: hash(ticket) },
+      where: { id: hash(ticket), copyId: hostCopyId },
       select: { userId: true, copyId: true, expiresAt: true },
     });
   } catch (err) {

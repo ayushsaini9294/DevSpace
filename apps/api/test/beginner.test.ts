@@ -29,6 +29,8 @@ import {
 } from '../src/git/repo.ts';
 import { createIdeServer, parsePreviewPath, previewNext } from '../src/ide/proxy.ts';
 import { setIdeTargetForTests } from '../src/ide/service.ts';
+import { copyIdFromHost, ideOriginFor } from '../src/ide/origin.ts';
+import { ideHostOf, ideRequest } from './ide-host.ts';
 import { prisma } from '../src/lib/prisma.ts';
 import { templateDir, writeFolderTree } from '../src/repository/templates.ts';
 import {
@@ -71,6 +73,9 @@ beforeAll(async () => {
       'set-cookie': ['stolen=1; Path=/', 'devspace_ide=evil; Path=/'],
       'x-frame-options': 'DENY',
       'clear-site-data': '"cookies"',
+      // Phase 14: a member's app can't loosen these.
+      'cross-origin-resource-policy': 'cross-origin',
+      'x-content-type-options': 'none',
       'x-app': 'yes',
     });
     res.end(body);
@@ -108,7 +113,7 @@ afterAll(async () => {
   await cleanUp();
 });
 
-const ide = () => request(ideServer);
+const ide = (copyId?: string) => ideRequest(ideServer, copyId);
 const api = (projectId: string, path: string) => `/api/projects/${projectId}${path}`;
 
 async function newProject(template: TemplateId | null = 'empty', name = 'Beginner Project') {
@@ -169,14 +174,16 @@ async function previewLaunch(user: TestUser, path: string, port: number): Promis
   const res = await as(user).post(path, { port });
   expect(res.status, JSON.stringify(res.body)).toBe(200);
   const url = new URL(IdeLaunchResponseSchema.parse(res.body).url);
-  expect(url.origin).toBe(env.IDE_ORIGIN);
+  const copyId = copyIdFromHost(url.host);
+  expect(copyId, url.href).not.toBeNull();
+  expect(url.origin).toBe(ideOriginFor(copyId!));
   expect(url.pathname).toBe('/ide-launch');
   return url;
 }
 
 /** Follows a launch URL on the IDE site; returns the redirect and the `devspace_ide` pair. */
 async function redeem(url: URL) {
-  const res = await ide().get(`${url.pathname}${url.search}`);
+  const res = await ide().get(url.href);
   expect(res.status, res.text).toBe(303);
   const cookie = setCookies(res).find((c) => c.startsWith('devspace_ide='));
   expect(cookie).toBeDefined();
@@ -190,7 +197,7 @@ async function upgradeStatus(path: string, headers: Record<string, string>): Pro
     const socket = net.connect(port, '127.0.0.1', () => {
       const lines = [
         `GET ${path} HTTP/1.1`,
-        `Host: 127.0.0.1:${port}`,
+        `Host: ${ideHostOf(path)}`,
         'Connection: Upgrade',
         'Upgrade: websocket',
         'Sec-WebSocket-Version: 13',
@@ -400,15 +407,19 @@ describe('/ide-launch with next', () => {
       '../../x',
       '',
     ]) {
-      const bad = await ide().get(`/ide-launch?ticket=${t}&next=${encodeURIComponent(next)}`);
+      const bad = await ide(copy.id).get(
+        `/ide-launch?ticket=${t}&next=${encodeURIComponent(next)}`,
+      );
       expect(bad.status, next).toBe(404);
       expect(setCookies(bad)).toEqual([]);
     }
-    const good = await ide().get(`/ide-launch?ticket=${t}&next=__preview/5173/`);
+    const good = await ide(copy.id).get(`/ide-launch?ticket=${t}&next=__preview/5173/`);
     expect(good.status).toBe(303);
     expect(good.headers.location).toBe(`/ide/${copy.id}/__preview/5173/`);
     // Used once.
-    expect((await ide().get(`/ide-launch?ticket=${t}&next=__preview/5173/`)).status).toBe(404);
+    expect((await ide(copy.id).get(`/ide-launch?ticket=${t}&next=__preview/5173/`)).status).toBe(
+      404,
+    );
   });
 });
 
@@ -427,6 +438,8 @@ describe('the preview proxy', () => {
       .set('Authorization', 'Bearer nope');
     expect(res.status).toBe(200);
     expect(res.headers['x-app']).toBe('yes');
+    expect(res.headers['cross-origin-resource-policy']).toBe('same-origin');
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
     expect(JSON.parse(res.text)).toEqual({ url: path, cookie: null });
     expect(setCookies(res)).toEqual([]);
     expect(res.headers['x-frame-options']).toBeUndefined();
@@ -493,7 +506,7 @@ describe('the preview proxy', () => {
     );
     const ws = `/ide/${copy.id}/__preview/${appPort}/ws?token=abc`;
     const before = seenUpgrades.length;
-    expect(await upgradeStatus(ws, { Cookie: cookie, Origin: env.IDE_ORIGIN })).toMatch(
+    expect(await upgradeStatus(ws, { Cookie: cookie, Origin: ideOriginFor(copy.id) })).toMatch(
       /^HTTP\/1\.1 101/,
     );
     expect(seenUpgrades.length).toBe(before + 1);
@@ -502,17 +515,17 @@ describe('the preview proxy', () => {
 
     expect(await upgradeStatus(ws, { Cookie: cookie, Origin: env.APP_ORIGIN })).toMatch(/ 403/);
     expect(await upgradeStatus(ws, { Cookie: cookie })).toMatch(/ 403/);
-    expect(await upgradeStatus(ws, { Origin: env.IDE_ORIGIN })).toMatch(/ 404/);
+    expect(await upgradeStatus(ws, { Origin: ideOriginFor(copy.id) })).toMatch(/ 404/);
     expect(
       await upgradeStatus(`/ide/${copy.id}/__preview/3000/`, {
         Cookie: cookie,
-        Origin: env.IDE_ORIGIN,
+        Origin: ideOriginFor(copy.id),
       }),
     ).toMatch(/ 404/);
     expect(
       await upgradeStatus(`/ide/${copy.id}/__preview/${closedPort}/`, {
         Cookie: cookie,
-        Origin: env.IDE_ORIGIN,
+        Origin: ideOriginFor(copy.id),
       }),
     ).toMatch(/ 502/);
   });

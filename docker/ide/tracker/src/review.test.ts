@@ -7,8 +7,9 @@ import {
   sendFindings,
 } from './review';
 
-const origin = 'http://127.0.0.1:3100';
 const copyId = '0b6f3c1e-8a2d-4f55-9d7e-1c2b3a4d5e6f';
+// Every copy's IDE has its own origin (Phase 14).
+const origin = `http://${copyId}.ide.localhost:3100`;
 const root = `${origin}/ide/${copyId}/stable-abc/static/out/`;
 const endpoint = `${origin}/ide/${copyId}/__devspace/review-findings`;
 

@@ -10,12 +10,13 @@ import {
   RepositoryResponseSchema,
   type CopyView,
 } from '@devspace/shared';
-import request from 'supertest';
 import { env } from '../src/config/env.ts';
 import { copyDir } from '../src/copies/service.ts';
 import { checkCopySizes, IDLE_LIMIT_MS, stopIdleIdes } from '../src/housekeeping/index.ts';
 import { containerName, docker } from '../src/ide/docker.ts';
 import { createIdeServer } from '../src/ide/proxy.ts';
+import { ideHostFor, ideOriginFor } from '../src/ide/origin.ts';
+import { ideRequest } from './ide-host.ts';
 import { forgetIdeActivityWrite, waitForIdeStarts } from '../src/ide/service.ts';
 import { prisma } from '../src/lib/prisma.ts';
 import { as, cleanUp, createProject, createTeam, signUp, type TestUser } from './helpers.ts';
@@ -264,10 +265,9 @@ describe.skipIf(!available.ide)('idle IDEs with real containers', () => {
     async () => {
       const { leader, project, copy } = await runningIde();
       const launch = await as(leader).post(`/api/projects/${project.id}/copy/ide/launch`);
-      const ticket = new URL(IdeLaunchResponseSchema.parse(launch.body).url).searchParams.get(
-        'ticket',
-      )!;
-      const redeemed = await request(ideServer).get(`/ide-launch?ticket=${ticket}`);
+      const redeemed = await ideRequest(ideServer).get(
+        IdeLaunchResponseSchema.parse(launch.body).url,
+      );
       expect(redeemed.status).toBe(303);
       const raw = redeemed.headers['set-cookie'] as unknown as string[];
       const cookie = raw
@@ -283,12 +283,12 @@ describe.skipIf(!available.ide)('idle IDEs with real containers', () => {
       socket.write(
         [
           `GET ${path} HTTP/1.1`,
-          `Host: 127.0.0.1:${port}`,
+          `Host: ${ideHostFor(copy.id)}`,
           'Connection: Upgrade',
           'Upgrade: websocket',
           'Sec-WebSocket-Version: 13',
           'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==',
-          `Origin: ${env.IDE_ORIGIN}`,
+          `Origin: ${ideOriginFor(copy.id)}`,
           `Cookie: ${cookie}`,
           '',
           '',

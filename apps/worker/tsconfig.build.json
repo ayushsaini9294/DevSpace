@@ -1,0 +1,14 @@
+{
+  // The production build (`npm run build`): src → dist. It resolves @devspace/api through its
+  // `production` export condition (the API's built dist/ with .d.ts), so build the API first.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "types": ["node"],
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "customConditions": ["production"]
+  },
+  "include": ["src"]
+}

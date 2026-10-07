@@ -23,7 +23,7 @@ describe('routes', () => {
 
   it('shows API: error when the health check answers 503', async () => {
     stubApi({
-      'GET /api/health': { status: 503, body: { status: 'error', database: 'error' } },
+      'GET /api/health': { status: 503, body: { ok: false, db: false, redis: true } },
       'GET /api/auth/me': loggedOut,
     });
     renderApp('/');

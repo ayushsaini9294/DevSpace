@@ -1,0 +1,37 @@
+# Local proof of the production stack (LOCAL mode): the same images and services as
+# compose.prod.yml, but on http://app.localhost and http://<copyId>.ide.localhost, with no
+# certificates, so the whole of DevSpace runs in WSL or on a Linux PC exactly as it would on a server.
+#
+#   docker compose -f compose.prod.yml -f compose.local.yml --env-file <file> up -d --build
+#
+# deploy/smoke.sh does this for you with throwaway settings (`bash deploy/smoke.sh --keep` leaves it
+# running so you can try it in the browser). Browsers treat *.localhost as secure, so the
+# production cookies (Secure) still work over plain http there.
+#
+# LOCAL_PORT_SUFFIX: empty for port 80 (http://app.localhost), or e.g. ":8088".
+# ALLOW_HTTP_LOCALHOST=1 lets the API accept http:// addresses, and only for *.localhost hosts.
+
+# Its own project (containers, database and volumes), apart from production and development.
+name: devspace-local
+
+x-local-env: &local-env
+  APP_ORIGIN: http://app.localhost${LOCAL_PORT_SUFFIX:-}
+  IDE_BASE_URL: http://ide.localhost${LOCAL_PORT_SUFFIX:-}
+  ALLOW_HTTP_LOCALHOST: '1'
+
+services:
+  migrate:
+    environment: *local-env
+  api:
+    environment: *local-env
+  worker:
+    environment: *local-env
+  caddy:
+    environment:
+      APP_SITE: http://app.localhost${LOCAL_PORT_SUFFIX:-}
+      IDE_SITE: http://*.ide.localhost${LOCAL_PORT_SUFFIX:-}
+      IDE_BARE_SITE: http://ide.localhost${LOCAL_PORT_SUFFIX:-}
+      IDE_BARE_HOST: ide.localhost
+      IDE_TLS: none
+      CSP_CONNECT: ws://app.localhost${LOCAL_PORT_SUFFIX:-}
+      CSP_FRAME: http://*.ide.localhost${LOCAL_PORT_SUFFIX:-}

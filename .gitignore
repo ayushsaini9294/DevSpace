@@ -9,3 +9,6 @@ test-results/
 blob-report/
 *.tsbuildinfo
 .data/
+
+# Production settings and secrets (deploy/.env.example is the template)
+deploy/.env

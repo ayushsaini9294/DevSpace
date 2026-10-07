@@ -15,7 +15,6 @@ import {
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   ActivityListResponseSchema,
@@ -28,6 +27,7 @@ import { CopyChangedError, removeEntry, writeEntry } from '../src/copies/safe-fs
 import { applyPlan, planUpdate, updateProjectCopies } from '../src/copies/update.ts';
 import { runHousekeeping } from '../src/housekeeping/index.ts';
 import { createIdeServer } from '../src/ide/proxy.ts';
+import { ideRequest } from './ide-host.ts';
 import { prisma } from '../src/lib/prisma.ts';
 import { addMember, as, cleanUp, expectError, signUp } from './helpers.ts';
 import {
@@ -393,7 +393,7 @@ describe('security: updates never write through links and never touch .git', () 
 describe('a lead opens a member’s copy', () => {
   const memberUrl = (w: World, userId: string, rest = '') =>
     url(w, `/members/${userId}/copy${rest}`);
-  const ide = () => request(ideServer);
+  const ide = () => ideRequest(ideServer);
 
   async function markRunning(copyId: string) {
     await prisma.copy.update({ where: { id: copyId }, data: { containerStatus: 'running' } });
@@ -401,7 +401,7 @@ describe('a lead opens a member’s copy', () => {
 
   async function redeem(launchUrl: string): Promise<string> {
     const parsed = new URL(launchUrl);
-    const res = await ide().get(`${parsed.pathname}${parsed.search}`);
+    const res = await ide().get(parsed.href);
     expect(res.status, res.text).toBe(303);
     const raw = res.headers['set-cookie'] as unknown as string[];
     return raw.find((c) => c.startsWith('devspace_ide='))!.split(';')[0]!;

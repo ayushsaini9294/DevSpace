@@ -5,6 +5,7 @@ import type { InvitationPreviewResponse } from '@devspace/shared';
 import {
   loggedIn,
   loggedOut,
+  rateLimited,
   renderApp,
   stubApi,
   testProject,
@@ -47,6 +48,20 @@ describe('invite page', () => {
 
     expect(await screen.findByText('Your role: Member')).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/projects/project-1');
+  });
+
+  it('shows the API’s message when there were too many tries (429)', async () => {
+    const user = userEvent.setup();
+    stubApi({
+      'GET /api/auth/me': loggedIn,
+      [PREVIEW]: { status: 200, body: preview(true) },
+      [ACCEPT]: rateLimited,
+    });
+    renderApp('/invite/tok123');
+    await user.click(await screen.findByRole('button', { name: 'Join project' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Too many tries. Please wait a minute and try again.',
+    );
   });
 
   it('explains a mismatched account and offers only Log out, which returns here after login', async () => {

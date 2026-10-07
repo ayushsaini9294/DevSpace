@@ -13,7 +13,8 @@ import { startGithubSync } from './github-sync.ts';
 
 const env = z
   .object({ REDIS_URL: z.string().trim().min(1).default('redis://localhost:6379') })
-  .parse(process.env);
+  // A blank REDIS_URL (e.g. compose's `${REDIS_URL:-}`) means "not set".
+  .parse({ REDIS_URL: process.env.REDIS_URL?.trim() || undefined });
 
 const housekeeping = await startHousekeeping({ redisUrl: env.REDIS_URL });
 const copyUpdates = await startCopyUpdates({ redisUrl: env.REDIS_URL });

@@ -181,7 +181,7 @@ export interface IdeFindingsSender {
 }
 
 /**
- * POST <IDE_ORIGIN>/ide/<copyId>/__devspace/review-findings (after the proxy checked Origin,
+ * POST <copy IDE origin>/ide/<copyId>/__devspace/review-findings (after the proxy checked Origin,
  * Content-Type, size and the IDE session). Returns the status and JSON body to send.
  */
 export async function receiveIdeFindings(

@@ -22,19 +22,22 @@ import {
   vscodeTokenCookieHeader,
 } from './access.ts';
 import { CONTAINER_PORT } from './docker.ts';
+import { copyIdFromHost, forwardedProto, IDE_SCHEME, ideOriginFor } from './origin.ts';
 import { forgetIdeTarget, getIdeTarget, recordIdeActivity } from './service.ts';
 
 /**
- * The IDE site: a separate listener (IDE_PORT, public address IDE_ORIGIN, a different site from
- * the app) so code running in a member's container never runs on the app's origin. It serves
- * only:
- * - GET /ide-launch?ticket=… — uses up a one-time ticket, sets the `devspace_ide` cookie for
- *   that copy, and redirects to /ide/<copyId>/;
+ * The IDE site: a separate listener (IDE_PORT, a different site from the app) so code running
+ * in a member's container never runs on the app's origin. Since Phase 14 every copy has its own
+ * origin, `<scheme>://<copyId>.<base host>[:port]` (ide/origin.ts), and a request is served only
+ * when its Host names the same copy as its path. It serves only:
+ * - GET /ide-launch?ticket=… — uses up a one-time ticket (only on its own copy's host), sets the
+ *   `devspace_ide` cookie for that copy, and redirects to /ide/<copyId>/;
  * - /ide/<copyId>/… (HTTP and WebSockets) — proxied to that copy's container while the cookie's
  *   user still owns the copy and is a member of its project.
- * Everything else, and every refusal, is the same plain 404. The app's session cookie is never
- * read here. The target is always the container we started for the copy, the connection token
- * is added here, and the browser's own cookies and credentials are never forwarded.
+ * Everything else, and every refusal, is the same plain 404 (403 for a request from another
+ * origin). The app's session cookie is never read here. The target is always the container we
+ * started for the copy, the connection token is added here, and the browser's own cookies and
+ * credentials are never forwarded.
  */
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -76,7 +79,16 @@ const DROPPED_RESPONSE_HEADERS = new Set([
   'x-frame-options',
   // A member's app must not wipe the IDE site's cookies or storage either (Phase 11 Preview).
   'clear-site-data',
+  // Ours are always sent instead (Phase 14): a member's app can't loosen them.
+  'cross-origin-resource-policy',
+  'x-content-type-options',
 ]);
+
+/** Sent on every IDE-site response (Phase 14): no other site may load or sniff them. */
+const ISOLATION_HEADERS = {
+  'cross-origin-resource-policy': 'same-origin',
+  'x-content-type-options': 'nosniff',
+} as const;
 
 /**
  * Only the app may frame the IDE, plus the IDE site itself: VS Code runs its web extension host
@@ -145,7 +157,8 @@ export function previewNext(next: string): string | null {
   return match && isPreviewPort(Number(match[1])) ? next : null;
 }
 
-function responseHeaders(headers: IncomingHttpHeaders): OutgoingHttpHeaders {
+/** What the browser gets from a container's response headers (ISOLATION_HEADERS are added too). */
+export function responseHeaders(headers: IncomingHttpHeaders): OutgoingHttpHeaders {
   const listed = connectionListed(headers);
   const out: OutgoingHttpHeaders = {};
   for (const [name, value] of Object.entries(headers)) {
@@ -203,7 +216,12 @@ function plain(res: ServerResponse, status: number, message?: string): void {
   res.end(body);
 }
 
-async function launch(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
+async function launch(
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+  hostCopyId: string,
+): Promise<void> {
   if (req.method !== 'GET') return plain(res, 404);
   // Where to land inside the copy's path: the IDE, or (Phase 11) one preview port. Anything
   // else is refused before the ticket is used up.
@@ -211,7 +229,8 @@ async function launch(req: IncomingMessage, res: ServerResponse, url: URL): Prom
   const next = rawNext === null ? '' : previewNext(rawNext);
   if (next === null) return plain(res, 404);
   const ticket = url.searchParams.get('ticket');
-  const session = ticket ? await redeemTicket(ticket) : null;
+  // Only on the ticket's own copy host: a ticket used on another host isn't used up.
+  const session = ticket ? await redeemTicket(ticket, hostCopyId) : null;
   if (!session) return plain(res, 404);
   const cookies = [ideCookieHeader(session.cookieValue, session.copyId)];
   const target = await getIdeTarget(session.copyId);
@@ -268,8 +287,8 @@ async function readBody(req: IncomingMessage, limit: number): Promise<string | n
  */
 async function presenceReport(req: IncomingMessage, res: ServerResponse, copyId: string) {
   try {
+    // (Origin was checked for every non-GET request in handleRequest.)
     if (req.method !== 'POST') return;
-    if (req.headers.origin !== env.IDE_ORIGIN) return;
     const type = String(req.headers['content-type'] ?? '')
       .split(';', 1)[0]!
       .trim()
@@ -323,16 +342,14 @@ const FINDINGS_INTERVAL_MS = 5_000;
 
 /**
  * POST /ide/<copyId>/__devspace/review-findings — the tracker's "DevSpace: Send review findings"
- * command (Phase 10). Checked like presence reports (Origin = IDE_ORIGIN, JSON, the IDE
+ * command (Phase 10). Checked like presence reports (the copy's own origin, JSON, the IDE
  * session), and the IDE session's user must own the copy. Answers JSON: 201
  * IdeFindingsResponse, or { error, message }.
  */
 async function reviewFindings(req: IncomingMessage, res: ServerResponse, copyId: string) {
   try {
+    // (Origin was checked for every non-GET request in handleRequest.)
     if (req.method !== 'POST') return json(res, 404, errorBody('not_found', 'Not found'));
-    if (req.headers.origin !== env.IDE_ORIGIN) {
-      return json(res, 403, errorBody('forbidden', 'Requests must come from the IDE'));
-    }
     const type = String(req.headers['content-type'] ?? '')
       .split(';', 1)[0]!
       .trim()
@@ -390,15 +407,41 @@ async function devspacePath(req: IncomingMessage, res: ServerResponse, url: URL,
   plain(res, 404);
 }
 
+/**
+ * The copy a request is for, from its Host, or null (Phase 14): a copy id on exactly the base
+ * host, reached with IDE_BASE_URL's scheme when a trusted proxy says which scheme was used.
+ */
+function hostCopy(req: IncomingMessage): string | null {
+  const proto = forwardedProto(req);
+  if (proto !== null && proto !== IDE_SCHEME) return null;
+  return copyIdFromHost(req.headers.host);
+}
+
+/**
+ * The Origin rule for every request that can change something (Phase 14): anything but
+ * GET/HEAD must come from that copy's own origin, or, when the browser sent no Origin, say
+ * `Sec-Fetch-Site: same-origin`. Pages in other copies (or anywhere else) are refused.
+ */
+export function sameOriginWrite(headers: IncomingHttpHeaders, copyId: string): boolean {
+  const origin = headers.origin;
+  if (origin !== undefined) return origin === ideOriginFor(copyId);
+  return headers['sec-fetch-site'] === 'same-origin';
+}
+
 async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const raw = req.url ?? '/';
   // Only origin-form request targets ("/path?query"); nothing absolute, nothing else.
   if (!raw.startsWith('/')) return plain(res, 404);
-  const url = new URL(raw, env.IDE_ORIGIN);
-  if (url.pathname === '/ide-launch') return launch(req, res, url);
+  const copyId = hostCopy(req);
+  if (!copyId) return plain(res, 404);
+  const url = new URL(raw, ideOriginFor(copyId));
+  if (req.method !== 'GET' && req.method !== 'HEAD' && !sameOriginWrite(req.headers, copyId)) {
+    return plain(res, 403, 'Forbidden');
+  }
+  if (url.pathname === '/ide-launch') return launch(req, res, url, copyId);
 
   const parsed = parseIdePath(raw);
-  if (!parsed) return plain(res, 404);
+  if (!parsed || parsed.copyId !== copyId) return plain(res, 404);
   if (parsed.bare) {
     // Same answer for every well-formed id, so it reveals nothing.
     res.writeHead(308, {
@@ -499,15 +542,17 @@ function upgradeRequest(req: IncomingMessage, token: string | null): string {
 }
 
 async function handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): Promise<void> {
+  const copyId = hostCopy(req);
+  if (!copyId) return refuse(socket, 404);
   const parsed = parseIdePath(req.url ?? '');
-  if (!parsed || parsed.bare) return refuse(socket, 404);
+  if (!parsed || parsed.bare || parsed.copyId !== copyId) return refuse(socket, 404);
   const path = (req.url ?? '').split('?', 1)[0]!;
   if (isDevspacePath(path, parsed.copyId)) return refuse(socket, 404);
   const preview = parsePreviewPath(path, parsed.copyId);
   if (preview && (preview.port === null || preview.bare)) return refuse(socket, 404);
-  // Only pages on the IDE site (VS Code, or a Preview of the member's app, e.g. Vite's live
-  // reload) may open these WebSockets.
-  if (req.headers.origin !== env.IDE_ORIGIN) return refuse(socket, 403);
+  // Only pages on this copy's own origin (VS Code, or a Preview of the member's app, e.g.
+  // Vite's live reload) may open these WebSockets; never another copy's pages (Phase 14).
+  if (req.headers.origin !== ideOriginFor(copyId)) return refuse(socket, 403);
   const copy = await cookieCopy(req, parsed.copyId);
   if (!copy) return refuse(socket, 404);
   if (copy.containerStatus !== 'running') return refuse(socket, 503);
@@ -543,6 +588,7 @@ async function handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer)
 /** The IDE site's HTTP server (not listening yet). */
 export function createIdeServer(): Server {
   const server = http.createServer((req, res) => {
+    for (const [name, value] of Object.entries(ISOLATION_HEADERS)) res.setHeader(name, value);
     handleRequest(req, res).catch((err: unknown) => {
       console.error('IDE request failed:', err instanceof Error ? err.message : err);
       if (!res.headersSent) plain(res, 502);

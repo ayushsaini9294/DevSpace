@@ -6,6 +6,8 @@ import {
   acceptDialogs,
   createInviteLink,
   createLeaderWithProject,
+  escapeRegExp,
+  ideOriginFor,
   joinAsNewUser,
   newUserPage,
   projectNav,
@@ -19,8 +21,6 @@ import {
 
 /** Same default as the API (`COPIES_DIR`, else `<repo root>/.data/copies`). */
 const COPIES_DIR = resolve(process.env.COPIES_DIR || '.data/copies');
-const IDE_ORIGIN = process.env.IDE_ORIGIN || 'http://127.0.0.1:3100';
-const IDE_WS = IDE_ORIGIN.replace(/^http/, 'ws');
 const API_PORT = Number(process.env.PORT || 3000);
 const IDE_PORT = Number(process.env.IDE_PORT || 3100);
 
@@ -145,15 +145,15 @@ test('a member opens the IDE, VS Code loads, and the terminal writes only to the
 
   const frame = memberPage.getByTitle(`VS Code for ${state.lp.projectName}`, { exact: true });
   await expect(frame).toBeVisible({ timeout: 120_000 });
-  const launchUrl = await frame.getAttribute('src');
-  expect(launchUrl).toMatch(
-    new RegExp(`^${IDE_ORIGIN.replace(/\./g, '\\.')}/ide-launch\\?ticket=`),
-  );
-  state.launchUrl = launchUrl!;
-
   const copy = await getCopy(memberPage);
   expect(copy?.containerStatus).toBe('running');
   state.first = { user, page: memberPage, copyId: copy!.id };
+
+  // The IDE lives on this copy's own address (Phase 14): http://<copyId>.ide.localhost:3100.
+  const ideOrigin = ideOriginFor(copy!.id);
+  const launchUrl = await frame.getAttribute('src');
+  expect(launchUrl).toMatch(new RegExp(`^${escapeRegExp(ideOrigin)}/ide-launch\\?ticket=`));
+  state.launchUrl = launchUrl!;
 
   // The explorer lists the copy's README.md: it comes from the container over the WebSocket.
   const ide = memberPage.frameLocator(`iframe[title="VS Code for ${state.lp.projectName}"]`);
@@ -189,7 +189,7 @@ test('a member opens the IDE, VS Code loads, and the terminal writes only to the
 
   // The IDE's WebSocket connection stayed up and authenticated.
   const ideSockets = sockets.filter((s) =>
-    s.url.startsWith(`${IDE_WS}/ide/${state.first!.copyId}/`),
+    s.url.startsWith(`${ideOrigin.replace(/^http/, 'ws')}/ide/${state.first!.copyId}/`),
   );
   expect(ideSockets.some((s) => s.received > 1 && !s.closed)).toBe(true);
   expect(consoleLines.filter((line) => /auth mismatch|Unauthorized client/i.test(line))).toEqual(
@@ -231,8 +231,13 @@ test('another member cannot use the first member’s IDE', async ({ browser }) =
   // The first member's (already used) ticket and IDE address both give a plain 404.
   const reused = await page.goto(state.launchUrl!);
   expect(reused?.status()).toBe(404);
-  const direct = await page.goto(`${IDE_ORIGIN}/ide/${state.first!.copyId}/`);
+  const direct = await page.goto(
+    `${ideOriginFor(state.first!.copyId)}/ide/${state.first!.copyId}/`,
+  );
   expect(direct?.status()).toBe(404);
+  // Nor can their own copy's address be used for the first member's IDE path.
+  const crossed = await page.goto(`${ideOriginFor(copyId)}/ide/${state.first!.copyId}/`);
+  expect(crossed?.status()).toBe(404);
 
   // The file made in the first member's terminal is not in this member's copy.
   expect(existsSync(join(copyDir(copyId), 'README.md'))).toBe(true);

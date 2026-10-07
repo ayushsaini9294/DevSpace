@@ -133,7 +133,7 @@ export type StubReply =
   | { status: 200 | 201 | 202; body: StubBody }
   | { status: 204 }
   | {
-      status: 400 | 401 | 403 | 404 | 409 | 410 | 415 | 500 | 503;
+      status: 400 | 401 | 403 | 404 | 409 | 410 | 415 | 429 | 500 | 503;
       body: ErrorResponse | HealthResponse;
     }
   | 'pending';
@@ -145,7 +145,13 @@ export const loggedOut: StubReply = {
   status: 401,
   body: { error: 'unauthenticated', message: 'Log in first' },
 };
-export const healthOk: StubReply = { status: 200, body: { status: 'ok', database: 'ok' } };
+/** A 429 as the API sends it when a rate limit is hit (Phase 14). */
+export const rateLimited: StubReply = {
+  status: 429,
+  body: { error: 'rate_limited', message: 'Too many tries. Please wait a minute and try again.' },
+};
+
+export const healthOk: StubReply = { status: 200, body: { ok: true, db: true, redis: true } };
 
 /**
  * Answers for requests every logged-in page makes (the bell, the Team panel, my preferences),
@@ -306,10 +312,16 @@ export function testRepository(overrides: Partial<RepositoryStatus> = {}): Repos
 
 // ---------- Copies and IDE (Phase 5) ----------
 
+/** The id of `testCopy()`. */
+export const TEST_COPY_ID = '8f14e45f-ceea-467a-9575-000000000001';
+
+/** `testCopy()`'s own IDE address (Phase 14: every copy's IDE has its own), as the API gives it. */
+export const TEST_IDE_ORIGIN = `http://${TEST_COPY_ID}.ide.localhost:3100`;
+
 /** My copy as GET/POST …/copy would describe it. */
 export function testCopy(overrides: Partial<CopyView> = {}): CopyView {
   return {
-    id: '8f14e45f-ceea-467a-9575-000000000001',
+    id: TEST_COPY_ID,
     branchName: `copy/${testUser.id}`,
     containerStatus: 'none',
     createdAt: '2026-09-27T10:00:00.000Z',

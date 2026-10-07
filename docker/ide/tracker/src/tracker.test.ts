@@ -49,7 +49,7 @@ describe('workspaceRelativePath', () => {
 });
 
 describe('presenceEndpoint', () => {
-  const origin = 'http://127.0.0.1:3100';
+  const origin = 'http://0b6f3c1e-8a2d-4f55-9d7e-1c2b3a4d5e6f.ide.localhost:3100';
   const root = `${origin}/ide/0b6f3c1e-8a2d-4f55-9d7e-1c2b3a4d5e6f/stable-abc/static/out/`;
 
   it('builds the endpoint from VS Code’s file root', () => {

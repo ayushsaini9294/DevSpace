@@ -88,7 +88,9 @@ export default defineConfig({
       timeout: 30_000,
     },
     {
-      // Starts the API (:3000, plus its IDE listener on 127.0.0.1:3100), the web app (:5173) and
+      // Starts the API (:3000, plus its IDE listener on 127.0.0.1:3100, where each copy's IDE has
+      // its own address, http://<copyId>.ide.localhost:3100; Chromium resolves *.localhost to
+      // 127.0.0.1 itself, so no hosts file is needed), the web app (:5173) and
       // the worker (needs Redis on :6379; it updates copies after a merge or undo, which
       // e2e/merge.spec.ts waits for).
       // The API binds the IDE listener before the main one, so once /api/health answers, the IDE
@@ -100,8 +102,10 @@ export default defineConfig({
       // CI=1 or with the dev server stopped.
       // GitHub (Phase 13): the same holds for GITHUB_* (the stand-in's addresses and this run's
       // throwaway app key); the worker pushes to GitHub after a merge, so both get them.
+      // Rate limits (Phase 14) are on in development, and the suite signs up far more people
+      // than "5 per hour per IP"; the API's own tests check the limits (RATE_LIMITS=on).
       command: 'npm run dev',
-      env: { OPENROUTER_BASE_URL, AI_SECRETS_KEY, ...GITHUB_ENV },
+      env: { OPENROUTER_BASE_URL, AI_SECRETS_KEY, ...GITHUB_ENV, RATE_LIMITS: 'off' },
       url: 'http://localhost:3000/api/health',
       reuseExistingServer: !isCI,
       timeout: 120_000,

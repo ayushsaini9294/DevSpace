@@ -1,5 +1,35 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, apiPost } from './api';
+import { ApiError, RATE_LIMITED_MESSAGE, apiPost, retryServerErrors } from './api';
+import { errorMessage } from './formErrors';
+
+const RATE_LIMITED = {
+  error: 'rate_limited',
+  message: 'Too many tries. Please wait a minute and try again.',
+};
+
+describe('retryServerErrors', () => {
+  it('retries network and server failures briefly', () => {
+    expect(retryServerErrors(0, new TypeError('Failed to fetch'))).toBe(true);
+    expect(retryServerErrors(1, new ApiError(503, null))).toBe(true);
+    expect(retryServerErrors(2, new ApiError(503, null))).toBe(false);
+  });
+
+  it('never retries a 429 (too many tries) or another client error', () => {
+    expect(retryServerErrors(0, new ApiError(429, RATE_LIMITED))).toBe(false);
+    expect(retryServerErrors(0, new ApiError(429, null))).toBe(false);
+    expect(retryServerErrors(0, new ApiError(404, null))).toBe(false);
+  });
+});
+
+describe('rate_limited errors', () => {
+  it('show the API’s own message', () => {
+    expect(errorMessage(new ApiError(429, RATE_LIMITED))).toBe(RATE_LIMITED.message);
+  });
+
+  it('use the same plain words when a 429 has no usual body', () => {
+    expect(errorMessage(new ApiError(429, null))).toBe(RATE_LIMITED_MESSAGE);
+  });
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();

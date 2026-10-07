@@ -19,6 +19,6 @@ async function fetchHealth(): Promise<HealthResponse> {
 export function useApiStatus(): ApiStatusState {
   const query = useQuery({ queryKey: ['health'], queryFn: fetchHealth, retry: false });
   if (query.isPending) return 'checking';
-  if (query.isSuccess && query.data.status === 'ok') return 'ok';
+  if (query.isSuccess && query.data.ok) return 'ok';
   return 'error';
 }

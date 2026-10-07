@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=../api/.env src/main.ts",
-    "start": "tsx --env-file-if-exists=../api/.env src/main.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node --conditions=production --env-file-if-exists=../api/.env dist/main.js",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run"
   },
@@ -14,11 +15,11 @@
     "@socket.io/redis-emitter": "^5.1.0",
     "bullmq": "^6.3.9",
     "ioredis": "^6.0.0",
-    "tsx": "^4.23.15",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^26.6.3",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "vitest": "^5.0.2"
   }

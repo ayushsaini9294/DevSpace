@@ -21,7 +21,15 @@ import {
   NANO_CPUS,
   PIDS_LIMIT,
 } from '../src/ide/docker.ts';
-import { cookieValues, createIdeServer, forwardHeaders, parseIdePath } from '../src/ide/proxy.ts';
+import {
+  cookieValues,
+  createIdeServer,
+  forwardHeaders,
+  parseIdePath,
+  responseHeaders,
+  sameOriginWrite,
+} from '../src/ide/proxy.ts';
+import { copyIdFromHost, ideHostFor, ideOriginFor } from '../src/ide/origin.ts';
 import { forgetIdeTarget, waitForIdeStarts } from '../src/ide/service.ts';
 import { prisma } from '../src/lib/prisma.ts';
 import {
@@ -103,7 +111,26 @@ afterAll(async () => {
   await cleanUp();
 });
 
-const ide = () => request(ideServer);
+/** Requests to one copy's IDE address (its own Host, as a browser sends it). */
+const ide = (copyId: string, host = ideHostFor(copyId)) => ({
+  get: (path: string) => request(ideServer).get(path).set('Host', host),
+  post: (path: string) => request(ideServer).post(path).set('Host', host),
+});
+
+/** Which copy each ticket from launchTicket/ticketOf is for (from its URL's host). */
+const ticketCopies = new Map<string, string>();
+
+/** The ticket in a launch URL, checked to be on its copy's own IDE origin. */
+function ticketOf(url: string): string {
+  const parsed = new URL(url);
+  const copyId = copyIdFromHost(parsed.host);
+  expect(copyId, url).not.toBeNull();
+  expect(parsed.origin).toBe(ideOriginFor(copyId!));
+  expect(parsed.pathname).toBe('/ide-launch');
+  const ticket = parsed.searchParams.get('ticket')!;
+  ticketCopies.set(ticket, copyId!);
+  return ticket;
+}
 
 async function newProject(name = 'IDE Project', { ready = true } = {}) {
   const leader = await signUp('Ida Leader');
@@ -156,11 +183,7 @@ async function markRunning(copyId: string) {
 async function launchTicket(user: TestUser, projectId: string): Promise<string> {
   const res = await as(user).post(launchApi(projectId));
   expect(res.status, JSON.stringify(res.body)).toBe(200);
-  const { url } = IdeLaunchResponseSchema.parse(res.body);
-  const parsed = new URL(url);
-  expect(parsed.origin).toBe(env.IDE_ORIGIN);
-  expect(parsed.pathname).toBe('/ide-launch');
-  return parsed.searchParams.get('ticket')!;
+  return ticketOf(IdeLaunchResponseSchema.parse(res.body).url);
 }
 
 function setCookies(res: request.Response): string[] {
@@ -170,7 +193,9 @@ function setCookies(res: request.Response): string[] {
 
 /** Uses a ticket on the IDE site; returns the `devspace_ide=…` cookie pair and all Set-Cookies. */
 async function redeem(ticket: string) {
-  const res = await ide().get(`/ide-launch?ticket=${encodeURIComponent(ticket)}`);
+  const res = await ide(ticketCopies.get(ticket)!).get(
+    `/ide-launch?ticket=${encodeURIComponent(ticket)}`,
+  );
   expect(res.status, res.text).toBe(303);
   const all = setCookies(res);
   const ideCookie = all.find((c) => c.startsWith('devspace_ide='))!;
@@ -189,12 +214,14 @@ async function upgradeStatus(
     const socket = net.connect(port, '127.0.0.1', () => {
       const lines = [
         `GET ${path} HTTP/1.1`,
-        `Host: 127.0.0.1:${port}`,
+        `Host: ${headers.Host ?? `127.0.0.1:${port}`}`,
         'Connection: Upgrade',
         'Upgrade: websocket',
         'Sec-WebSocket-Version: 13',
         'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==',
-        ...Object.entries(headers).map(([k, v]) => `${k}: ${v}`),
+        ...Object.entries(headers)
+          .filter(([k]) => k !== 'Host')
+          .map(([k, v]) => `${k}: ${v}`),
       ];
       socket.write(`${lines.join('\r\n')}\r\n\r\n`);
     });
@@ -319,14 +346,14 @@ describe('the IDE site: tickets and its own cookie', () => {
     expect(setCookies(res).some((c) => c.startsWith('vscode-tkn='))).toBe(false);
 
     // Used up.
-    const again = await ide().get(`/ide-launch?ticket=${ticket}`);
+    const again = await ide(copy.id).get(`/ide-launch?ticket=${ticket}`);
     expect(again.status).toBe(404);
     expect(again.headers['content-type']).toMatch(/text\/plain/);
     expect(setCookies(again)).toEqual([]);
     expect(await prisma.ideTicket.count({ where: { copyId: copy.id } })).toBe(0);
 
     // The cookie gets past every check (503: no container behind this test copy).
-    const through = await ide().get(`/ide/${copy.id}/`).set('Cookie', cookie);
+    const through = await ide(copy.id).get(`/ide/${copy.id}/`).set('Cookie', cookie);
     expect(through.status).toBe(503);
     expectFramePolicy(through);
   });
@@ -340,16 +367,20 @@ describe('the IDE site: tickets and its own cookie', () => {
       where: { copyId: copy.id },
       data: { expiresAt: new Date(Date.now() - 1000) },
     });
-    expect((await ide().get(`/ide-launch?ticket=${ticket}`)).status).toBe(404);
+    expect((await ide(copy.id).get(`/ide-launch?ticket=${ticket}`)).status).toBe(404);
     // Expired tickets are used up too.
     expect(await prisma.ideTicket.count({ where: { copyId: copy.id } })).toBe(0);
 
     const fresh = await launchTicket(leader, project.id);
-    expect((await ide().post(`/ide-launch?ticket=${fresh}`)).status).toBe(404);
-    expect((await ide().get(`/ide-launch?ticket=${fresh}x`)).status).toBe(404);
-    expect((await ide().get('/ide-launch')).status).toBe(404);
-    expect((await ide().get('/ide-launch?ticket=')).status).toBe(404);
-    expect((await ide().get(`/ide-launch?ticket=${'a'.repeat(5000)}`)).status).toBe(404);
+    expect((await ide(copy.id).post(`/ide-launch?ticket=${fresh}`)).status).toBe(403);
+    const ownPost = ide(copy.id)
+      .post(`/ide-launch?ticket=${fresh}`)
+      .set('Origin', ideOriginFor(copy.id));
+    expect((await ownPost).status).toBe(404);
+    expect((await ide(copy.id).get(`/ide-launch?ticket=${fresh}x`)).status).toBe(404);
+    expect((await ide(copy.id).get('/ide-launch')).status).toBe(404);
+    expect((await ide(copy.id).get('/ide-launch?ticket=')).status).toBe(404);
+    expect((await ide(copy.id).get(`/ide-launch?ticket=${'a'.repeat(5000)}`)).status).toBe(404);
     // The POST above didn't use it.
     await redeem(fresh);
   });
@@ -363,7 +394,7 @@ describe('the IDE site: tickets and its own cookie', () => {
     const ticket = await launchTicket(member, project.id);
     const res = await as(leader).delete(`/api/projects/${project.id}/members/${member.id}`);
     expect(res.status).toBe(204);
-    expect((await ide().get(`/ide-launch?ticket=${ticket}`)).status).toBe(404);
+    expect((await ide(copy.id).get(`/ide-launch?ticket=${ticket}`)).status).toBe(404);
   });
 
   it('only the IDE cookie of that copy opens it; everyone else gets the same 404', async () => {
@@ -377,20 +408,20 @@ describe('the IDE site: tickets and its own cookie', () => {
     const { cookie } = await redeem(await launchTicket(member, project.id));
     const url = `/ide/${mine.id}/`;
 
-    expect((await ide().get(url).set('Cookie', cookie)).status).toBe(503);
+    expect((await ide(mine.id).get(url).set('Cookie', cookie)).status).toBe(503);
     // No cookie; the app's session cookie; an unknown value; my cookie on another copy.
     const refusals = [
-      ide().get(url),
-      ide().get(url).set('Cookie', member.cookie),
-      ide()
+      ide(mine.id).get(url),
+      ide(mine.id).get(url).set('Cookie', member.cookie),
+      ide(mine.id)
         .get(url)
         .set('Cookie', `${member.cookie}; devspace_ide=${'x'.repeat(43)}`),
-      ide().get(`/ide/${theirs.id}/`).set('Cookie', cookie),
-      ide().get(`/ide/${crypto.randomUUID()}/`).set('Cookie', cookie),
-      ide().post(url).set('Cookie', member.cookie),
-      ide().get('/ide/not-a-copy/').set('Cookie', cookie),
-      ide().get('/api/health'),
-      ide().get('/'),
+      ide(theirs.id).get(`/ide/${theirs.id}/`).set('Cookie', cookie),
+      ide(mine.id).get(`/ide/${crypto.randomUUID()}/`).set('Cookie', cookie),
+      ide(mine.id).post(url).set('Origin', ideOriginFor(mine.id)).set('Cookie', member.cookie),
+      ide(mine.id).get('/ide/not-a-copy/').set('Cookie', cookie),
+      ide(mine.id).get('/api/health'),
+      ide(mine.id).get('/'),
     ];
     for (const res of await Promise.all(refusals)) {
       expect(res.status, res.text).toBe(404);
@@ -399,10 +430,11 @@ describe('the IDE site: tickets and its own cookie', () => {
     }
 
     // Without the trailing slash: the same redirect for any well-formed id.
-    const bare = await ide().get(`/ide/${mine.id}?a=1`);
+    const bare = await ide(mine.id).get(`/ide/${mine.id}?a=1`);
     expect(bare.status).toBe(308);
     expect(bare.headers.location).toBe(`/ide/${mine.id}/?a=1`);
-    expect((await ide().get(`/ide/${crypto.randomUUID()}`)).status).toBe(308);
+    const other = crypto.randomUUID();
+    expect((await ide(other).get(`/ide/${other}`)).status).toBe(308);
   });
 
   it('the IDE cookie expires, and stops working when its user leaves the project', async () => {
@@ -421,12 +453,12 @@ describe('the IDE site: tickets and its own cookie', () => {
       },
       data: { expiresAt: new Date(Date.now() - 1000) },
     });
-    expect((await ide().get(url).set('Cookie', first.cookie)).status).toBe(404);
-    expect((await ide().get(url).set('Cookie', second.cookie)).status).toBe(503);
+    expect((await ide(copy.id).get(url).set('Cookie', first.cookie)).status).toBe(404);
+    expect((await ide(copy.id).get(url).set('Cookie', second.cookie)).status).toBe(503);
 
     const res = await as(leader).delete(`/api/projects/${project.id}/members/${member.id}`);
     expect(res.status).toBe(204);
-    expect((await ide().get(url).set('Cookie', second.cookie)).status).toBe(404);
+    expect((await ide(copy.id).get(url).set('Cookie', second.cookie)).status).toBe(404);
   });
 
   it('WebSocket upgrades need the IDE site as Origin and the IDE cookie', async () => {
@@ -435,18 +467,170 @@ describe('the IDE site: tickets and its own cookie', () => {
     await markRunning(copy.id);
     const { cookie } = await redeem(await launchTicket(leader, project.id));
     const path = `/ide/${copy.id}/`;
-    const up = (headers: Record<string, string>, p = path) => upgradeStatus(ideServer, p, headers);
+    const up = (headers: Record<string, string>, p = path) =>
+      upgradeStatus(ideServer, p, { Host: ideHostFor(copy.id), ...headers });
+    const own = ideOriginFor(copy.id);
 
     expect(await up({ Cookie: cookie })).toMatch(/^HTTP\/1\.1 403/); // no Origin
     expect(await up({ Cookie: cookie, Origin: env.APP_ORIGIN })).toMatch(/^HTTP\/1\.1 403/);
     expect(await up({ Cookie: cookie, Origin: 'https://evil.example' })).toMatch(/^HTTP\/1\.1 403/);
-    expect(await up({ Origin: env.IDE_ORIGIN })).toMatch(/^HTTP\/1\.1 404/);
-    expect(await up({ Origin: env.IDE_ORIGIN, Cookie: leader.cookie })).toMatch(/^HTTP\/1\.1 404/);
-    expect(await up({ Origin: env.IDE_ORIGIN, Cookie: cookie }, '/ide-launch')).toMatch(
-      /^HTTP\/1\.1 404/,
-    );
+    // Another copy's origin (a page in another copy's IDE or Preview) is refused (Phase 14).
+    const elsewhere = ideOriginFor(crypto.randomUUID());
+    expect(await up({ Cookie: cookie, Origin: elsewhere })).toMatch(/^HTTP\/1\.1 403/);
+    expect(await up({ Origin: own })).toMatch(/^HTTP\/1\.1 404/);
+    expect(await up({ Origin: own, Cookie: leader.cookie })).toMatch(/^HTTP\/1\.1 404/);
+    expect(await up({ Origin: own, Cookie: cookie }, '/ide-launch')).toMatch(/^HTTP\/1\.1 404/);
     // Past every check: 503, as there is no container behind this test copy.
-    expect(await up({ Origin: env.IDE_ORIGIN, Cookie: cookie })).toMatch(/^HTTP\/1\.1 503/);
+    expect(await up({ Origin: own, Cookie: cookie })).toMatch(/^HTTP\/1\.1 503/);
+  });
+});
+
+describe('one address per copy (Phase 14)', () => {
+  it('each copy has its own origin under IDE_BASE_URL, with the copy id lowercase', () => {
+    const id = crypto.randomUUID();
+    const base = new URL(env.IDE_BASE_URL);
+    expect(ideOriginFor(id)).toBe(`${base.protocol}//${id}.${base.host}`);
+    expect(ideHostFor(id)).toBe(`${id}.${base.host}`);
+    expect(copyIdFromHost(ideHostFor(id))).toBe(id);
+    expect(copyIdFromHost(ideHostFor(id).toUpperCase())).toBe(id);
+    // The bare base host, other hosts, extra labels, other ports, non-UUIDs: no copy.
+    for (const host of [
+      base.host,
+      `.${base.host}`,
+      `x.${id}.${base.host}`,
+      `${id}.evil.${base.host}`,
+      `${id}.${base.hostname}`,
+      `${id}.${base.hostname}:1`,
+      `${id}.${base.host}.evil.example`,
+      `not-a-copy.${base.host}`,
+      `${id}`,
+      '127.0.0.1:3100',
+      undefined,
+    ]) {
+      expect(copyIdFromHost(host), String(host)).toBeNull();
+    }
+  });
+
+  it('serves a copy only on its own host: every other host gets the same 404', async () => {
+    const { leader, project } = await newProject();
+    const copy = await plainCopy(leader, project.id);
+    await markRunning(copy.id);
+    const { cookie } = await redeem(await launchTicket(leader, project.id));
+    const url = `/ide/${copy.id}/`;
+    const base = new URL(env.IDE_BASE_URL).host;
+    expect((await ide(copy.id).get(url).set('Cookie', cookie)).status).toBe(503);
+    for (const host of [
+      base, // the bare base host
+      ideHostFor(crypto.randomUUID()), // another copy's host
+      `x.${ideHostFor(copy.id)}`,
+      '127.0.0.1:3100',
+      'localhost:5173',
+    ]) {
+      const res = await ide(copy.id, host).get(url).set('Cookie', cookie);
+      expect(res.status, host).toBe(404);
+      expect(res.text).toBe('Not found\n');
+      expect((await ide(copy.id, host).get('/ide-launch?ticket=x')).status).toBe(404);
+    }
+  });
+
+  it("a ticket used on another copy's host is refused and not used up", async () => {
+    const { leader, project } = await newProject();
+    const copy = await plainCopy(leader, project.id);
+    await markRunning(copy.id);
+    const ticket = await launchTicket(leader, project.id);
+    const elsewhere = crypto.randomUUID();
+    const path = `/ide-launch?ticket=${encodeURIComponent(ticket)}`;
+    const wrong = await ide(elsewhere).get(path);
+    expect(wrong.status).toBe(404);
+    expect(setCookies(wrong)).toEqual([]);
+    expect((await ide(copy.id, new URL(env.IDE_BASE_URL).host).get(path)).status).toBe(404);
+    expect(await prisma.ideTicket.count({ where: { copyId: copy.id } })).toBe(1);
+    // Still good on its own host.
+    const { res } = await redeem(ticket);
+    expect(res.headers.location).toBe(`/ide/${copy.id}/`);
+    expect(await prisma.ideTicket.count({ where: { copyId: copy.id } })).toBe(0);
+  });
+
+  it("non-GET requests must come from the copy's own origin (or say same-origin)", async () => {
+    const { leader, project } = await newProject();
+    const copy = await plainCopy(leader, project.id);
+    await markRunning(copy.id);
+    const { cookie } = await redeem(await launchTicket(leader, project.id));
+    const presence = `/ide/${copy.id}/__devspace/presence`;
+    const findings = `/ide/${copy.id}/__devspace/review-findings`;
+    const report = { active: true };
+    const post = (path: string, headers: Record<string, string>) => {
+      let req = ide(copy.id).post(path).set('Cookie', cookie).type('json');
+      for (const [k, v] of Object.entries(headers)) req = req.set(k, v);
+      return req.send(report);
+    };
+    const refused: Record<string, string>[] = [
+      {}, // no Origin and no Sec-Fetch-Site
+      { 'Sec-Fetch-Site': 'same-site' },
+      { 'Sec-Fetch-Site': 'cross-site' },
+      { Origin: ideOriginFor(crypto.randomUUID()) }, // a page in another copy
+      { Origin: ideOriginFor(crypto.randomUUID()), 'Sec-Fetch-Site': 'same-origin' },
+      { Origin: env.APP_ORIGIN },
+      { Origin: 'null' },
+    ];
+    for (const headers of refused) {
+      for (const path of [presence, findings, `/ide/${copy.id}/`]) {
+        const res = await post(path, headers);
+        expect(res.status, `${path} ${JSON.stringify(headers)}`).toBe(403);
+        expect(res.headers['cross-origin-resource-policy']).toBe('same-origin');
+      }
+    }
+    // Its own origin, or no Origin with Sec-Fetch-Site: same-origin, gets through.
+    const allowed: Record<string, string>[] = [
+      { Origin: ideOriginFor(copy.id) },
+      { 'Sec-Fetch-Site': 'same-origin' },
+    ];
+    for (const headers of allowed) {
+      expect((await post(presence, headers)).status).toBe(204);
+      // Past the Origin rule (503: no container behind this test copy).
+      expect((await post(`/ide/${copy.id}/`, headers)).status).toBe(503);
+    }
+    // Reads don't need an Origin.
+    expect((await ide(copy.id).get(`/ide/${copy.id}/`).set('Cookie', cookie)).status).toBe(503);
+    expect(sameOriginWrite({ origin: ideOriginFor(copy.id) }, copy.id)).toBe(true);
+    expect(sameOriginWrite({ 'sec-fetch-site': 'same-origin' }, copy.id)).toBe(true);
+    expect(sameOriginWrite({}, copy.id)).toBe(false);
+  });
+
+  it('every IDE response is same-origin only and nosniff; a container cannot change that', async () => {
+    const { leader, project } = await newProject();
+    const copy = await plainCopy(leader, project.id);
+    await markRunning(copy.id);
+    const { res: launched, cookie } = await redeem(await launchTicket(leader, project.id));
+    for (const res of [
+      launched,
+      await ide(copy.id).get(`/ide/${copy.id}/`).set('Cookie', cookie),
+      await ide(copy.id).get(`/ide/${copy.id}`),
+      await ide(copy.id).get('/nothing-here'),
+    ]) {
+      expect(res.headers['cross-origin-resource-policy']).toBe('same-origin');
+      expect(res.headers['x-content-type-options']).toBe('nosniff');
+    }
+    // What a container (VS Code or a member's Preview app) sends is filtered.
+    const out = responseHeaders({
+      'content-type': 'text/html',
+      'cross-origin-resource-policy': 'cross-origin',
+      'x-content-type-options': 'sniff-away',
+      'set-cookie': ['a=1'],
+      'x-frame-options': 'DENY',
+      'clear-site-data': '"cookies"',
+    });
+    expect(out['content-type']).toBe('text/html');
+    for (const name of [
+      'cross-origin-resource-policy',
+      'x-content-type-options',
+      'set-cookie',
+      'x-frame-options',
+      'clear-site-data',
+    ]) {
+      expect(out, name).not.toHaveProperty(name);
+    }
+    expect([out['content-security-policy']].flat().join(', ')).toContain(frameAncestors());
   });
 });
 
@@ -486,15 +670,16 @@ describe('/api Origin guard', () => {
       const req = as(user).post('/api/teams', { name: 'Guarded' });
       return origin === undefined ? req : req.set('Origin', origin);
     };
-    expectError(await post(env.IDE_ORIGIN), 403, 'forbidden_origin');
+    const ideSite = ideOriginFor(crypto.randomUUID());
+    expectError(await post(ideSite), 403, 'forbidden_origin');
     expectError(await post('https://evil.example'), 403, 'forbidden_origin');
     expectError(await post('null'), 403, 'forbidden_origin');
     expect((await post(env.APP_ORIGIN)).status).toBe(201);
     expect((await post()).status).toBe(201);
-    const del = await as(user).delete('/api/teams/x').set('Origin', env.IDE_ORIGIN);
+    const del = await as(user).delete('/api/teams/x').set('Origin', ideSite);
     expectError(del, 403, 'forbidden_origin');
     // Reads aren't affected.
-    expect((await as(user).get('/api/auth/me').set('Origin', env.IDE_ORIGIN)).status).toBe(200);
+    expect((await as(user).get('/api/auth/me').set('Origin', ideSite)).status).toBe(200);
   });
 });
 
@@ -670,9 +855,7 @@ describe.skipIf(!available.ide)(
         }
 
         // The IDE site: the launch sets both cookies, scoped to this copy only.
-        const ticket = new URL(IdeLaunchResponseSchema.parse(launch.body).url).searchParams.get(
-          'ticket',
-        )!;
+        const ticket = ticketOf(IdeLaunchResponseSchema.parse(launch.body).url);
         const { all, cookie } = await redeem(ticket);
         const tkn = all.find((c) => c.startsWith('vscode-tkn='))!;
         expect(tkn.split('; ')[0]).toBe(`vscode-tkn=${token}`);
@@ -690,28 +873,42 @@ describe.skipIf(!available.ide)(
         expect(all.filter((c) => /Path=\/(;|$)/.test(c))).toEqual([]);
 
         // The owner gets VS Code, framed only by the app.
-        const page = await ide().get(`/ide/${copy.id}/`).set('Cookie', cookie);
+        const page = await ide(copy.id).get(`/ide/${copy.id}/`).set('Cookie', cookie);
         expect(page.status).toBe(200);
         expect(page.headers['content-type']).toMatch(/text\/html/);
         expect(page.headers['set-cookie']).toBeUndefined();
         expect(page.headers['x-frame-options']).toBeUndefined();
         expectFramePolicy(page);
+        expect(page.headers['cross-origin-resource-policy']).toBe('same-origin');
+        expect(page.headers['x-content-type-options']).toBe('nosniff');
         // The app's session cookie (another member's or the owner's own) gets 404 here.
-        expect((await ide().get(`/ide/${copy.id}/`).set('Cookie', other.cookie)).status).toBe(404);
-        expect((await ide().get(`/ide/${copy.id}/`).set('Cookie', leader.cookie)).status).toBe(404);
+        expect(
+          (await ide(copy.id).get(`/ide/${copy.id}/`).set('Cookie', other.cookie)).status,
+        ).toBe(404);
+        expect(
+          (await ide(copy.id).get(`/ide/${copy.id}/`).set('Cookie', leader.cookie)).status,
+        ).toBe(404);
 
         // WebSockets reach the IDE for the owner (101 Switching Protocols).
         const ws = `/ide/${copy.id}/?reconnectionToken=${crypto.randomUUID()}&reconnection=false&skipWebSocketFrames=false`;
         expect(
-          await upgradeStatus(ideServer, ws, { Cookie: cookie, Origin: env.IDE_ORIGIN }),
+          await upgradeStatus(ideServer, ws, {
+            Host: ideHostFor(copy.id),
+            Cookie: cookie,
+            Origin: ideOriginFor(copy.id),
+          }),
         ).toMatch(/^HTTP\/1\.1 101/);
         expect(
-          await upgradeStatus(ideServer, ws, { Cookie: other.cookie, Origin: env.IDE_ORIGIN }),
+          await upgradeStatus(ideServer, ws, {
+            Host: ideHostFor(copy.id),
+            Cookie: other.cookie,
+            Origin: ideOriginFor(copy.id),
+          }),
         ).toMatch(/^HTTP\/1\.1 404/);
 
         // After an API restart the token is read back from the container.
         forgetIdeTarget(copy.id);
-        expect((await ide().get(`/ide/${copy.id}/`).set('Cookie', cookie)).status).toBe(200);
+        expect((await ide(copy.id).get(`/ide/${copy.id}/`).set('Cookie', cookie)).status).toBe(200);
 
         // Opening again while running reuses the same container.
         const again = await openIde(leader, project.id);
@@ -742,7 +939,7 @@ describe.skipIf(!available.ide)(
           );
         expect(gone).toBe(true);
         expect(await prisma.ideSession.count({ where: { copyId: copy.id } })).toBe(0);
-        expect((await ide().get(`/ide/${copy.id}/`).set('Cookie', cookie)).status).toBe(404);
+        expect((await ide(copy.id).get(`/ide/${copy.id}/`).set('Cookie', cookie)).status).toBe(404);
       },
     );
   },

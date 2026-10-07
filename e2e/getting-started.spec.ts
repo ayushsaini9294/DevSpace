@@ -7,6 +7,8 @@ import {
   bareGit,
   copyFolder,
   createLeaderWithProject,
+  escapeRegExp,
+  ideOriginFor,
   projectIdFrom,
   projectNav,
   writeInCopy,
@@ -16,9 +18,8 @@ import {
 // Phase 11 Done-when: someone new creates a project from a template and makes their first
 // submission by following the getting-started checklist. Real IDE containers (image
 // devspace-ide:5, the IDE network and firewall), real apps started in them, and Preview through
-// the IDE site's `/ide/<copyId>/__preview/<port>/` path.
+// the IDE site's `/ide/<copyId>/__preview/<port>/` path, on each copy's own address (Phase 14).
 
-const IDE_ORIGIN = process.env.IDE_ORIGIN || 'http://127.0.0.1:3100';
 const TEMPLATES_DIR = resolve('apps/api/templates');
 
 test.describe.configure({ timeout: 360_000 });
@@ -219,7 +220,8 @@ test('a new user starts from the HTML template and follows the checklist to a fi
   });
   // The tab opens on about:blank first, then goes to the launch URL, which redirects.
   await expect(preview).toHaveURL(
-    (url) => url.origin === IDE_ORIGIN && url.pathname === `/ide/${copyId}/__preview/8080/`,
+    (url) =>
+      url.origin === ideOriginFor(copyId) && url.pathname === `/ide/${copyId}/__preview/8080/`,
     { timeout: 30_000 },
   );
   await preview.waitForLoadState('load');
@@ -322,7 +324,7 @@ test('a React + Vite app previews through the preview path, with its module scri
   const { url } = (await launch.json()) as { url: string };
   expect(url).toMatch(
     new RegExp(
-      `^${IDE_ORIGIN.replace(/\./g, '\\.')}/ide-launch\\?ticket=[^&]+&next=__preview(/|%2F)5173(/|%2F)$`,
+      `^${escapeRegExp(ideOriginFor(copyId))}/ide-launch\\?ticket=[^&]+&next=__preview(/|%2F)5173(/|%2F)$`,
     ),
   );
 
@@ -341,7 +343,7 @@ test('a React + Vite app previews through the preview path, with its module scri
   page.on('pageerror', (err) => errors.push(err.message));
 
   await page.goto(url);
-  await expect(page).toHaveURL((u) => u.origin === IDE_ORIGIN && u.pathname === base);
+  await expect(page).toHaveURL((u) => u.origin === ideOriginFor(copyId) && u.pathname === base);
   // React rendered into #root: the module scripts ran.
   await expect(page.locator('#root')).not.toBeEmpty({ timeout: 30_000 });
   const entry = scripts.find((res) => /\/src\/main\.jsx(\?|$)/.test(res.url()));
@@ -357,7 +359,7 @@ test('a React + Vite app previews through the preview path, with its module scri
     .poll(() =>
       sockets.some(
         (s) =>
-          s.url.startsWith(`${IDE_ORIGIN.replace(/^http/, 'ws')}${base}`) &&
+          s.url.startsWith(`${ideOriginFor(copyId).replace(/^http/, 'ws')}${base}`) &&
           s.received.some((m) => m.includes('"connected"')),
       ),
     )

@@ -1,5 +1,6 @@
 import { isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import express from 'express';
 import { z } from 'zod';
 
 /** `<repo root>/.data/repos`, found from this file's location (src/config or dist/config), not the cwd. */
@@ -55,6 +56,15 @@ const EnvSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+    /**
+     * The address the main listener (PORT) binds. Unset: every interface (development). In
+     * production `127.0.0.1`, so only Caddy reaches it.
+     */
+    API_HOST: z
+      .string()
+      .trim()
+      .optional()
+      .transform((value) => value || undefined),
     DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
     /** Redis, for queueing jobs for the worker (the worker reads the same variable). */
     REDIS_URL: z.string().trim().min(1).default('redis://localhost:6379'),
@@ -79,10 +89,53 @@ const EnvSchema = z
     /** The web app's public origin: the only page allowed to frame the IDE or POST to /api. */
     APP_ORIGIN: origin('http://localhost:5173'),
     /**
-     * The IDE listener's public origin. Must be a different site from APP_ORIGIN (in development
-     * `127.0.0.1` vs `localhost`; in production its own registrable domain).
+     * The IDE listener's public base address (Phase 14): scheme + base host + optional port, no
+     * path. Each copy's IDE lives on its own origin `<scheme>://<copyId>.<base host>[:port]`
+     * (see ide/origin.ts). In production it must be a different registrable domain from the app.
      */
-    IDE_ORIGIN: origin('http://127.0.0.1:3100'),
+    IDE_BASE_URL: origin('http://ide.localhost:3100'),
+    /** The old single IDE origin (before Phase 14). Startup refuses while it is still set. */
+    IDE_ORIGIN: z.string().optional(),
+    /**
+     * Express `trust proxy` (Phase 14): off by default. `loopback` behind Caddy on the same host;
+     * also `true`, a hop count, or a comma-separated list of addresses/CIDRs. The IDE listener
+     * uses the same setting for X-Forwarded-Proto.
+     */
+    TRUST_PROXY: z
+      .string()
+      .trim()
+      .optional()
+      .transform((value, ctx): boolean | number | string => {
+        const v = (value ?? '').toLowerCase();
+        if (v === '' || v === 'off' || v === 'false' || v === '0' || v === 'no') return false;
+        if (v === 'on' || v === 'true' || v === 'yes') return true;
+        if (/^[1-9][0-9]{0,2}$/.test(v)) return Number(v);
+        try {
+          express().set('trust proxy', value);
+        } catch {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'must be off, true, a hop count, loopback, or a list of addresses/CIDRs',
+          });
+          return z.NEVER;
+        }
+        return value!;
+      }),
+    /**
+     * Rate limits: unset → on, except when NODE_ENV=test. `on` turns them on in tests; `off`
+     * turns them off outside production (the e2e run, which uses development mode).
+     */
+    RATE_LIMITS: z.enum(['on', 'off']).optional(),
+    /**
+     * `1` lets APP_ORIGIN / IDE_BASE_URL use http:// in production, but only when both hosts are
+     * `localhost` or `*.localhost` (the local proof of the production stack). Otherwise both
+     * must be https.
+     */
+    ALLOW_HTTP_LOCALHOST: z
+      .string()
+      .trim()
+      .optional()
+      .transform((value) => value === '1' || value === 'true'),
     /**
      * Encrypts stored AI keys (AES-256-GCM): 32 random bytes, base64 (`openssl rand -base64 32`).
      * Required outside tests; the API and the worker refuse to start without it.
@@ -185,31 +238,123 @@ const EnvSchema = z
     GITHUB_API_URL: e.GITHUB_API_URL.replace(/\/+$/, ''),
     GITHUB_WEB_URL: e.GITHUB_WEB_URL.replace(/\/+$/, ''),
   }))
-  .refine(
-    (e) => {
-      try {
-        return new URL(e.APP_ORIGIN).hostname !== new URL(e.IDE_ORIGIN).hostname;
-      } catch {
-        return true; // already reported by the field checks
+  .superRefine((e, ctx) => {
+    if (e.IDE_ORIGIN !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['IDE_ORIGIN'],
+        message:
+          'was renamed: remove IDE_ORIGIN and set IDE_BASE_URL instead (scheme + base host + port, ' +
+          'e.g. http://ide.localhost:3100; each copy gets <copyId>.<base host>)',
+      });
+    }
+    let app: URL;
+    let ide: URL;
+    try {
+      app = new URL(e.APP_ORIGIN);
+      ide = new URL(e.IDE_BASE_URL);
+    } catch {
+      return; // already reported by the field checks
+    }
+    if (ideHostUnderApp(app.hostname, ide.hostname)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['IDE_BASE_URL'],
+        message:
+          "IDE_BASE_URL's host must not be APP_ORIGIN's host or under it (use a separate domain)",
+      });
+    }
+    if (e.NODE_ENV === 'production') {
+      // http is allowed only for the local proof: ALLOW_HTTP_LOCALHOST and BOTH hosts on
+      // localhost / *.localhost (lead, 2026-10-06).
+      const localProof =
+        e.ALLOW_HTTP_LOCALHOST && isLocalhostName(app.hostname) && isLocalhostName(ide.hostname);
+      for (const [key, url] of [
+        ['APP_ORIGIN', app],
+        ['IDE_BASE_URL', ide],
+      ] as const) {
+        if (url.protocol === 'https:' || localProof) continue;
+        ctx.addIssue({
+          code: 'custom',
+          path: [key],
+          message: 'must be https:// in production',
+        });
       }
-    },
-    {
-      message: 'IDE_ORIGIN must be on a different host (site) from APP_ORIGIN',
-      path: ['IDE_ORIGIN'],
-    },
-  );
+      // (A missing AI_SECRETS_KEY is refused above, outside tests.)
+      if (e.RATE_LIMITS === 'off') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['RATE_LIMITS'],
+          message: 'cannot be off in production',
+        });
+      }
+      if (usesDevPassword(e.DATABASE_URL)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['DATABASE_URL'],
+          message: 'uses the development password "devspace": set a strong database password',
+        });
+      }
+    }
+  });
+
+/** `localhost` or a name under it (`*.localhost`), which browsers keep on this machine. */
+function isLocalhostName(hostname: string): boolean {
+  return hostname === 'localhost' || hostname.endsWith('.localhost');
+}
+
+/**
+ * Whether the IDE base host is the app's host or under it (the same site, which could plant
+ * cookies for the app). A bare `localhost` app host is a top-level name, so `*.localhost` names
+ * are separate sites from it (the development setup: app `localhost`, IDEs `*.ide.localhost`).
+ */
+export function ideHostUnderApp(appHost: string, ideHost: string): boolean {
+  if (appHost === ideHost) return true;
+  if (appHost === 'localhost') return false;
+  return ideHost.endsWith(`.${appHost}`);
+}
+
+/** Whether a postgres URL's password is the development one, `devspace`. */
+function usesDevPassword(databaseUrl: string): boolean {
+  try {
+    return decodeURIComponent(new URL(databaseUrl).password) === 'devspace';
+  } catch {
+    return false;
+  }
+}
 
 export type Env = z.infer<typeof EnvSchema>;
 
+/**
+ * The environment without blank settings: `VAR=` (e.g. compose's `${VAR:-}`) means "not set",
+ * so the default applies.
+ */
+export function withoutBlanks(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return Object.fromEntries(
+    Object.entries(source).filter(([, value]) => value !== undefined && value.trim() !== ''),
+  );
+}
+
+/** Parses an environment (tests check refusals with this; the app uses `env`). */
+export function parseEnv(
+  source: NodeJS.ProcessEnv,
+): { ok: true; env: Env } | { ok: false; issues: string[] } {
+  const result = EnvSchema.safeParse(withoutBlanks(source));
+  if (result.success) return { ok: true, env: result.data };
+  return {
+    ok: false,
+    issues: result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`),
+  };
+}
+
 function loadEnv(): Env {
-  const result = EnvSchema.safeParse(process.env);
-  if (!result.success) {
-    const issues = result.error.issues
-      .map((issue) => `  ${issue.path.join('.')}: ${issue.message}`)
-      .join('\n');
-    throw new Error(`Invalid environment variables:\n${issues}`);
+  const result = parseEnv(process.env);
+  if (!result.ok) {
+    throw new Error(
+      `Invalid environment variables:\n${result.issues.map((issue) => `  ${issue}`).join('\n')}`,
+    );
   }
-  return result.data;
+  return result.env;
 }
 
 export const env = loadEnv();

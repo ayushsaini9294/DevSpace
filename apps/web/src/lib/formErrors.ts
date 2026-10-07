@@ -1,5 +1,5 @@
 import { ZodError, type ZodType } from 'zod';
-import { ApiError } from './api';
+import { ApiError, RATE_LIMITED_MESSAGE } from './api';
 
 export type FieldErrors<F extends string> = Partial<Record<F, string>>;
 
@@ -46,6 +46,11 @@ export function describeServerError<F extends string>(
 
   if (error instanceof ApiError) {
     const body = error.errorResponse;
+    // Too many tries (`rate_limited`): the API's own message (never per-field), or the same words
+    // if the 429 came without its usual body.
+    if (error.status === 429) {
+      return { ...noErrors, formError: body?.message ?? RATE_LIMITED_MESSAGE };
+    }
     if (!body) {
       return {
         ...noErrors,

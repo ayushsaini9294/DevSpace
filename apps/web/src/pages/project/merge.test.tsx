@@ -8,6 +8,7 @@ import {
   renderApp,
   stubApi,
   testCopy,
+  TEST_IDE_ORIGIN,
   testMember,
   testProject,
   testRepository,
@@ -422,7 +423,7 @@ describe('Update my copy in the IDE toolbar', () => {
       [`GET ${P}/copy`]: { status: 200, body: { copy: running } },
       [`POST ${P}/copy/ide/launch`]: {
         status: 200,
-        body: { url: 'http://127.0.0.1:3100/ide-launch?ticket=t1' },
+        body: { url: `${TEST_IDE_ORIGIN}/ide-launch?ticket=t1` },
       },
       [`GET ${P}/copy/update`]: { status: 200, body: { behind: true, conflictPaths: [] } },
     });
@@ -474,14 +475,14 @@ describe('Leads open a member’s copy', () => {
       [`GET ${M}`]: { status: 200, body: { copy: running } },
       [`POST ${M}/ide/launch`]: {
         status: 200,
-        body: { url: 'http://127.0.0.1:3100/ide-launch?ticket=t1' },
+        body: { url: `${TEST_IDE_ORIGIN}/ide-launch?ticket=t1` },
       },
     });
     renderApp('/projects/project-1/members/user-3/ide');
 
     expect(await screen.findByTitle('VS Code for Cleo Member’s copy')).toHaveAttribute(
       'src',
-      'http://127.0.0.1:3100/ide-launch?ticket=t1',
+      `${TEST_IDE_ORIGIN}/ide-launch?ticket=t1`,
     );
     expect(screen.getByRole('heading', { name: 'Cleo Member’s copy' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '← Back to members' })).toHaveAttribute(
@@ -506,7 +507,7 @@ describe('Leads open a member’s copy', () => {
       [`GET ${M}`]: { status: 200, body: { copy: running } },
       [`POST ${M}/ide/launch`]: {
         status: 200,
-        body: { url: 'http://127.0.0.1:3100/ide-launch?ticket=t1' },
+        body: { url: `${TEST_IDE_ORIGIN}/ide-launch?ticket=t1` },
       },
     });
     renderApp('/projects/project-1/members/user-3/ide');

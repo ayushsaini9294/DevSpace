@@ -148,3 +148,13 @@ The local PostgreSQL already has a `devspace` role and database from the old pro
 - From now on, commits made by DevSpace use private email addresses: the person's GitHub "noreply" address when they connected GitHub (so commits show on their GitHub profile), otherwise a DevSpace private address. Before publishing, DevSpace warns which people's real email addresses are in older commits (owner).
 - In "keep updated" mode DevSpace pushes main after every merge or undo, never force-pushes, and pauses with an explanation if someone changed the repository directly on GitHub (owner). Bringing GitHub changes back into DevSpace stays a later feature.
 - Leaders can start a project by importing a GitHub repository, private ones included.
+
+## 2026-10-06: New look, and Deploy (Phase 14)
+
+- **New look (owner):** clean and modern, with light and dark mode that follow the system. Every page uses shared design tokens (`apps/web/src/index.css`) instead of raw colours, plus the Inter font. Committed as 8f94438 after the owner checked it.
+- **Deploy, ready but no host picked yet (owner):** the whole stack runs from one production compose file behind Caddy, proven locally in WSL. The owner rents a server and buys domains later. Every address is a setting.
+- **One address per copy's IDE (owner):** `<copyId>.ide.localhost` in development, `<copyId>.<ide domain>` in production. WebSockets and non-GET requests must come from that copy's own origin. This closes the shared-IDE-address risk accepted on 2026-09-28.
+- **Two domains in production:** the IDE uses a different registrable domain from the app (a subdomain of the app's domain is the same site and could plant cookies for the app).
+- **DNS on Cloudflare (owner):** Caddy gets the wildcard certificate for the IDE domain through Cloudflare's DNS.
+- **Backups (owner):** every night, the database, repositories and copies (without installed packages), keeping the newest 7 on the server, with a tested restore script.
+- **Rate limits** on log in, sign up, invitations, IDE start, AI and the rest of the API; 429 with a plain message.

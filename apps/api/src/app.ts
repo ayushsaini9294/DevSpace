@@ -1,4 +1,6 @@
-import express, { type ErrorRequestHandler, type Express } from 'express';
+import express, { type ErrorRequestHandler, type Express, type RequestHandler } from 'express';
+import { env } from './config/env.ts';
+import { limits } from './lib/rate-limit.ts';
 import cookieParser from 'cookie-parser';
 import type { ErrorResponse } from '@devspace/shared';
 import { healthRouter } from './routes/health.ts';
@@ -15,15 +17,34 @@ import { aiRouter } from './ai/routes.ts';
 import { templatesRouter } from './repository/routes.ts';
 import { githubRouter } from './github/routes.ts';
 
-export function createApp(): Express {
+export interface AppOptions {
+  /** Express `trust proxy` (default TRUST_PROXY; tests pass their own). */
+  trustProxy?: boolean | number | string;
+}
+
+/** Security headers on every /api response (Phase 14); JSON answers are never cached. */
+const apiHeaders: RequestHandler = (_req, res, next) => {
+  res.set({
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'Cache-Control': 'no-store',
+  });
+  next();
+};
+
+export function createApp(options: AppOptions = {}): Express {
   const app = express();
   app.disable('x-powered-by');
+  // Behind Caddy (TRUST_PROXY=loopback) req.ip is the real client, for rate limits and logs.
+  app.set('trust proxy', options.trustProxy ?? env.TRUST_PROXY);
+  app.use('/api', apiHeaders);
   // The IDE is served by its own listener on its own site (ide/proxy.ts), never from here.
   app.use('/api', requireAppOrigin);
   app.use('/api', requireJson);
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());
   app.use('/api', loadSession);
+  app.use('/api', limits.general);
 
   app.use('/api', healthRouter);
   app.use('/api/auth', authRouter);

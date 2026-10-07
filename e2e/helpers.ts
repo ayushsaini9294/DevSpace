@@ -18,6 +18,19 @@ export function copyFolder(projectId: string, copyId: string) {
   return join(COPIES_DIR, projectId, copyId);
 }
 
+/** Same default as the API (`IDE_BASE_URL`): scheme + base host + port, no path. */
+export const IDE_BASE_URL = new URL(process.env.IDE_BASE_URL || 'http://ide.localhost:3100');
+
+/** A copy's own IDE origin (Phase 14), as the API builds it: `http://<copyId>.ide.localhost:3100`. */
+export function ideOriginFor(copyId: string) {
+  return `${IDE_BASE_URL.protocol}//${copyId}.${IDE_BASE_URL.host}`;
+}
+
+/** `text` escaped for use inside a RegExp. */
+export function escapeRegExp(text: string) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /**
  * Runs git against a project's bare repository (never inside a copy), without user or system
  * config or hooks, and returns stdout without its trailing newline.

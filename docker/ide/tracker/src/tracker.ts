@@ -1,6 +1,6 @@
 // The tracker's logic, kept free of the `vscode` module so it can be unit tested.
 // Phase 9 contract (CLAUDE.md): report `{ file, active }` on every editor change (debounced 1 s)
-// and as a heartbeat every 30 s, to `<IDE_ORIGIN>/ide/<copyId>/__devspace/presence`.
+// and as a heartbeat every 30 s, to `<copy IDE origin>/ide/<copyId>/__devspace/presence`.
 
 export type Report = { file: string | null; active: boolean };
 
@@ -44,7 +44,7 @@ export function workspaceRelativePath(file: UriLike | undefined): string | null 
 
 /**
  * The presence endpoint of this IDE, found from VS Code's file root in the extension host worker
- * (`<IDE_ORIGIN>/ide/<copyId>/<version>/static/out/`). Null unless it is on this worker's own
+ * (`<copy IDE origin>/ide/<copyId>/<version>/static/out/`). Null unless it is on this worker's own
  * origin: the tracker never sends anything to another site.
  */
 export function presenceEndpoint(fileRoot: unknown, ownOrigin: string): string | null {

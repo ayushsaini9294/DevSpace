@@ -7,6 +7,7 @@ import {
   healthOk,
   loggedIn,
   loggedOut,
+  rateLimited,
   renderApp,
   stubApi,
   testUser,
@@ -91,6 +92,26 @@ describe('sign-up page', () => {
     expect(screen.queryByTestId('current-user')).not.toBeInTheDocument();
   });
 
+  it('shows the API’s message when there were too many tries (429)', async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubApi({
+      'GET /api/auth/me': loggedOut,
+      'POST /api/auth/signup': rateLimited,
+    });
+    renderApp('/signup');
+
+    await user.type(await screen.findByLabelText('Name', { exact: true }), 'Ada');
+    await user.type(screen.getByLabelText('Email', { exact: true }), 'ada@example.com');
+    await user.type(screen.getByLabelText('Password', { exact: true }), 'long-enough-1');
+    await user.click(screen.getByRole('button', { name: 'Create account' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Too many tries. Please wait a minute and try again.',
+    );
+    expect(screen.getByLabelText('Email', { exact: true })).not.toHaveAttribute('aria-invalid');
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
+  });
+
   it('signs up, stores the user and goes home', async () => {
     const user = userEvent.setup();
     let session = loggedOut;
@@ -141,6 +162,24 @@ describe('log-in page', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Email or password is incorrect');
     expect(screen.getByLabelText('Email', { exact: true })).not.toHaveAttribute('aria-invalid');
     expect(router.state.location.pathname).toBe('/login');
+  });
+
+  it('shows the API’s message when there were too many tries (429), without retrying', async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubApi({
+      'GET /api/auth/me': loggedOut,
+      'POST /api/auth/login': rateLimited,
+    });
+    renderApp('/login');
+
+    await user.type(await screen.findByLabelText('Email', { exact: true }), 'ada@example.com');
+    await user.type(screen.getByLabelText('Password', { exact: true }), 'secret-123');
+    await user.click(screen.getByRole('button', { name: 'Log in' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Too many tries. Please wait a minute and try again.',
+    );
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
   });
 
   it('asks for a password and disables the button while logging in', async () => {

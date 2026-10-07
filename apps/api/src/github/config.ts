@@ -46,12 +46,16 @@ function privateKeyFromEnv(): string | null {
 }
 
 function fromEnv(): Partial<GithubConfig> {
+  // The key file is read only when the rest of GitHub is set up (in production it may be a
+  // placeholder mount when GitHub isn't configured).
+  const rest =
+    env.GITHUB_APP_ID && env.GITHUB_APP_SLUG && env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET;
   return {
     appId: env.GITHUB_APP_ID,
     slug: env.GITHUB_APP_SLUG,
     clientId: env.GITHUB_CLIENT_ID || undefined,
     clientSecret: env.GITHUB_CLIENT_SECRET || undefined,
-    privateKey: privateKeyFromEnv() ?? undefined,
+    privateKey: rest ? (privateKeyFromEnv() ?? undefined) : undefined,
     apiUrl: env.GITHUB_API_URL,
     webUrl: env.GITHUB_WEB_URL,
     allowHttp: env.NODE_ENV === 'test' || env.GITHUB_ALLOW_HTTP,

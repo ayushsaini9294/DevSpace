@@ -64,7 +64,13 @@ export function apiDelete(path: string, data: unknown = {}): Promise<unknown> {
   return apiFetch(path, { method: 'DELETE', body: JSON.stringify(data) });
 }
 
-/** Retry only network and server failures, briefly; client errors (4xx) won't fix themselves. */
+/**
+ * Retry only network and server failures, briefly; client errors (4xx) won't fix themselves.
+ * Never a 429 (`rate_limited`): retrying would only use up more of the limit.
+ */
 export function retryServerErrors(failureCount: number, error: unknown): boolean {
   return failureCount < 2 && !(error instanceof ApiError && error.status < 500);
 }
+
+/** The API's words for a 429, used when a 429 arrives without its usual body. */
+export const RATE_LIMITED_MESSAGE = 'Too many tries. Please wait a minute and try again.';

@@ -1,0 +1,223 @@
+# DevSpace in production: everything behind Caddy on one server.
+#
+#   cd deploy && docker compose -f compose.prod.yml up -d --build
+#
+# Settings come from deploy/.env (copy .env.example; never commit it). docs/deploy.md explains every
+# step. For the local proof in WSL (http://app.localhost, no certificates) add compose.local.yml:
+#
+#   docker compose -f compose.prod.yml -f compose.local.yml up -d --build
+#
+# How it fits together:
+# - caddy, api and worker use the server's own network (network_mode: host). The API starts IDE
+#   containers through Docker and binds its AI gateway on the IDE bridge (10.213.0.1), so it can't
+#   live on a Compose network; Caddy reaches it on 127.0.0.1.
+# - postgres and redis publish only on 127.0.0.1, never on the internet.
+# - Members' copies and the projects' Git repositories live in DATA_DIR on the server, mounted at
+#   the same path inside api and worker, because the API hands copy paths to Docker as bind mounts.
+# - The API has the Docker socket: it controls the whole server. DevSpace needs its own server.
+
+# Its own project name, so it never mixes with the development docker-compose.yml (project
+# "devspace") on a machine that has both.
+name: devspace-prod
+
+x-app: &app
+  image: devspace-app:latest
+  build:
+    context: ..
+    dockerfile: deploy/Dockerfile
+    target: app
+  restart: unless-stopped
+  network_mode: host
+  init: true
+  # The fixed non-root user from the image (uid:gid 10001), plus the Docker socket's group.
+  user: '10001:10001'
+  group_add:
+    - '${DOCKER_GID:?run deploy/host-setup.sh first (it sets DOCKER_GID in deploy/.env)}'
+  environment: &app-env
+    NODE_ENV: production
+    DATABASE_URL: postgresql://devspace:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}@127.0.0.1:${POSTGRES_PORT:-5432}/devspace
+    REDIS_URL: redis://127.0.0.1:${REDIS_PORT:-6379}
+    APP_ORIGIN: https://${APP_DOMAIN:?set APP_DOMAIN in deploy/.env}
+    IDE_BASE_URL: https://${IDE_DOMAIN:?set IDE_DOMAIN in deploy/.env}
+    API_HOST: 127.0.0.1
+    PORT: ${API_PORT:-3000}
+    IDE_HOST: 127.0.0.1
+    IDE_PORT: ${IDE_PORT:-3100}
+    TRUST_PROXY: loopback
+    REPOS_DIR: ${DATA_DIR:-/srv/devspace/data}/repos
+    COPIES_DIR: ${DATA_DIR:-/srv/devspace/data}/copies
+    DOCKER_SOCKET: /var/run/docker.sock
+    IDE_IMAGE: devspace-ide:5
+    IDE_NETWORK: devspace-ide
+    AI_SECRETS_KEY: ${AI_SECRETS_KEY:?set AI_SECRETS_KEY in deploy/.env}
+    AI_DEFAULT_MODELS: ${AI_DEFAULT_MODELS:-}
+    AI_FALLBACK_MODELS: ${AI_FALLBACK_MODELS:-}
+    GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+    GITHUB_APP_SLUG: ${GITHUB_APP_SLUG:-}
+    GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+    GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+    GITHUB_APP_PRIVATE_KEY_PATH: /run/secrets/github-app.pem
+  volumes:
+    - ${DATA_DIR:-/srv/devspace/data}:${DATA_DIR:-/srv/devspace/data}
+    - /var/run/docker.sock:/var/run/docker.sock
+    # The GitHub App's private key (a file on the server, readable by uid 10001). Unset: nothing
+    # is mounted that matters, and GitHub features say they aren't set up.
+    - ${GITHUB_APP_PRIVATE_KEY_FILE:-/dev/null}:/run/secrets/github-app.pem:ro
+
+services:
+  postgres:
+    image: postgres:17.11-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: devspace
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: devspace
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U devspace -d devspace']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7.4.11-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+    restart: unless-stopped
+    # Job queues must never be evicted (BullMQ); an append-only file keeps them across restarts.
+    command: ['redis-server', '--appendonly', 'yes', '--maxmemory-policy', 'noeviction']
+    ports:
+      - '127.0.0.1:${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Applies database migrations once, before the API and the worker start.
+  migrate:
+    <<: *app
+    restart: 'no'
+    working_dir: /app/apps/api
+    command: ['npx', '--no', 'prisma', 'migrate', 'deploy']
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    working_dir: /app/apps/api
+    command: ['node', 'dist/index.js']
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  worker:
+    <<: *app
+    working_dir: /app/apps/worker
+    command: ['node', '--conditions=production', 'dist/main.js']
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  caddy:
+    image: devspace-caddy:latest
+    build:
+      context: ..
+      dockerfile: deploy/caddy.Dockerfile
+      additional_contexts:
+        # The web build is copied out of the app image (built once).
+        app: service:api
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in deploy/.env}
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
+      APP_SITE: https://${APP_DOMAIN}
+      IDE_SITE: https://*.${IDE_DOMAIN}
+      IDE_BARE_SITE: https://${IDE_DOMAIN}
+      IDE_BARE_HOST: ${IDE_DOMAIN}
+      IDE_TLS: cloudflare
+      CSP_CONNECT: wss://${APP_DOMAIN}
+      CSP_FRAME: https://*.${IDE_DOMAIN}
+      API_PORT: ${API_PORT:-3000}
+      IDE_PORT: ${IDE_PORT:-3100}
+    volumes:
+      # Certificates and Caddy's state survive restarts and updates.
+      - caddydata:/data
+      - caddyconfig:/config
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # Nightly backups at 03:00 server time into BACKUP_DIR: the database, the Git repositories and the
+  # members' copies, keeping the newest BACKUP_KEEP (7). deploy/restore.sh puts one back.
+  backup:
+    image: devspace-backup:latest
+    build:
+      context: .
+      dockerfile: backup.Dockerfile
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGPORT: '5432'
+      PGUSER: devspace
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      PGDATABASE: devspace
+      BACKUP_KEEP: ${BACKUP_KEEP:-7}
+      BACKUP_SCHEDULE: ${BACKUP_SCHEDULE:-0 3 * * *}
+    volumes:
+      - ${DATA_DIR:-/srv/devspace/data}:/data:ro
+      - ${BACKUP_DIR:-/srv/devspace/backups}:/backups
+      # The server's time zone, so 03:00 means 03:00 on the server.
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Not a running service: deploy/restore.sh uses it to put a backup back (the backup image with
+  # DATA_DIR writable). `up` never starts it.
+  restore:
+    image: devspace-backup:latest
+    build:
+      context: .
+      dockerfile: backup.Dockerfile
+    profiles: ['restore']
+    restart: 'no'
+    entrypoint: ['/sbin/tini', '--', '/usr/local/bin/devspace-restore']
+    command: []
+    environment:
+      PGHOST: postgres
+      PGPORT: '5432'
+      PGUSER: devspace
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      PGDATABASE: devspace
+    volumes:
+      - ${DATA_DIR:-/srv/devspace/data}:/restore-data
+      - ${BACKUP_DIR:-/srv/devspace/backups}:/backups:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  redisdata:
+  caddydata:
+  caddyconfig:
