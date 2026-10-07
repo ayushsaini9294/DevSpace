@@ -1,0 +1,101 @@
+# Tunnel mode: DevSpace runs on your own PC (WSL) and Cloudflare Tunnel puts it online, with
+# HTTPS from Cloudflare. No server, no open ports, no certificates here. It is an override on
+# compose.prod.yml; deploy/live.sh runs it for you:
+#
+#   bash deploy/live.sh start
+#
+# By hand (live.sh does exactly this):
+#
+#   COMPOSE_PROFILES=tunnel docker compose -f compose.prod.yml -f compose.tunnel.yml \
+#     --env-file ~/devspace-live/.env up -d
+#
+# How it fits together:
+#   browser --https--> Cloudflare --tunnel--> cloudflared (this PC) --http--> Caddy 127.0.0.1:8080
+#   Caddy --> the API (app and IDE listeners on 127.0.0.1) as in production.
+# - cloudflared makes an outgoing connection to Cloudflare; nothing listens on the internet.
+#   It is a remotely managed tunnel: its routes (the two domains -> http://localhost:8080) are
+#   set in the Cloudflare dashboard, and it only needs the tunnel's token.
+# - Caddy serves plain http on 127.0.0.1 only, with the same routes, CSP and headers as
+#   production. It trusts X-Forwarded-* only from this machine (cloudflared), so the API still
+#   sees https and the visitor's real address (CF-Connecting-IP).
+# - The public addresses stay https (APP_ORIGIN=https://<APP_DOMAIN>,
+#   IDE_BASE_URL=https://<IDE_DOMAIN>), so every production safety check stays on.
+# - Its own ports, so the development Postgres/Redis (docker-compose.yml) can keep running:
+#   Postgres 25432, Redis 26379, the API 3300 (app) and 3400 (IDE), Caddy 8080, cloudflared's
+#   status page 20241, all on 127.0.0.1. Only the AI gateway (10.213.0.1:3200) can't be shared,
+#   so `npm run dev` and the live stack never run at the same time (live.sh checks).
+# - Its own Compose project (devspace-live): its own database and volumes, apart from
+#   development, the LOCAL proof (devspace-local) and a real server (devspace-prod).
+
+name: devspace-live
+
+x-tunnel-env: &tunnel-env
+  DATABASE_URL: postgresql://devspace:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@127.0.0.1:${POSTGRES_PORT:-25432}/devspace
+  REDIS_URL: redis://127.0.0.1:${REDIS_PORT:-26379}
+  PORT: ${API_PORT:-3300}
+  IDE_PORT: ${IDE_PORT:-3400}
+
+services:
+  postgres:
+    ports: !override
+      - '127.0.0.1:${POSTGRES_PORT:-25432}:5432'
+
+  redis:
+    ports: !override
+      - '127.0.0.1:${REDIS_PORT:-26379}:6379'
+
+  migrate:
+    environment: *tunnel-env
+  api:
+    environment: *tunnel-env
+  worker:
+    environment: *tunnel-env
+
+  caddy:
+    environment:
+      # Plain http on 127.0.0.1:<TUNNEL_HTTP_PORT>; Cloudflare gives the visitor HTTPS.
+      APP_SITE: http://${APP_DOMAIN}:${TUNNEL_HTTP_PORT:-8080}
+      IDE_SITE: http://*.${IDE_DOMAIN}:${TUNNEL_HTTP_PORT:-8080}
+      IDE_BARE_SITE: http://${IDE_DOMAIN}:${TUNNEL_HTTP_PORT:-8080}
+      IDE_TLS: none
+      CADDY_BIND: loopback
+      CLOUDFLARE_API_TOKEN: ''
+      # What the browser sees is https, so the CSP names https/wss addresses.
+      CSP_CONNECT: wss://${APP_DOMAIN}
+      CSP_FRAME: https://*.${IDE_DOMAIN}
+      API_PORT: ${API_PORT:-3300}
+      IDE_PORT: ${IDE_PORT:-3400}
+
+  # The tunnel to Cloudflare. Only started with the `tunnel` profile (live.sh sets it), so the
+  # local proof (deploy/tunnel-smoke.sh) can run the rest without a real token.
+  cloudflared:
+    # cloudflared 2026.10.0, pinned by digest.
+    image: cloudflare/cloudflared:2026.10.0@sha256:9b49eed8f62806d5d45ddf59ecefb5710429598ea6d3fcccd2af938f621b2b07
+    profiles: ['tunnel']
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - tunnel
+      - --no-autoupdate
+      - --metrics
+      - 127.0.0.1:${TUNNEL_METRICS_PORT:-20241}
+      - run
+    environment:
+      # The token from the Cloudflare dashboard (Networking > Tunnels > your tunnel).
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    healthcheck:
+      # /ready answers 200 once the tunnel has a live connection to Cloudflare.
+      test:
+        - CMD
+        - cloudflared
+        - tunnel
+        - --metrics
+        - 127.0.0.1:${TUNNEL_METRICS_PORT:-20241}
+        - ready
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 20s
+    depends_on:
+      caddy:
+        condition: service_started

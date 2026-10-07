@@ -34,6 +34,7 @@ export default defineConfig(
       'apps/worker/**/*.{js,mjs,cjs,ts}',
       'packages/**/*.{js,mjs,cjs,ts}',
       'e2e/**/*.ts',
+      'deploy/**/*.{js,mjs,cjs,ts}',
       '*.{js,mjs,cjs,ts}',
       'apps/*/*.config.{js,mjs,cjs,ts}',
     ],

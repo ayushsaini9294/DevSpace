@@ -1,16 +1,34 @@
 # DevSpace's web server (Caddy). deploy/compose.prod.yml sets every {$VARIABLE} below from
 # deploy/.env; deploy/compose.local.yml sets them for the local proof (http://app.localhost and
-# http://*.ide.localhost, no certificates).
+# http://*.ide.localhost, no certificates); deploy/compose.tunnel.yml sets them for tunnel mode
+# (plain http on 127.0.0.1:8080, with Cloudflare Tunnel in front giving HTTPS).
 #
 #   APP_SITE / IDE_SITE / IDE_BARE_SITE   the site addresses (https://… in production)
 #   IDE_BARE_HOST                         the IDE domain itself, which only answers 404
 #   IDE_TLS                               cloudflare (wildcard certificate by DNS) or none
+#   CADDY_BIND                            all (every interface, the default) or loopback
+#                                         (127.0.0.1 only: tunnel mode, cloudflared is local)
 #   CSP_CONNECT / CSP_FRAME               the app's WebSocket origin and the IDEs' address pattern
 #   API_PORT / IDE_PORT                   the API's two listeners on 127.0.0.1
 {
 	# No admin API: config changes happen by restarting the container.
 	admin off
 	email {$ACME_EMAIL}
+	servers {
+		# Only a proxy on this machine (cloudflared, in tunnel mode) may tell Caddy the browser's
+		# scheme and address: its X-Forwarded-Proto/-Host are passed on, and the client address
+		# is taken from CF-Connecting-IP (set by Cloudflare), then X-Forwarded-For. Requests from
+		# anywhere else (the internet, on a server) never get their headers trusted.
+		trusted_proxies static 127.0.0.1/32 ::1/128
+		client_ip_headers CF-Connecting-IP X-Forwarded-For
+	}
+}
+
+# Which addresses the sites listen on.
+(bind_all) {
+}
+(bind_loopback) {
+	bind 127.0.0.1
 }
 
 # The IDEs' wildcard certificate comes from Let's Encrypt through Cloudflare's DNS (a DNS challenge
@@ -38,14 +56,18 @@
 
 # ---- The app: the API and live updates go to the API, everything else is the web build ----
 {$APP_SITE} {
+	import bind_{$CADDY_BIND:all}
 	import common_headers
 	encode zstd gzip
 
 	@api path /api/* /socket.io/*
 	handle @api {
 		# WebSockets (Socket.io) included. The API sees the real client address through
-		# X-Forwarded-For (TRUST_PROXY=loopback).
-		reverse_proxy 127.0.0.1:{$API_PORT}
+		# X-Forwarded-For (TRUST_PROXY=loopback): the visitor's own address, or in tunnel mode
+		# the one Cloudflare saw (see trusted_proxies above).
+		reverse_proxy 127.0.0.1:{$API_PORT} {
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 
 	handle {
@@ -73,8 +95,13 @@
 
 # ---- The IDEs: every copy has its own address, <copyId>.<IDE domain> ----
 {$IDE_SITE}, {$IDE_BARE_SITE} {
+	import bind_{$CADDY_BIND:all}
 	import tls_{$IDE_TLS}
 	import common_headers
+	# Cloudflare (tunnel mode) must never keep a copy of an IDE or Preview response in its cache:
+	# they are private to whoever has that copy's IDE cookie. Only Cloudflare reads this header;
+	# browsers never see it.
+	header Cloudflare-CDN-Cache-Control "no-store"
 
 	# The IDE domain itself serves nothing.
 	@bare host {$IDE_BARE_HOST}
