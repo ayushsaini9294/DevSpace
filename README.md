@@ -2,7 +2,9 @@
 
 **A team coding workspace for beginners, in the browser.** A leader creates a project, each member codes in their own copy in a real VS Code in the browser, members submit their work for review, and only leaders merge it into main. Git runs underneath, but nobody has to type a Git command.
 
-<!-- DEMO-LINKS -->
+**[Try the live demo](https://ayushsaini9294.github.io/DevSpace/)**: a full sample team in your browser, no sign-up needed. The demo runs on sample data with no server, so the IDE part shows screenshots of the real one.
+
+<!-- VIDEO-LINK -->
 
 ![The DevSpace home page](docs/images/home.png)
 
