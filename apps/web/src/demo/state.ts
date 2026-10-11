@@ -86,6 +86,11 @@ export type DemoSubmission = {
   revertedById: string | null;
   revertedAt: string | null;
   taskId: string | null;
+  /**
+   * When Maya (the sample co-leader) approves this version automatically (ms since 1970), so a
+   * visitor can try Merge on their own work. Only set on the visitor's submissions.
+   */
+  autoApproveAt?: number | null;
 };
 
 export type DemoTask = {

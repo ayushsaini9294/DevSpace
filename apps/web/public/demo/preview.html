@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!--
+      The demo IDE's preview frame. The app frames this page with sandbox="allow-scripts" (never
+      allow-same-origin), so the visitor's code runs in an origin of its own and can't read the
+      app's state, storage or cookies. It may run its own scripts and styles, but load nothing
+      from the network. The page waits for one page of the visitor's copy and writes it in.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; base-uri 'none'; form-action 'none'"
+    />
+    <title>Preview</title>
+  </head>
+  <body>
+    <script>
+      (function () {
+        var app = window.parent;
+        if (app === window) return;
+        window.addEventListener('message', function (event) {
+          var data = event.data;
+          if (event.source !== app || !data || data.type !== 'devspace-demo-preview-show') return;
+          if (typeof data.html !== 'string') return;
+          document.open();
+          document.write(data.html);
+          document.close();
+        });
+        app.postMessage({ type: 'devspace-demo-preview-ready' }, '*');
+      })();
+    </script>
+  </body>
+</html>

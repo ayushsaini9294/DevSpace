@@ -1,13 +1,22 @@
 # Cloudflare Pages headers for the demo build (removed from normal builds by vite.config.ts).
-# The demo makes no network calls of its own (connect-src 'self'), frames nothing, and Monaco's
-# workers, styles and fonts are all served from this site.
+# The demo makes no network calls of its own (connect-src 'self'), and Monaco's workers, styles
+# and fonts are all served from this site. The only page it frames is its own preview page
+# (frame-src 'self'; every other page refuses to be framed).
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self'; worker-src 'self' blob:; frame-src 'none'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; media-src 'self'; worker-src 'self' blob:; frame-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
   Cross-Origin-Opener-Policy: same-origin
+
+# The demo IDE's preview frame. The app frames it sandboxed (allow-scripts, never
+# allow-same-origin), and the visitor's own inline scripts and styles run in it. Only this site
+# may frame it, and it loads nothing from the network.
+/demo/preview.html
+  ! Content-Security-Policy
+  ! X-Frame-Options
+  Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable

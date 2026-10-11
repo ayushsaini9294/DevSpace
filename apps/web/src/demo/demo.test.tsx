@@ -1,9 +1,9 @@
 /// <reference types="node" />
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ZodType } from 'zod';
 import {
   ActivityListResponseSchema,
@@ -43,9 +43,37 @@ import {
 import { routes } from '../app/routes';
 import { renderApp } from '../test/utils';
 import { demoRoutes } from './routes';
-import { NOT_IN_DEMO, UNKNOWN_ROUTE } from './server';
-import { demoFetch, installDemoApi, resetDemoState } from './standIn';
+import { buildPreviewHtml, resolveCopyPath } from './preview';
+import { AUTO_APPROVE_MS, NOT_IN_DEMO, UNKNOWN_ROUTE } from './server';
+import {
+  demoFetch,
+  installDemoApi,
+  markDemoPreviewSeen,
+  readDemoCopy,
+  resetDemoState,
+  saveDemoCopyFile,
+  subscribeDemoChanges,
+} from './standIn';
 import { SAMPLE_PROJECT_ID as P, SAMPLE_TEAM_ID } from './state';
+
+// Monaco doesn't run in jsdom: the demo editor is a plain text box here.
+vi.mock('./DemoEditor', () => ({
+  default: ({
+    path,
+    value,
+    onChange,
+  }: {
+    path: string;
+    value: string;
+    onChange: (path: string, value: string) => void;
+  }) => (
+    <textarea
+      aria-label={`Edit ${path}`}
+      value={value}
+      onChange={(e) => onChange(path, e.target.value)}
+    />
+  ),
+}));
 
 beforeAll(() => {
   installDemoApi();
@@ -369,6 +397,188 @@ describe('the demo pages', () => {
     renderApp('/invite/demo-token', appRoutes);
     expect(await screen.findByText(/Not available in the demo/)).toBeInTheDocument();
   });
+});
+
+describe('editing code in the demo', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const NEW_HEADING = '<h2>Welcome to the best class website!</h2>';
+
+  async function editIndex() {
+    const editor = await screen.findByRole('textbox', { name: 'Edit index.html' });
+    const changed = (editor as HTMLTextAreaElement).value.replace(
+      '<h2>Welcome to our class website!</h2>',
+      NEW_HEADING,
+    );
+    fireEvent.change(editor, { target: { value: changed } });
+    expect(screen.getByText('Saving…')).toBeInTheDocument();
+    // Auto-saved shortly after the last key press.
+    expect(await screen.findByText('All changes saved')).toBeInTheDocument();
+  }
+
+  it('saves edits to the copy, so the Submit page lists the changed file ticked', async () => {
+    renderApp(`/projects/${P}/ide`, appRoutes);
+    await editIndex();
+    expect(readDemoCopy(P)?.find((f) => f.path === 'index.html')).toMatchObject({
+      changed: true,
+    });
+    expect(readDemoCopy(P)?.find((f) => f.path === 'index.html')?.content).toContain(NEW_HEADING);
+
+    await userEvent.click(screen.getByRole('link', { name: 'Submit work' }));
+    const box = await screen.findByRole('checkbox', { name: 'index.html' });
+    expect(box).toBeChecked();
+    const changes = CopyChangesResponseSchema.parse(
+      (await call('GET', `${base}/copy/changes`)).body,
+    );
+    expect(changes.files.map((f) => f.path)).toContain('index.html');
+  });
+
+  it('undoes my edits to a file: it goes back to main’s version', async () => {
+    renderApp(`/projects/${P}/ide`, appRoutes);
+    await editIndex();
+    await userEvent.click(screen.getByRole('button', { name: 'Undo my edits to this file' }));
+    const index = readDemoCopy(P)?.find((f) => f.path === 'index.html');
+    expect(index?.changed).toBe(false);
+    expect(
+      (screen.getByRole('textbox', { name: 'Edit index.html' }) as HTMLTextAreaElement).value,
+    ).toBe(index?.base);
+  });
+
+  it('shows the preview in a sandboxed frame without allow-same-origin', async () => {
+    renderApp(`/projects/${P}/ide`, appRoutes);
+    const frame = await screen.findByTitle('Preview of index.html');
+    expect(frame.tagName).toBe('IFRAME');
+    expect(frame.getAttribute('sandbox')).toBe('allow-scripts');
+    expect(frame.getAttribute('sandbox')).not.toContain('allow-same-origin');
+    expect(frame.getAttribute('src')).toBe('/demo/preview.html');
+    expect(frame).not.toHaveAttribute('srcdoc');
+  });
+
+  it('builds the preview from the copy: the page with its stylesheet, scripts and pictures', () => {
+    const html = buildPreviewHtml(
+      {
+        'index.html':
+          '<html><head><link rel="stylesheet" href="style.css" /></head><body><img src="images/a.svg" alt="A" /><script src="./js/app.js"></script><script src="https://example.com/x.js"></script></body></html>',
+        'style.css': 'body { color: red; }',
+        'js/app.js': 'console.log("</script>");',
+        'images/a.svg': '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+      },
+      'index.html',
+    );
+    expect(html).toContain('<style>\nbody { color: red; }</style>');
+    expect(html).toContain('<script>\nconsole.log("<\\/script>");</script>');
+    expect(html).toContain('src="data:image/svg+xml;charset=utf-8,');
+    // Files that aren't in the copy are left as they were.
+    expect(html).toContain('<script src="https://example.com/x.js"></script>');
+    expect(resolveCopyPath('pages/about.html', '../index.html#top')).toBe('index.html');
+    expect(resolveCopyPath('index.html', 'https://example.com/')).toBeNull();
+    expect(resolveCopyPath('index.html', '#timetable')).toBeNull();
+  });
+
+  it('forgets my edits on Reset demo', async () => {
+    renderApp(`/projects/${P}/ide`, appRoutes);
+    await editIndex();
+    await userEvent.click(screen.getByRole('button', { name: 'Reset demo' }));
+    await screen.findByRole('link', { name: /Class Website/ });
+    expect(readDemoCopy(P)?.find((f) => f.path === 'index.html')?.changed).toBe(false);
+    const changes = CopyChangesResponseSchema.parse(
+      (await call('GET', `${base}/copy/changes`)).body,
+    );
+    expect(changes.files.map((f) => f.path)).not.toContain('index.html');
+  });
+
+  it('submits, Maya approves by herself a few seconds later, then Merge updates main', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    const heard: string[][] = [];
+    const unsubscribe = subscribeDemoChanges((ids) => heard.push(ids));
+
+    const main = FileResponseSchema.parse((await call('GET', `${base}/file?path=index.html`)).body);
+    expect(
+      saveDemoCopyFile(P, 'index.html', main.content!.replace('our class', 'the best class')),
+    ).toBe(true);
+    markDemoPreviewSeen(P);
+    const created = await call('POST', `${base}/submissions`, {
+      title: 'A friendlier welcome',
+      paths: ['index.html'],
+    });
+    expect(created.status).toBe(201);
+    const opened = SubmissionResponseSchema.parse(created.body).submission;
+    expect(opened.status).toBe('open');
+    // The visitor is the leader, but can't approve their own work.
+    expect(opened.viewerActions).not.toContain('approve');
+    expect(opened.viewerActions).not.toContain('merge');
+    const own = await call('POST', `${base}/submissions/${opened.id}/reviews`, {
+      decision: 'approved',
+    });
+    expect(own.status).toBe(403);
+
+    await vi.advanceTimersByTimeAsync(AUTO_APPROVE_MS);
+    expect(heard).toContainEqual([P]);
+    const approved = SubmissionResponseSchema.parse(
+      (await call('GET', `${base}/submissions/${opened.id}`)).body,
+    ).submission;
+    expect(approved.status).toBe('approved');
+    expect(approved.reviews).toEqual([
+      expect.objectContaining({
+        reviewer: { id: 'maya-chen', name: 'Maya Chen' },
+        decision: 'approved',
+      }),
+    ]);
+    expect(approved.viewerActions).toContain('merge');
+    const notifications = NotificationListResponseSchema.parse(
+      (await call('GET', '/api/notifications')).body,
+    ).notifications;
+    expect(notifications[0]).toMatchObject({ type: 'submission.reviewed' });
+    const steps = GettingStartedViewSchema.parse(
+      (await call('GET', `${base}/getting-started`)).body,
+    ).steps;
+    expect(steps.filter((s) => s.done).map((s) => s.id)).toEqual(
+      expect.arrayContaining(['openIde', 'change', 'preview', 'submit', 'reviewed']),
+    );
+
+    const merged = await call('POST', `${base}/submissions/${opened.id}/merge`);
+    expect(merged.status).toBe(200);
+    const after = FileResponseSchema.parse(
+      (await call('GET', `${base}/file?path=index.html`)).body,
+    );
+    expect(after.content).toContain('Welcome to the best class website!');
+    unsubscribe();
+  });
+
+  it('shows Maya’s automatic approval on the review page of my own work', async () => {
+    saveDemoCopyFile(
+      P,
+      'index.html',
+      readDemoCopy(P)!
+        .find((f) => f.path === 'index.html')!
+        .content.replace('our class', 'the best class'),
+    );
+    const created = SubmissionResponseSchema.parse(
+      (
+        await call('POST', `${base}/submissions`, {
+          title: 'A friendlier welcome',
+          paths: ['index.html'],
+        })
+      ).body,
+    ).submission;
+    renderApp(`/projects/${P}/submissions/${created.id}`, appRoutes);
+    expect(await screen.findByTestId('demo-approval-note')).toHaveTextContent(
+      'In the demo, Maya approves automatically so you can try Merge.',
+    );
+    await waitFor(
+      () => expect(screen.getByText(/Nice work! I opened it in Preview/)).toBeInTheDocument(),
+      { timeout: AUTO_APPROVE_MS + 3000 },
+    );
+    expect(await screen.findByRole('button', { name: 'Merge' })).toBeInTheDocument();
+    await act(async () => {
+      await userEvent.click(screen.getByRole('button', { name: 'Merge' }));
+    });
+    const dialog = await screen.findByRole('dialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Merge into main' }));
+    expect(await screen.findByText('Merged by Demo Leader into main')).toBeInTheDocument();
+  }, 15_000);
 });
 
 describe('the normal build', () => {

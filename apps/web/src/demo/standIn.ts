@@ -1,4 +1,14 @@
-import { handleDemoRequest } from './server';
+import {
+  applyAutoApprovals,
+  demoCopyFiles,
+  handleDemoRequest,
+  markDemoPreviewed,
+  mayaApproves,
+  nextAutoApproval,
+  undoDemoCopyFile,
+  writeDemoCopyFile,
+  type DemoCopyFile,
+} from './server';
 import { STATE_VERSION, initialState, type DemoState } from './state';
 
 /**
@@ -33,19 +43,112 @@ function save() {
 }
 
 function current(): DemoState {
-  state ??= load();
+  if (state === null) {
+    state = load();
+    scheduleAutoApprovals();
+  }
   return state;
+}
+
+// ---------- Telling the pages about changes they didn't make ----------
+
+type Listener = (projectIds: string[]) => void;
+const listeners = new Set<Listener>();
+
+/**
+ * Hear about demo changes that happen without a request from the page (Maya's automatic
+ * approval, the demo editor's saves), to refresh what's on screen. Returns the unsubscribe.
+ */
+export function subscribeDemoChanges(listener: Listener): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function changed(projectIds: string[]) {
+  save();
+  for (const listener of listeners) listener(projectIds);
+}
+
+// ---------- Maya's automatic approval ----------
+
+let approvalTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Wake up when the next automatic approval is due. */
+function scheduleAutoApprovals() {
+  if (approvalTimer !== null) clearTimeout(approvalTimer);
+  approvalTimer = null;
+  if (state === null) return;
+  const next = nextAutoApproval(state);
+  if (next === null) return;
+  approvalTimer = setTimeout(
+    () => {
+      approvalTimer = null;
+      runAutoApprovals();
+      scheduleAutoApprovals();
+    },
+    Math.max(0, next - Date.now()),
+  );
+}
+
+function runAutoApprovals() {
+  if (state === null) return;
+  const projectIds = applyAutoApprovals(state, Date.now());
+  if (projectIds.length > 0) changed(projectIds);
+}
+
+/** Whether Maya approves this submission by herself in the demo (it's the visitor's own work). */
+export function mayaApprovesInDemo(projectId: string, submissionId: string): boolean {
+  const p = current().projects.find((x) => x.id === projectId);
+  const s = p?.submissions.find((x) => x.id === submissionId);
+  return p !== undefined && s !== undefined && mayaApproves(current(), p, s);
+}
+
+let resets = 0;
+
+/** Goes up on every Reset demo, so an edit made before a reset is never saved after it. */
+export function demoResetCount(): number {
+  return resets;
 }
 
 /** Put the demo back to its starting sample data. */
 export function resetDemoState() {
+  resets += 1;
   state = initialState();
+  scheduleAutoApprovals();
   try {
     sessionStorage.removeItem(STORAGE_KEY);
   } catch {
     // Nothing saved, or storage blocked.
   }
 }
+
+// ---------- The demo IDE's files ----------
+
+/** The files of my copy of a project, or null when I have no copy. */
+export function readDemoCopy(projectId: string): DemoCopyFile[] | null {
+  return demoCopyFiles(current(), projectId);
+}
+
+/** Save a file of my copy (the demo editor's auto-save). Returns whether it was saved. */
+export function saveDemoCopyFile(projectId: string, path: string, content: string): boolean {
+  const saved = writeDemoCopyFile(current(), projectId, path, content);
+  if (saved) changed([projectId]);
+  return saved;
+}
+
+/** Put a file of my copy back to main's version. Returns whether it changed. */
+export function undoDemoCopyEdits(projectId: string, path: string): boolean {
+  const undone = undoDemoCopyFile(current(), projectId, path);
+  if (undone) changed([projectId]);
+  return undone;
+}
+
+/** The visitor saw their page in the demo's preview (ticks a Getting started step). */
+export function markDemoPreviewSeen(projectId: string) {
+  if (markDemoPreviewed(current(), projectId)) changed([projectId]);
+}
+
+// ---------- Answering fetches ----------
 
 /** The path of a request if it is one for the DevSpace API (`/api/...` on this site), else null. */
 function apiPath(input: RequestInfo | URL): string | null {
@@ -67,8 +170,13 @@ async function readBody(init: RequestInit | undefined): Promise<unknown> {
 /** Answer one API request from the demo state, as a real `Response`. */
 export async function demoFetch(path: string, init?: RequestInit): Promise<Response> {
   const method = (init?.method ?? 'GET').toUpperCase();
+  // An approval that is due (the timer may run late in a background tab) shows straight away.
+  runAutoApprovals();
   const reply = handleDemoRequest(current(), method, path, await readBody(init));
-  if (method !== 'GET') save();
+  if (method !== 'GET') {
+    save();
+    scheduleAutoApprovals();
+  }
   if (reply.body === undefined) return new Response(null, { status: reply.status });
   return new Response(JSON.stringify(reply.body), {
     status: reply.status,

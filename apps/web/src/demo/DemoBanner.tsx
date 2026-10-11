@@ -1,6 +1,11 @@
+import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Outlet, useNavigate } from 'react-router';
-import { resetDemoState } from './standIn';
+import { isActiveSubmissionStatus } from '@devspace/shared';
+import { Outlet, useMatch, useNavigate } from 'react-router';
+import { notificationKeys } from '../lib/notifications';
+import { queryKeys } from '../lib/projects';
+import { useSubmission } from '../lib/submissions';
+import { mayaApprovesInDemo, resetDemoState, subscribeDemoChanges } from './standIn';
 
 /** An optional link from the build's settings: only full https:// addresses are used. */
 export function externalUrl(value: string | undefined): string | null {
@@ -76,13 +81,67 @@ export function DemoBanner() {
 }
 
 /**
+ * Keep the pages up to date with demo changes that no request of theirs made: Maya's automatic
+ * approval and the demo editor's saves. (The real app hears about these over its live connection.)
+ */
+function useDemoChangesRefresh() {
+  const queryClient = useQueryClient();
+  useEffect(
+    () =>
+      subscribeDemoChanges((projectIds) => {
+        for (const projectId of projectIds) {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.project(projectId) });
+        }
+        void queryClient.invalidateQueries({ queryKey: notificationKeys.list });
+      }),
+    [queryClient],
+  );
+}
+
+/** On the visitor's own submission: Maya approves it by herself, so they can try Merge. */
+function AutoApprovalNote({
+  projectId,
+  submissionId,
+}: {
+  projectId: string;
+  submissionId: string;
+}) {
+  const submission = useSubmission(projectId, submissionId);
+  const status = submission.data?.status;
+  if (status === undefined || !isActiveSubmissionStatus(status)) return null;
+  if (!mayaApprovesInDemo(projectId, submissionId)) return null;
+  return (
+    <div
+      role="note"
+      data-testid="demo-approval-note"
+      className="border-b border-accent-line bg-accent-soft text-sm text-accent-strong"
+    >
+      <p className="mx-auto max-w-5xl px-4 py-2">
+        {status === 'approved'
+          ? 'In the demo, Maya approved it automatically so you can try Merge.'
+          : 'In the demo, Maya approves automatically so you can try Merge.'}
+      </p>
+    </div>
+  );
+}
+
+const REVIEW_PAGE = '/projects/:projectId/submissions/:submissionId';
+
+/**
  * The root of every page in the demo: the banner, then the page. Unlike the normal root it opens
  * no live connection (there is no server to connect to), so live updates are simply off.
  */
 export function DemoRoot() {
+  useDemoChangesRefresh();
+  const review = useMatch(REVIEW_PAGE);
+  const projectId = review?.params.projectId;
+  const submissionId = review?.params.submissionId;
   return (
     <>
       <DemoBanner />
+      {projectId && submissionId && submissionId !== 'new' && (
+        <AutoApprovalNote projectId={projectId} submissionId={submissionId} />
+      )}
       <Outlet />
     </>
   );

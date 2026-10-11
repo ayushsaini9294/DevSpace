@@ -83,6 +83,7 @@ import {
   type TaskViewerAction,
 } from '@devspace/shared';
 import {
+  MAYA,
   fakeSha,
   type DemoCopy,
   type DemoProject,
@@ -513,6 +514,189 @@ function submission(p: DemoProject, id: string): DemoSubmission {
 
 function submissionReply(ctx: Ctx, p: DemoProject, s: DemoSubmission, status = 200): DemoReply {
   return ok(SubmissionResponseSchema, { submission: submissionDetail(ctx.state, p, s) }, status);
+}
+
+/** A review of the current version, and the submission's status that follows from it. */
+function addReview(
+  ctx: Ctx,
+  p: DemoProject,
+  s: DemoSubmission,
+  reviewerId: string,
+  decision: 'approved' | 'changes_requested',
+  body: string | undefined,
+) {
+  s.reviews.push({
+    id: nextId(ctx.state, 'review'),
+    reviewer: userRef(ctx.state, reviewerId),
+    decision,
+    body: body?.trim() ? body : null,
+    version: s.version,
+    stale: false,
+    createdAt: ctx.now(),
+  });
+  if (s.status !== 'needs_update') {
+    const current = currentReviews(s);
+    s.status = current.some((r) => r.decision === 'changes_requested')
+      ? 'changes_requested'
+      : current.some((r) => r.decision === 'approved')
+        ? 'approved'
+        : 'open';
+  }
+  s.updatedAt = ctx.now();
+  log(ctx, p, 'submission.reviewed', s.id, { decision }, reviewerId);
+}
+
+// ---------- Maya's automatic approval (demo only) ----------
+
+/** How long after the visitor submits (or updates) work Maya approves it. */
+export const AUTO_APPROVE_MS = 3000;
+
+const AUTO_APPROVE_BODY =
+  'Nice work! I opened it in Preview and it looks good to me. Approved, so you can merge it now.';
+
+/**
+ * Whether Maya, the sample co-leader, approves this submission by herself: it's the visitor's
+ * own (the visitor is the leader and can't approve their own work), and Maya is in the project
+ * and may approve.
+ */
+export function mayaApproves(state: DemoState, p: DemoProject, s: DemoSubmission): boolean {
+  const maya = p.members.find((m) => m.userId === MAYA);
+  return (
+    s.authorId === state.meId &&
+    state.meId !== MAYA &&
+    maya !== undefined &&
+    can(maya.role, maya.permissions, 'submission.approve')
+  );
+}
+
+/** Ask Maya to approve this version in a few seconds (when she approves the visitor's work). */
+function scheduleAutoApproval(state: DemoState, p: DemoProject, s: DemoSubmission) {
+  s.autoApproveAt = mayaApproves(state, p, s) ? Date.now() + AUTO_APPROVE_MS : null;
+}
+
+/** When the next automatic approval is due (ms since 1970), or null when none is waiting. */
+export function nextAutoApproval(state: DemoState): number | null {
+  let next: number | null = null;
+  for (const p of state.projects) {
+    for (const s of p.submissions) {
+      if (typeof s.autoApproveAt === 'number' && (next === null || s.autoApproveAt < next)) {
+        next = s.autoApproveAt;
+      }
+    }
+  }
+  return next;
+}
+
+/**
+ * Add Maya's approval to every submission whose time has come, like a real review: it's stored
+ * the same way, logged, and the visitor gets a notification. Returns the projects that changed.
+ */
+export function applyAutoApprovals(state: DemoState, now: number): string[] {
+  const changed: string[] = [];
+  for (const p of state.projects) {
+    for (const s of p.submissions) {
+      if (typeof s.autoApproveAt !== 'number' || s.autoApproveAt > now) continue;
+      s.autoApproveAt = null;
+      const stillWanted =
+        isActiveSubmissionStatus(s.status) &&
+        s.status !== 'needs_update' &&
+        mayaApproves(state, p, s) &&
+        !currentReviews(s).some((r) => r.reviewer.id === MAYA && r.version === s.version);
+      if (!stillWanted) continue;
+      const ctx: Ctx = {
+        state,
+        params: [],
+        query: new URLSearchParams(),
+        body: undefined,
+        now: () => new Date(now).toISOString(),
+      };
+      addReview(ctx, p, s, MAYA, 'approved', AUTO_APPROVE_BODY);
+      state.notifications.unshift({
+        id: nextId(state, 'notification'),
+        type: 'submission.reviewed',
+        project: { id: p.id, name: p.name },
+        data: {
+          submissionId: s.id,
+          title: s.title,
+          actorName: nameOf(state, MAYA),
+          decision: 'approved',
+        },
+        readAt: null,
+        createdAt: ctx.now(),
+      });
+      if (!changed.includes(p.id)) changed.push(p.id);
+    }
+  }
+  return changed;
+}
+
+// ---------- The demo IDE's files (demo only) ----------
+
+/** One file of the visitor's copy, as the demo's editor shows it. */
+export type DemoCopyFile = {
+  path: string;
+  content: string;
+  /** Main's version (the copy's base), or null for a file only in the copy. */
+  base: string | null;
+  changed: boolean;
+};
+
+/** The largest file the demo's editor saves (the state is kept in sessionStorage). */
+export const MAX_DEMO_FILE_CHARS = 100_000;
+
+function findMyCopy(state: DemoState, projectId: string): DemoCopy | null {
+  const p = state.projects.find((x) => x.id === projectId);
+  if (!p || !p.members.some((m) => m.userId === state.meId)) return null;
+  return myCopy(state, p);
+}
+
+/** The files in my copy of a project (main plus my changes), or null when I have no copy. */
+export function demoCopyFiles(state: DemoState, projectId: string): DemoCopyFile[] | null {
+  const copy = findMyCopy(state, projectId);
+  if (!copy) return null;
+  const paths = new Set([...Object.keys(copy.base), ...Object.keys(copy.changes)]);
+  const files: DemoCopyFile[] = [];
+  for (const path of paths) {
+    const base = copy.base[path] ?? null;
+    const content = path in copy.changes ? copy.changes[path]! : base;
+    if (content === null) continue;
+    files.push({ path, content, base, changed: content !== base });
+  }
+  return files.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+/** Save a file of my copy, as the IDE's auto-save does. Returns whether it was saved. */
+export function writeDemoCopyFile(
+  state: DemoState,
+  projectId: string,
+  path: string,
+  content: string,
+): boolean {
+  const copy = findMyCopy(state, projectId);
+  if (!copy || content.length > MAX_DEMO_FILE_CHARS) return false;
+  const exists = demoCopyFiles(state, projectId)?.some((f) => f.path === path) ?? false;
+  if (!exists) return false;
+  if (copy.base[path] === content) delete copy.changes[path];
+  else copy.changes[path] = content;
+  copy.lastActiveAt = new Date().toISOString();
+  return true;
+}
+
+/** Put a file of my copy back to main's version (the copy's base). */
+export function undoDemoCopyFile(state: DemoState, projectId: string, path: string): boolean {
+  const copy = findMyCopy(state, projectId);
+  if (!copy || copy.base[path] === undefined) return false;
+  delete copy.changes[path];
+  copy.lastActiveAt = new Date().toISOString();
+  return true;
+}
+
+/** The visitor looked at their page in the demo's preview (a Getting started step). */
+export function markDemoPreviewed(state: DemoState, projectId: string): boolean {
+  const p = state.projects.find((x) => x.id === projectId);
+  if (!p || p.previewed) return false;
+  p.previewed = true;
+  return true;
 }
 
 function requireActive(s: DemoSubmission) {
@@ -1324,6 +1508,7 @@ const routes: Route[] = [
       };
       p.submissions.push(s);
       log(ctx, p, 'submission.created', s.id, { title: s.title });
+      scheduleAutoApproval(ctx.state, p, s);
       if (linked) autoMove(ctx, p, linked, 'in_review');
       return submissionReply(ctx, p, s, 201);
     },
@@ -1383,6 +1568,7 @@ const routes: Route[] = [
       s.headSha = fakeSha(nextId(ctx.state, 'head'));
       s.updatedAt = ctx.now();
       log(ctx, p, 'submission.updated', s.id, { title: s.title, version: s.version });
+      scheduleAutoApproval(ctx.state, p, s);
       return submissionReply(ctx, p, s);
     },
   },
@@ -1396,25 +1582,7 @@ const routes: Route[] = [
       if (s.authorId === ctx.state.meId) forbidden('You can’t review your own submission.');
       requireActive(s);
       const request = parseBody(CreateReviewRequestSchema, ctx.body);
-      s.reviews.push({
-        id: nextId(ctx.state, 'review'),
-        reviewer: userRef(ctx.state, ctx.state.meId),
-        decision: request.decision,
-        body: request.body?.trim() ? request.body : null,
-        version: s.version,
-        stale: false,
-        createdAt: ctx.now(),
-      });
-      if (s.status !== 'needs_update') {
-        const current = currentReviews(s);
-        s.status = current.some((r) => r.decision === 'changes_requested')
-          ? 'changes_requested'
-          : current.some((r) => r.decision === 'approved')
-            ? 'approved'
-            : 'open';
-      }
-      s.updatedAt = ctx.now();
-      log(ctx, p, 'submission.reviewed', s.id, { decision: request.decision });
+      addReview(ctx, p, s, ctx.state.meId, request.decision, request.body);
       return submissionReply(ctx, p, s);
     },
   },
@@ -1609,6 +1777,7 @@ const routes: Route[] = [
       s.headSha = fakeSha(nextId(ctx.state, 'head'));
       s.updatedAt = ctx.now();
       log(ctx, p, 'submission.suggestion_accepted', s.id, { title: s.title });
+      scheduleAutoApproval(ctx.state, p, s);
       return submissionReply(ctx, p, s);
     },
   },
