@@ -1,10 +1,12 @@
-// Cloudflare settings for the demo build (a static site; no server code).
-// Build command: npm ci && npm run build -w @devspace/web, with VITE_DEMO=1 set at build time.
-// Works as a Cloudflare Worker with static assets (deploy command: npx wrangler deploy).
-// Cloudflare Pages ignores this file and uses its own "Build output directory" setting.
+// Cloudflare settings for the demo site (a static build of the web app with sample data; no
+// server code). `npx wrangler deploy` builds the demo itself (the "build" command below), so it
+// works whatever build command the Cloudflare project has.
 {
   "name": "devspace",
   "compatibility_date": "2026-10-01",
+  "build": {
+    "command": "VITE_DEMO=1 VITE_DEMO_REPO_URL=https://github.com/ayushsaini9294/DevSpace npm run build -w @devspace/web",
+  },
   "assets": {
     "directory": "./apps/web/dist",
     // Any path that isn't a file is a page of the app: serve index.html.
