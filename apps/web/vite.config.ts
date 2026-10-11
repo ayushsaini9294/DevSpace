@@ -7,7 +7,7 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
 /**
- * public/ holds files for the demo's static hosting (Cloudflare Pages: `_headers`, `_redirects`)
+ * public/ holds files for the demo's static hosting (Cloudflare: `_headers`; unknown paths fall back to index.html by default)
  * and its media (`demo/`). Only the demo build (VITE_DEMO=1) keeps them.
  */
 function demoHostingFilesOnlyInDemo(): Plugin {
@@ -21,7 +21,7 @@ function demoHostingFilesOnlyInDemo(): Plugin {
     async closeBundle() {
       if (process.env.VITE_DEMO === '1') return;
       await Promise.all(
-        ['_headers', '_redirects', 'demo'].map((name) =>
+        ['_headers', 'demo'].map((name) =>
           rm(resolve(outDir, name), { recursive: true, force: true }),
         ),
       );

@@ -13,7 +13,7 @@ const demo = process.env.VITE_DEMO === '1';
 /** Text that only the demo's code contains (its storage key, error code and banner). */
 const MARKERS = ['devspace-demo-state', 'not_available_in_demo', 'Demo with sample data'];
 /** Files that belong to the demo's hosting only. */
-const DEMO_FILES = ['_headers', '_redirects', 'demo'];
+const DEMO_FILES = ['_headers', 'demo'];
 
 function files(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
