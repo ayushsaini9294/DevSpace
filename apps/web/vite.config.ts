@@ -1,9 +1,36 @@
-import { defineConfig } from 'vitest/config';
+/// <reference types="node" />
+import { rm } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import process from 'node:process';
+import { defineConfig, type Plugin } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
+/**
+ * public/ holds files for the demo's static hosting (Cloudflare Pages: `_headers`, `_redirects`)
+ * and its media (`demo/`). Only the demo build (VITE_DEMO=1) keeps them.
+ */
+function demoHostingFilesOnlyInDemo(): Plugin {
+  let outDir = 'dist';
+  return {
+    name: 'devspace-demo-hosting-files',
+    apply: 'build',
+    configResolved(config) {
+      outDir = resolve(config.root, config.build.outDir);
+    },
+    async closeBundle() {
+      if (process.env.VITE_DEMO === '1') return;
+      await Promise.all(
+        ['_headers', '_redirects', 'demo'].map((name) =>
+          rm(resolve(outDir, name), { recursive: true, force: true }),
+        ),
+      );
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), demoHostingFilesOnlyInDemo()],
   server: {
     port: 5173,
     strictPort: true,
