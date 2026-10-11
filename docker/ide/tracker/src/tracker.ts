@@ -1,5 +1,5 @@
 // The tracker's logic, kept free of the `vscode` module so it can be unit tested.
-// Phase 9 contract (CLAUDE.md): report `{ file, active }` on every editor change (debounced 1 s)
+// Phase 9 design: report `{ file, active }` on every editor change (debounced 1 s)
 // and as a heartbeat every 30 s, to `<copy IDE origin>/ide/<copyId>/__devspace/presence`.
 
 export type Report = { file: string | null; active: boolean };

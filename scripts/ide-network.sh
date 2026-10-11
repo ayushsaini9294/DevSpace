@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Creates the Docker network that DevSpace IDE containers join (Phase 5 contract in CLAUDE.md).
+# Creates the Docker network that DevSpace IDE containers join (Phase 5 design, see docs/decisions.md).
 # Safe to run again: an existing network with the right settings is left alone, and one with
 # different settings is reported instead of silently kept.
 #

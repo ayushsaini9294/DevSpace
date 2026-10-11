@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Firewall for DevSpace IDE containers (Phase 5 contract in CLAUDE.md). Run as root; safe to run
+# Firewall for DevSpace IDE containers (Phase 5 design, see docs/decisions.md). Run as root; safe to run
 # again (it rebuilds its own chains and adds each jump only once).
 #
 # Containers on bridge br-dsp-ide:

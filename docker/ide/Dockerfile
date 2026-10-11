@@ -1,5 +1,5 @@
 # DevSpace IDE image (devspace-ide:5): OpenVSCode Server for one member's copy.
-# Build with `npm run ide:build`. Started by the API through dockerode (Phase 5 contract in CLAUDE.md).
+# Build with `npm run ide:build`. Started by the API through dockerode (Phase 5 design, see docs/decisions.md).
 #
 # Runtime contract:
 # - env DEVSPACE_CONNECTION_TOKEN (required): the connection token; the API proxy adds it.

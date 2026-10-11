@@ -3,7 +3,7 @@ import { env } from '../config/env.ts';
 
 /**
  * IDE containers through dockerode, on Docker's local socket only (never TCP). Every setting
- * here comes from the Phase 5 contract in CLAUDE.md; tests inspect the real container.
+ * here comes from the Phase 5 design (docs/decisions.md); tests inspect the real container.
  */
 
 export const docker = new Docker({ socketPath: env.DOCKER_SOCKET });
