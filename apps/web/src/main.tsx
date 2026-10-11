@@ -18,7 +18,10 @@ async function start() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: retryServerErrors } },
   });
-  const router = createBrowserRouter(appRoutes);
+  // BASE_URL is '/' normally; a demo hosted in a subfolder (GitHub Pages: /DevSpace/) sets it.
+  const router = createBrowserRouter(appRoutes, {
+    basename: import.meta.env.BASE_URL.replace(/\/$/, '') || '/',
+  });
 
   const rootElement = document.getElementById('root');
   if (!rootElement) throw new Error('Root element #root not found');

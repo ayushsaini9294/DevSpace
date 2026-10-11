@@ -30,6 +30,8 @@ function demoHostingFilesOnlyInDemo(): Plugin {
 }
 
 export default defineConfig({
+  // The site's folder: '/' normally; the GitHub Pages demo builds with VITE_BASE=/DevSpace/.
+  base: process.env.VITE_BASE || '/',
   plugins: [react(), tailwindcss(), demoHostingFilesOnlyInDemo()],
   server: {
     port: 5173,
